@@ -2,6 +2,17 @@
 
 All notable changes to `MaruMori Even More Gamified - Updated` are documented here.
 
+## 2026-07-09
+
+### Changed
+
+- Bumped the userscript version to `3.4.2`.
+- Replaced the realistic garden shrine with a pixel-painted fantasy sky shrine.
+- Reframed the torii, shrine, waterfalls, lanterns, and golden tree around a
+  quieter central valley so review content remains readable.
+- Retuned the shrine's lantern glow positions and falling particles for the new
+  composition.
+
 ## 2026-07-08
 
 ### Added

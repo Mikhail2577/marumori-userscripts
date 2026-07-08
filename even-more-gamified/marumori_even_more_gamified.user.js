@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         MaruMori Even More Gamified - Updated
 // @namespace    marumori-gamify
-// @version      3.4.1
+// @version      3.4.2
 // @description  Gamifies MaruMori review sessions with arcade combo audio, score multipliers, screen shake, floating damage numbers, and more
 // @match        https://marumori.io/*
 // @author       matskye
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_getResourceURL
-// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.1
+// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.2
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=marumori.io
 // @license      WTFPL
 // @downloadURL https://update.greasyfork.org/scripts/566950/MaruMori%20Even%20More%20Gamified.user.js
@@ -65,7 +65,7 @@
     };
     const SHRINE_IMAGE_URL =
         'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/'
-        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.1';
+        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.2';
     const RESOLVED_BACKDROP_OPACITY = 0.5;
 
     const BOOL_SETTINGS = [
@@ -2466,6 +2466,7 @@
             petal.alpha = 0.16 + Math.random() * 0.22;
             petal.phase = Math.random() * Math.PI * 2;
             petal.spin = 0.35 + Math.random() * 0.75;
+            petal.hue = 36 + Math.random() * 16;
             return petal;
         }
 
@@ -2815,8 +2816,12 @@
             if (W / H < 1.15) return;
             const pulse = prefersReducedMotion() ? 1 : 0.88 + Math.sin(t * 1.15) * 0.12;
             const radius = Math.min(W, H) * 0.075;
-            for (const x of [W * 0.075, W * 0.91]) {
-                const y = H * 0.445;
+            const lanterns = [
+                { x: W * 0.075, y: H * 0.62 },
+                { x: W * 0.77, y: H * 0.51 },
+                { x: W * 0.87, y: H * 0.49 },
+            ];
+            for (const { x, y } of lanterns) {
                 const glow = ctx.createRadialGradient(x, y, 0, x, y, radius);
                 glow.addColorStop(0, `rgba(255,178,82,${0.085 * pulse})`);
                 glow.addColorStop(0.28, `rgba(255,126,46,${0.035 * pulse})`);
@@ -2840,7 +2845,7 @@
                 ctx.save();
                 ctx.translate(petal.x, petal.y);
                 ctx.rotate(Math.sin(t * petal.spin + petal.phase) * 1.4);
-                ctx.fillStyle = `rgba(174,62,48,${petal.alpha})`;
+                ctx.fillStyle = `hsla(${petal.hue},90%,58%,${petal.alpha})`;
                 ctx.beginPath();
                 ctx.ellipse(0, 0, petal.size, petal.size * 0.42, 0.45, 0, Math.PI * 2);
                 ctx.fill();
