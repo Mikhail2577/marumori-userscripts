@@ -7,6 +7,7 @@ export default [
       globals: {
         AudioContext: "readonly",
         Event: "readonly",
+        GM_getResourceURL: "readonly",
         GM_getValue: "readonly",
         GM_setValue: "readonly",
         HTMLInputElement: "readonly",

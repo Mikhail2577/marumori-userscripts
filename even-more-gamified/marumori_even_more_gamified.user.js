@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         MaruMori Even More Gamified - Updated
 // @namespace    marumori-gamify
-// @version      3.3.1
+// @version      3.4.0
 // @description  Gamifies MaruMori review sessions with arcade combo audio, score multipliers, screen shake, floating damage numbers, and more
 // @match        https://marumori.io/*
 // @author       matskye
 // @grant        GM_setValue
 // @grant        GM_getValue
+// @grant        GM_getResourceURL
+// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.0
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=marumori.io
 // @license      WTFPL
 // @downloadURL https://update.greasyfork.org/scripts/566950/MaruMori%20Even%20More%20Gamified.user.js
@@ -37,9 +39,11 @@
     };
 
     const BACKGROUND_THEMES = [
-        'default', 'starfield', 'nebula', 'grid', 'gamecenter', 'matrix', 'void',
+        'default', 'starfield', 'nebula', 'grid', 'gamecenter', 'shrine', 'matrix', 'void',
     ];
-    const CANVAS_BACKGROUND_THEMES = ['starfield', 'nebula', 'grid', 'gamecenter', 'matrix'];
+    const CANVAS_BACKGROUND_THEMES = [
+        'starfield', 'nebula', 'grid', 'gamecenter', 'shrine', 'matrix',
+    ];
     const SHOOTING_STAR_THEMES = ['starfield'];
     const MUSIC_STYLES = ['lofi', 'retro'];
     const MUSIC_STYLE_LABELS = { lofi: 'LO-FI', retro: 'RETRO' };
@@ -49,6 +53,7 @@
         nebula: 'NEBULA',
         grid: 'GRID',
         gamecenter: 'GAME CENTER',
+        shrine: 'SHRINE',
         matrix: 'MATRIX',
         void: 'VOID',
     };
@@ -1718,6 +1723,9 @@
             isolation: isolate;
             animation: mmCrtFlicker 8s infinite;
         }
+        body.mm-arcade[data-mm-bg="shrine"] {
+            animation: none;
+        }
 
         /* ── PHOSPHOR GLOW on the main card area ── */
         body.mm-arcade .input-wrapper,
@@ -1849,7 +1857,8 @@
     }
 
     function buildStarfield() {
-        if (prefersReducedMotion() || !hasCanvasBackdrop()) return;
+        if (!hasCanvasBackdrop()
+            || (prefersReducedMotion() && settings.backgroundTheme !== 'shrine')) return;
         document.getElementById('mm-starfield')?.remove();
         const canvas = document.createElement('canvas');
         canvas.id = 'mm-starfield';
@@ -1866,6 +1875,7 @@
         let nebulaTexture, nebulaStars, nebulaWisps;
         let gridTexture, gridStars, gridMountainLayers, gridPalms, matrixDrops;
         let gameCenterTexture, gameCenterCabinets, gameCenterLights;
+        let shrineImage, shrineImageReady = false, shrinePetals;
 
         const theme = settings.backgroundTheme;
         const MATRIX_FONT_SIZE = 18;
@@ -2443,6 +2453,43 @@
             }));
         }
 
+        function resetShrinePetal(petal = {}, randomY = false) {
+            petal.x = Math.random() * W;
+            petal.y = randomY ? Math.random() * H : -12 - Math.random() * H * 0.18;
+            petal.size = 1.8 + Math.random() * 2.8;
+            petal.speed = 0.16 + Math.random() * 0.25;
+            petal.drift = 0.14 + Math.random() * 0.24;
+            petal.alpha = 0.16 + Math.random() * 0.22;
+            petal.phase = Math.random() * Math.PI * 2;
+            petal.spin = 0.35 + Math.random() * 0.75;
+            return petal;
+        }
+
+        function initShrine() {
+            const petalCount = Math.max(8, Math.min(18, Math.floor(W / 130)));
+            shrinePetals = Array.from(
+                { length: petalCount },
+                () => resetShrinePetal({}, true)
+            );
+            if (shrineImage) return;
+
+            shrineImage = document.createElement('img');
+            shrineImage.decoding = 'async';
+            shrineImage.onload = () => {
+                shrineImageReady = true;
+                if (prefersReducedMotion()) tick();
+            };
+            shrineImage.onerror = () => {
+                shrineImageReady = false;
+                console.warn('[MMGamify] Shrine background resource failed to load.');
+            };
+            try {
+                shrineImage.src = GM_getResourceURL('mmShrineGarden');
+            } catch {
+                shrineImage.onerror();
+            }
+        }
+
         function initMatrix() {
             const columns = Math.ceil(W / MATRIX_FONT_SIZE);
             matrixDrops = Array.from({ length: columns }, () => -Math.random() * 18);
@@ -2712,6 +2759,89 @@
             ctx.restore();
         }
 
+        function drawShrineImage(t) {
+            if (!shrineImageReady) {
+                const fallback = ctx.createLinearGradient(0, 0, 0, H);
+                fallback.addColorStop(0, '#17212a');
+                fallback.addColorStop(1, '#05090a');
+                ctx.fillStyle = fallback;
+                ctx.fillRect(0, 0, W, H);
+                return;
+            }
+
+            const imageRatio = shrineImage.naturalWidth / shrineImage.naturalHeight;
+            const viewportRatio = W / H;
+            const animated = !prefersReducedMotion();
+            const scale = 1.012 + (animated ? Math.sin(t * 0.08) * 0.002 : 0);
+            let drawWidth;
+            let drawHeight;
+
+            if (imageRatio > viewportRatio) {
+                drawHeight = H * scale;
+                drawWidth = drawHeight * imageRatio;
+            } else {
+                drawWidth = W * scale;
+                drawHeight = drawWidth / imageRatio;
+            }
+
+            const driftX = animated ? Math.sin(t * 0.035) * 2.5 : 0;
+            const driftY = animated ? Math.cos(t * 0.028) * 1.5 : 0;
+            ctx.drawImage(
+                shrineImage,
+                (W - drawWidth) / 2 + driftX,
+                (H - drawHeight) / 2 + driftY,
+                drawWidth,
+                drawHeight
+            );
+        }
+
+        function drawShrineLanternGlow(t) {
+            if (W / H < 1.15) return;
+            const pulse = prefersReducedMotion() ? 1 : 0.88 + Math.sin(t * 1.15) * 0.12;
+            const radius = Math.min(W, H) * 0.075;
+            for (const x of [W * 0.075, W * 0.91]) {
+                const y = H * 0.445;
+                const glow = ctx.createRadialGradient(x, y, 0, x, y, radius);
+                glow.addColorStop(0, `rgba(255,178,82,${0.085 * pulse})`);
+                glow.addColorStop(0.28, `rgba(255,126,46,${0.035 * pulse})`);
+                glow.addColorStop(1, 'rgba(255,100,35,0)');
+                ctx.fillStyle = glow;
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawShrinePetals(t) {
+            if (prefersReducedMotion()) return;
+            for (const petal of shrinePetals) {
+                petal.y += petal.speed;
+                petal.x += Math.sin(t * petal.spin + petal.phase) * petal.drift;
+                if (petal.y > H + 12 || petal.x < -12 || petal.x > W + 12) {
+                    resetShrinePetal(petal);
+                }
+
+                ctx.save();
+                ctx.translate(petal.x, petal.y);
+                ctx.rotate(Math.sin(t * petal.spin + petal.phase) * 1.4);
+                ctx.fillStyle = `rgba(174,62,48,${petal.alpha})`;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, petal.size, petal.size * 0.42, 0.45, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function drawShrine(t) {
+            if (theme !== 'shrine') return;
+            ctx.save();
+            drawShrineImage(t);
+            ctx.globalCompositeOperation = 'lighter';
+            drawShrineLanternGlow(t);
+            drawShrinePetals(t);
+            ctx.restore();
+        }
+
         function drawGridSun(t, horizon) {
             const sunX = W * 0.5 + Math.sin(t * 0.16) * 4;
             const sunR = Math.min(W, H) * 0.145;
@@ -2967,10 +3097,11 @@
             drawNebula(t);
             drawGrid(t);
             drawGameCenter(t);
+            drawShrine(t);
             drawMatrix(t);
             if (hasShootingStars(theme) && Math.random() < 0.0025) triggerShootingStar();
             drawShootingStars();
-            starRaf = requestAnimationFrame(tick);
+            if (!prefersReducedMotion()) starRaf = requestAnimationFrame(tick);
         }
 
         starResizeHandler = () => {
@@ -2979,7 +3110,9 @@
             if (theme === 'nebula') initNebula();
             if (theme === 'grid') initGrid();
             if (theme === 'gamecenter') initGameCenter();
+            if (theme === 'shrine') initShrine();
             if (theme === 'matrix') initMatrix();
+            if (prefersReducedMotion()) tick();
         };
         window.addEventListener('resize', starResizeHandler);
         resize();
@@ -2987,6 +3120,7 @@
         if (theme === 'nebula') initNebula();
         if (theme === 'grid') initGrid();
         if (theme === 'gamecenter') initGameCenter();
+        if (theme === 'shrine') initShrine();
         if (theme === 'matrix') initMatrix();
         tick();
     }
@@ -3011,6 +3145,11 @@
         }
 
         if (hasCanvasBackdrop() && !document.getElementById('mm-starfield')) buildStarfield();
+        if (settings.backgroundTheme === 'shrine') {
+            document.getElementById('mm-crt-tint')?.remove();
+            document.getElementById('mm-scanlines')?.remove();
+            return;
+        }
 
         const frag = document.createDocumentFragment();
         if (!document.getElementById('mm-crt-tint'))   frag.appendChild(el('div', 'mm-crt-tint'));

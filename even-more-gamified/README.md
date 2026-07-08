@@ -42,6 +42,8 @@ or `USE PINNED BACKGROUND` to return to it immediately.
   wireframe mountains, palm silhouettes, stars, and a perspective runway.
 - `GAME CENTER` - a subdued Japanese arcade interior with side-framed animated
   cabinets, restrained neon signs, hanging lights, and a perspective floor.
+- `SHRINE` - a painterly Shinto shrine and Zen garden with restrained lantern
+  light, subtle camera drift, and sparse falling maple petals.
 - `MATRIX` - falling Japanese glyphs and digital rain.
 - `VOID`
 
@@ -50,6 +52,10 @@ or `USE PINNED BACKGROUND` to return to it immediately.
 Music is disabled by default. Enable it from the settings panel, choose `LO-FI` or
 `RETRO`, and adjust its volume independently from sound effects. The soundtrack is
 generated locally with Web Audio and uses no external recordings.
+
+The `SHRINE` artwork is packaged as a userscript resource from
+[`assets/shrine-garden.jpg`](./assets/shrine-garden.jpg). The scene remains static
+when reduced motion is enabled.
 
 ## Changelog
 

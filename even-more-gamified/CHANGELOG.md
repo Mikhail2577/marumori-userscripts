@@ -6,7 +6,7 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ### Added
 
-- Bumped the userscript version to `3.3.1` so managers detect this update.
+- Bumped the userscript version to `3.4.0` so managers detect this update.
 - Renamed the userscript to `MaruMori Even More Gamified - Updated`.
 - Added a first-answer timer grace period:
   - The initial review item starts with the timer paused.
@@ -54,6 +54,7 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
   - `NEBULA`.
   - `GRID`.
   - `GAME CENTER`.
+  - `SHRINE`.
   - `MATRIX`.
   - `VOID`.
 - Added pinned background defaults:
@@ -72,6 +73,9 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
   - `rise`.
   - `spin`.
   - `burst`.
+- Added a painterly `SHRINE` background resource with a Shinto shrine, Zen
+  garden, subtle lantern breathing, camera drift, and sparse maple petals.
+- Added a static `SHRINE` rendering path for reduced-motion users.
 
 ### Changed
 
