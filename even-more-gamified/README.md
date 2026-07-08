@@ -27,18 +27,17 @@ This is intended to be shared back with the original script author as an experim
 
 ## Background Themes
 
-The settings panel includes a `Background` cycle button:
+The settings panel includes a `Background` cycle button for the current session.
+Use `PIN CURRENT BACKGROUND` to make that theme the default for future sessions,
+or `USE PINNED BACKGROUND` to return to it immediately.
 
 `DEFAULT` keeps MaruMori's normal background without a generated canvas backdrop.
 
 - `DEFAULT`
-- `STARFIELD`
-- `NEBULA`
-- `GRID`
-- `AURORA`
-- `MATRIX`
-- `RAIN`
-- `CONSTELLATION`
+- `STARFIELD` - a dense deep-space field with a subtle galactic band and sparse twinkling stars.
+- `NEBULA` - layered emission clouds, luminous filaments, dark dust pockets, and embedded clusters.
+- `GRID` - a retro synthwave horizon and perspective grid.
+- `MATRIX` - falling Japanese glyphs and digital rain.
 - `VOID`
 
 ## Music

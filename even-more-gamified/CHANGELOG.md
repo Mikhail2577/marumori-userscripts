@@ -6,6 +6,7 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ### Added
 
+- Bumped the userscript version to `3.1.2` so managers detect this update.
 - Renamed the userscript to `MaruMori Even More Gamified - Updated`.
 - Added a first-answer timer grace period:
   - The initial review item starts with the timer paused.
@@ -52,14 +53,16 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
   - `STARFIELD`.
   - `NEBULA`.
   - `GRID`.
-  - `AURORA`.
   - `MATRIX`.
-  - `RAIN`.
-  - `CONSTELLATION`.
   - `VOID`.
+- Added pinned background defaults:
+  - `PIN CURRENT BACKGROUND` makes the active background the default for future sessions.
+  - `USE PINNED BACKGROUND` restores that pinned background immediately.
 - Added nebula cloud rendering.
 - Added retro perspective grid rendering.
-- Added aurora, matrix, rain, and constellation backdrop rendering.
+- Added matrix backdrop rendering.
+- Reworked starfield, nebula, and grid scenes so each has distinct
+  scene-specific rendering.
 - Added shooting stars.
 - Added word-clear shooting star triggers.
 - Expanded word-clear celebrations from 8 emoji variants to 27 celebration variants.
@@ -75,6 +78,11 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 - Correct-answer XP is rounded to the nearest 10.
 - The combo/timer bar now represents the active answer timer, even when combo is zero.
 - The old starfield-only canvas was generalized into a multi-theme arcade backdrop renderer.
+- Rebuilt `STARFIELD` as a dense galactic star field and removed the foreground planets.
+- Rebuilt `NEBULA` with localized emission clouds, fine filaments, embedded star
+  clusters, and irregular dust pockets.
+- Cached detailed space textures so each animation frame only composites the scene
+  and updates a small number of twinkling stars.
 - Settings are now normalized on load to avoid bad persisted values.
 - Volume and combo timeout values are clamped to safe ranges.
 - Settings side effects now immediately update visuals, HUD state, and difficulty bonus display.
@@ -83,6 +91,8 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ### Fixed / Hardened
 
+- Fixed opaque `STARFIELD` and `NEBULA` canvases covering MaruMori's review
+  content by isolating the body stack and placing the backdrop in a true negative layer.
 - CRT overlays now pause on MaruMori answer/result screens; `VOID` keeps a quiet
   dark result mode, while animated canvas backgrounds keep a half-strength backdrop.
 - Added safer userscript settings parsing with fallback defaults.

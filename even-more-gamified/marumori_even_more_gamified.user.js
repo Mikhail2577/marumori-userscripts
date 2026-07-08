@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MaruMori Even More Gamified - Updated
 // @namespace    marumori-gamify
-// @version      3.0
+// @version      3.1.2
 // @description  Gamifies MaruMori review sessions with arcade combo audio, score multipliers, screen shake, floating damage numbers, and more
 // @match        https://marumori.io/*
 // @author       matskye
@@ -30,20 +30,15 @@
         musicStyle:     'lofi',
         musicVolume:    0.16,
         backgroundTheme: 'default',
+        pinnedBackgroundTheme: 'default',
         volume:         0.5,    // 0–1
         comboTimeout:   15000,  // ms before idle combo reset
         hudPosition:    null,
     };
 
-    const BACKGROUND_THEMES = [
-        'default', 'starfield', 'nebula', 'grid', 'aurora',
-        'matrix', 'rain', 'constellation', 'void',
-    ];
-    const CANVAS_BACKGROUND_THEMES = [
-        'starfield', 'nebula', 'grid', 'aurora', 'matrix', 'rain', 'constellation',
-    ];
-    const STAR_BACKGROUND_THEMES = ['starfield', 'nebula', 'grid', 'aurora', 'constellation'];
-    const SHOOTING_STAR_THEMES = ['starfield', 'nebula', 'grid', 'aurora', 'constellation'];
+    const BACKGROUND_THEMES = ['default', 'starfield', 'nebula', 'grid', 'matrix', 'void'];
+    const CANVAS_BACKGROUND_THEMES = ['starfield', 'nebula', 'grid', 'matrix'];
+    const SHOOTING_STAR_THEMES = ['starfield'];
     const MUSIC_STYLES = ['lofi', 'retro'];
     const MUSIC_STYLE_LABELS = { lofi: 'LO-FI', retro: 'RETRO' };
     const BACKGROUND_THEME_LABELS = {
@@ -51,11 +46,14 @@
         starfield: 'STARFIELD',
         nebula: 'NEBULA',
         grid: 'GRID',
-        aurora: 'AURORA',
         matrix: 'MATRIX',
-        rain: 'RAIN',
-        constellation: 'CONSTELLATION',
         void: 'VOID',
+    };
+    const REMOVED_BACKGROUND_THEME_FALLBACKS = {
+        aurora: 'starfield',
+        rain: 'default',
+        constellation: 'starfield',
+        snow: 'default',
     };
     const RESOLVED_BACKDROP_OPACITY = 0.5;
 
@@ -70,6 +68,14 @@
         return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
     }
 
+    function normalizeBackgroundTheme(theme, fallback = DEFAULTS.backgroundTheme) {
+        if (BACKGROUND_THEMES.includes(theme)) return theme;
+        if (Object.prototype.hasOwnProperty.call(REMOVED_BACKGROUND_THEME_FALLBACKS, theme)) {
+            return REMOVED_BACKGROUND_THEME_FALLBACKS[theme];
+        }
+        return fallback;
+    }
+
     function normalizeSettings(raw = {}) {
         const next = { ...DEFAULTS };
         for (const key of BOOL_SETTINGS) {
@@ -79,9 +85,13 @@
         next.musicVolume = clamp(raw.musicVolume, 0, 0.5, DEFAULTS.musicVolume);
         next.comboTimeout = clamp(raw.comboTimeout, 3000, 60000, DEFAULTS.comboTimeout);
         if (MUSIC_STYLES.includes(raw.musicStyle)) next.musicStyle = raw.musicStyle;
-        if (BACKGROUND_THEMES.includes(raw.backgroundTheme)) {
-            next.backgroundTheme = raw.backgroundTheme;
-        }
+        const hasPinnedBackgroundTheme = typeof raw.pinnedBackgroundTheme === 'string';
+        next.backgroundTheme = normalizeBackgroundTheme(raw.backgroundTheme);
+        next.pinnedBackgroundTheme = normalizeBackgroundTheme(
+            raw.pinnedBackgroundTheme,
+            next.backgroundTheme
+        );
+        if (hasPinnedBackgroundTheme) next.backgroundTheme = next.pinnedBackgroundTheme;
         if (raw.hudPosition && typeof raw.hudPosition === 'object') {
             const x = Number(raw.hudPosition.x);
             const y = Number(raw.hudPosition.y);
@@ -858,8 +868,8 @@
 
         hud.querySelector('#mm-hud-settings-btn')
            .addEventListener('click', () => {
-               positionSettingsPanel();
                els.settings.classList.toggle('open');
+               if (els.settings.classList.contains('open')) positionSettingsPanel();
            });
         hud.querySelector('#mm-hud-rewind-btn')
            .addEventListener('click', () => requestRewind('hud'));
@@ -1151,6 +1161,14 @@
                     ${BACKGROUND_THEME_LABELS[settings.backgroundTheme]}
                 </button>
             </div>
+            <div class="mm-setting-row">
+                <label>Pinned Default</label>
+                <button class="mm-cycle-btn" id="mm-pinned-bg-theme" type="button">
+                    ${BACKGROUND_THEME_LABELS[settings.pinnedBackgroundTheme]}
+                </button>
+            </div>
+            <button class="mm-btn-outline" id="mm-pin-bg">PIN CURRENT BACKGROUND</button>
+            <button class="mm-btn-outline" id="mm-use-pinned-bg">USE PINNED BACKGROUND</button>
             <button class="mm-btn-outline" id="mm-reset-hud">RESET HUD POSITION</button>
             <button class="mm-btn-outline" id="mm-reset-records">RESET 7D RECORDS</button>
             <button class="mm-btn-outline" id="mm-settings-close">CLOSE</button>
@@ -1194,12 +1212,42 @@
             saveSettings();
         });
 
-        panel.querySelector('#mm-bg-theme').addEventListener('click', e => {
-            const current = BACKGROUND_THEMES.indexOf(settings.backgroundTheme);
-            settings.backgroundTheme = BACKGROUND_THEMES[(current + 1) % BACKGROUND_THEMES.length];
-            e.currentTarget.textContent = BACKGROUND_THEME_LABELS[settings.backgroundTheme];
+        const updateBackgroundButtons = () => {
+            panel.querySelector('#mm-bg-theme').textContent =
+                BACKGROUND_THEME_LABELS[settings.backgroundTheme];
+            panel.querySelector('#mm-pinned-bg-theme').textContent =
+                BACKGROUND_THEME_LABELS[settings.pinnedBackgroundTheme];
+        };
+
+        const setBackgroundTheme = theme => {
+            settings.backgroundTheme = normalizeBackgroundTheme(theme);
+            updateBackgroundButtons();
             saveSettings();
             restartArcadeBackdrop();
+        };
+
+        const setPinnedBackgroundTheme = theme => {
+            settings.pinnedBackgroundTheme = normalizeBackgroundTheme(theme);
+            updateBackgroundButtons();
+            saveSettings();
+        };
+
+        panel.querySelector('#mm-bg-theme').addEventListener('click', () => {
+            const current = BACKGROUND_THEMES.indexOf(settings.backgroundTheme);
+            setBackgroundTheme(BACKGROUND_THEMES[(current + 1) % BACKGROUND_THEMES.length]);
+        });
+
+        panel.querySelector('#mm-pinned-bg-theme').addEventListener('click', () => {
+            const current = BACKGROUND_THEMES.indexOf(settings.pinnedBackgroundTheme);
+            setPinnedBackgroundTheme(BACKGROUND_THEMES[(current + 1) % BACKGROUND_THEMES.length]);
+        });
+
+        panel.querySelector('#mm-pin-bg').addEventListener('click', () => {
+            setPinnedBackgroundTheme(settings.backgroundTheme);
+        });
+
+        panel.querySelector('#mm-use-pinned-bg').addEventListener('click', () => {
+            setBackgroundTheme(settings.pinnedBackgroundTheme);
         });
 
         panel.querySelector('#mm-reset-hud').addEventListener('click', () => {
@@ -1256,10 +1304,15 @@
         return wrapper?.classList.contains('correct') || wrapper?.classList.contains('incorrect');
     }
 
+    const ANSWER_INPUT_SELECTOR = [
+        'input:not([type="hidden"]):not([type="button"]):not([type="submit"])',
+        'textarea',
+    ].join(', ');
+
     function getAnswerInput() {
         const wrapper = getInputWrapper();
-        return wrapper?.querySelector('input[type="text"], input:not([type]), textarea')
-            || document.querySelector('input[type="text"], input:not([type]), textarea');
+        return wrapper?.querySelector(ANSWER_INPUT_SELECTOR)
+            || document.querySelector(ANSWER_INPUT_SELECTOR);
     }
 
     function startComboBar() {
@@ -1455,8 +1508,7 @@
 
         if (clickInputWrapperSubmitHotspot()) return true;
 
-        const input = wrapper?.querySelector('input[type="text"], input:not([type]), textarea')
-            || document.querySelector('input[type="text"], input:not([type]), textarea');
+        const input = getAnswerInput();
         if (!input) return false;
         input.dispatchEvent(new KeyboardEvent('keydown', {
             key: 'Enter',
@@ -1482,9 +1534,7 @@
             return true;
         }
 
-        const wrapper = getInputWrapper();
-        const input = wrapper?.querySelector('input[type="text"], input:not([type]), textarea')
-            || document.querySelector('input[type="text"], input:not([type]), textarea');
+        const input = getAnswerInput();
         if (!input) return false;
 
         timeoutInjectedInput = { input, value: input.value };
@@ -1580,7 +1630,14 @@
         body.mm-arcade:not([data-mm-bg="default"]) [data-v-app],
         body.mm-arcade:not([data-mm-bg="default"]) main,
         body.mm-arcade:not([data-mm-bg="default"]) #main {
-            background-color: #02040a !important;
+            background-color: transparent !important;
+        }
+
+        body.mm-arcade #__nuxt,
+        body.mm-arcade #app,
+        body.mm-arcade [data-v-app] {
+            position: relative;
+            z-index: 1;
         }
 
         body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) {
@@ -1596,7 +1653,7 @@
         body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) [class*="layout"],
         body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) [class*="content"],
         body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) [class*="review"] {
-            background-color: #02040a !important;
+            background-color: transparent !important;
             color: rgba(245,248,255,0.9) !important;
         }
 
@@ -1642,7 +1699,7 @@
 
         /* Arcade backdrop sits behind page content */
         #mm-starfield {
-            position: fixed; inset: 0; pointer-events: none; z-index: 9989;
+            position: fixed; inset: 0; pointer-events: none; z-index: -1;
         }
 
         /* CRT curvature flicker — very subtle brightness pulse */
@@ -1654,7 +1711,10 @@
             97%     { opacity: 0.98; }
             98%     { opacity: 1; }
         }
-        body.mm-arcade { animation: mmCrtFlicker 8s infinite; }
+        body.mm-arcade {
+            isolation: isolate;
+            animation: mmCrtFlicker 8s infinite;
+        }
 
         /* ── PHOSPHOR GLOW on the main card area ── */
         body.mm-arcade .input-wrapper,
@@ -1766,10 +1826,6 @@
         return CANVAS_BACKGROUND_THEMES.includes(theme);
     }
 
-    function hasStarBackdrop(theme = settings.backgroundTheme) {
-        return STAR_BACKGROUND_THEMES.includes(theme);
-    }
-
     function hasShootingStars(theme = settings.backgroundTheme) {
         return SHOOTING_STAR_THEMES.includes(theme);
     }
@@ -1801,44 +1857,291 @@
             canvas.remove();
             return;
         }
-        let W, H, stars, nebulae, matrixDrops, rainDrops;
 
-        const STAR_COUNT = 160;
+        let W, H;
+        let starfieldTexture, starfieldStars, nebulaTexture, nebulaStars, matrixDrops;
+
+        const theme = settings.backgroundTheme;
         const MATRIX_FONT_SIZE = 18;
         const MATRIX_GLYPHS = '日月火水木金土山川人大小日本語学習01';
-        const LAYERS = [
-            { speed: 0.08, size: 0.6, alpha: 0.35 },
-            { speed: 0.20, size: 1.0, alpha: 0.55 },
-            { speed: 0.45, size: 1.6, alpha: 0.80 },
-        ];
-        const theme = settings.backgroundTheme;
 
         function resize() {
             W = canvas.width  = window.innerWidth;
             H = canvas.height = window.innerHeight;
         }
 
-        function initStars() {
-            stars = Array.from({ length: STAR_COUNT }, () => {
-                const layer = LAYERS[Math.floor(Math.random() * LAYERS.length)];
+        function createBackdropTexture() {
+            const texture = document.createElement('canvas');
+            texture.width = W;
+            texture.height = H;
+            return texture;
+        }
+
+        function randomBell() {
+            const u = Math.max(Number.EPSILON, Math.random());
+            const v = Math.max(Number.EPSILON, Math.random());
+            return Math.sqrt(-2 * Math.log(u)) * Math.cos(Math.PI * 2 * v);
+        }
+
+        function paintEllipticalGlow(target, x, y, radiusX, radiusY, rotation, stops) {
+            target.save();
+            target.translate(x, y);
+            target.rotate(rotation);
+            target.scale(radiusX, radiusY);
+            const gradient = target.createRadialGradient(0, 0, 0, 0, 0, 1);
+            stops.forEach(([offset, color]) => gradient.addColorStop(offset, color));
+            target.fillStyle = gradient;
+            target.fillRect(-1, -1, 2, 2);
+            target.restore();
+        }
+
+        function drawStarPoint(target, star, alpha = star.alpha) {
+            target.fillStyle = `hsla(${star.hue},80%,88%,${alpha})`;
+            target.beginPath();
+            target.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+            target.fill();
+        }
+
+        function drawBrightStar(target, star, alpha) {
+            const glowRadius = star.radius * 8;
+            const glow = target.createRadialGradient(
+                star.x, star.y, 0, star.x, star.y, glowRadius
+            );
+            glow.addColorStop(0, `hsla(${star.hue},90%,96%,${alpha})`);
+            glow.addColorStop(0.18, `hsla(${star.hue},90%,82%,${alpha * 0.42})`);
+            glow.addColorStop(1, `hsla(${star.hue},90%,68%,0)`);
+            target.fillStyle = glow;
+            target.beginPath();
+            target.arc(star.x, star.y, glowRadius, 0, Math.PI * 2);
+            target.fill();
+
+            target.strokeStyle = `hsla(${star.hue},90%,92%,${alpha * 0.32})`;
+            target.lineWidth = 0.7;
+            target.beginPath();
+            target.moveTo(star.x - star.radius * 6, star.y);
+            target.lineTo(star.x + star.radius * 6, star.y);
+            target.moveTo(star.x, star.y - star.radius * 4);
+            target.lineTo(star.x, star.y + star.radius * 4);
+            target.stroke();
+        }
+
+        function getGalaxyBandY(x) {
+            return H * (0.84 - 0.58 * x / W)
+                + Math.sin(x / Math.max(160, W * 0.16)) * H * 0.035;
+        }
+
+        function initStarfield() {
+            starfieldTexture = createBackdropTexture();
+            const textureCtx = starfieldTexture.getContext('2d');
+            if (!textureCtx) return;
+
+            const sky = textureCtx.createRadialGradient(
+                W * 0.55, H * 0.48, 0, W * 0.55, H * 0.48, Math.max(W, H) * 0.78
+            );
+            sky.addColorStop(0, '#081226');
+            sky.addColorStop(0.48, '#030817');
+            sky.addColorStop(1, '#010207');
+            textureCtx.fillStyle = sky;
+            textureCtx.fillRect(0, 0, W, H);
+
+            textureCtx.globalCompositeOperation = 'lighter';
+            for (let i = 0; i < 42; i++) {
+                const x = (i / 41) * W + randomBell() * W * 0.018;
+                const y = getGalaxyBandY(x) + randomBell() * H * 0.035;
+                const width = W * (0.10 + Math.random() * 0.09);
+                const height = H * (0.055 + Math.random() * 0.055);
+                const hue = Math.random() < 0.72 ? 215 : 278;
+                paintEllipticalGlow(textureCtx, x, y, width, height, -0.55, [
+                    [0, `hsla(${hue},75%,66%,${0.018 + Math.random() * 0.024})`],
+                    [0.48, `hsla(${hue + 24},70%,45%,0.012)`],
+                    [1, `hsla(${hue},70%,28%,0)`],
+                ]);
+            }
+
+            const area = W * H;
+            const starCount = Math.max(850, Math.min(2100, Math.floor(area / 720)));
+            for (let i = 0; i < starCount; i++) {
+                const inBand = Math.random() < 0.58;
+                const x = Math.random() * W;
+                const y = inBand
+                    ? getGalaxyBandY(x) + randomBell() * H * 0.105
+                    : Math.random() * H;
+                if (y < 0 || y > H) continue;
+                const radiusRoll = Math.random();
+                const star = {
+                    x,
+                    y,
+                    radius: radiusRoll > 0.985 ? 1.35 : 0.22 + Math.random() * 0.62,
+                    alpha: 0.20 + Math.random() * (inBand ? 0.66 : 0.48),
+                    hue: Math.random() < 0.82 ? 210 : (Math.random() < 0.55 ? 42 : 4),
+                };
+                drawStarPoint(textureCtx, star);
+            }
+
+            textureCtx.globalCompositeOperation = 'source-over';
+            for (let i = 0; i < 170; i++) {
+                const x = Math.random() * W;
+                const y = getGalaxyBandY(x) + randomBell() * H * 0.06;
+                if (y < 0 || y > H) continue;
+                textureCtx.fillStyle = `rgba(0,0,8,${0.035 + Math.random() * 0.08})`;
+                textureCtx.beginPath();
+                textureCtx.ellipse(
+                    x, y, 8 + Math.random() * 34, 2 + Math.random() * 9,
+                    -0.55 + randomBell() * 0.18, 0, Math.PI * 2
+                );
+                textureCtx.fill();
+            }
+
+            starfieldStars = Array.from({ length: 22 }, () => {
+                const x = Math.random() * W;
+                const nearBand = Math.random() < 0.66;
                 return {
-                    x: Math.random() * W,
-                    y: Math.random() * H,
-                    layer,
-                    twinklePhase: Math.random() * Math.PI * 2,
+                    x,
+                    y: nearBand
+                        ? Math.max(12, Math.min(H - 12, getGalaxyBandY(x) + randomBell() * H * 0.13))
+                        : 12 + Math.random() * Math.max(1, H - 24),
+                    radius: 0.8 + Math.random() * 0.75,
+                    alpha: 0.44 + Math.random() * 0.34,
+                    hue: Math.random() < 0.78 ? 210 : 42,
+                    phase: Math.random() * Math.PI * 2,
+                    speed: 0.45 + Math.random() * 0.85,
                 };
             });
         }
 
-        function initNebulae() {
-            nebulae = Array.from({ length: 5 }, (_, i) => ({
-                x: (0.12 + Math.random() * 0.76) * W,
-                y: (0.08 + Math.random() * 0.68) * H,
-                radius: (0.18 + Math.random() * 0.24) * Math.max(W, H),
-                hue: [186, 285, 135, 48, 330][i],
-                phase: Math.random() * Math.PI * 2,
-                drift: 0.12 + Math.random() * 0.18,
-            }));
+        function getNebulaSpine(p) {
+            return {
+                x: W * (-0.08 + p * 1.16),
+                y: H * (0.74 - p * 0.48)
+                    + Math.sin(p * Math.PI * 3.2) * H * 0.065,
+            };
+        }
+
+        function getNebulaHue(p) {
+            if (p < 0.28) return 18 + p * 80;
+            if (p < 0.58) return 326 - (p - 0.28) * 110;
+            return 214 - (p - 0.58) * 52;
+        }
+
+        function initNebula() {
+            nebulaTexture = createBackdropTexture();
+            const textureCtx = nebulaTexture.getContext('2d');
+            if (!textureCtx) return;
+
+            const sky = textureCtx.createRadialGradient(
+                W * 0.56, H * 0.42, 0, W * 0.56, H * 0.42, Math.max(W, H) * 0.88
+            );
+            sky.addColorStop(0, '#100b1f');
+            sky.addColorStop(0.48, '#050612');
+            sky.addColorStop(1, '#010206');
+            textureCtx.fillStyle = sky;
+            textureCtx.fillRect(0, 0, W, H);
+
+            textureCtx.globalCompositeOperation = 'lighter';
+            for (let i = 0; i < 260; i++) {
+                const p = Math.random();
+                const spine = getNebulaSpine(p);
+                const spread = H * (0.035 + 0.16 * Math.sin(p * Math.PI));
+                const x = spine.x + randomBell() * spread * 0.72;
+                const y = spine.y + randomBell() * spread;
+                const radius = Math.min(W, H) * (0.018 + Math.random() * 0.075);
+                const hue = getNebulaHue(p) + randomBell() * 14;
+                const alpha = 0.016 + Math.random() * 0.046;
+                paintEllipticalGlow(
+                    textureCtx, x, y, radius * (1.2 + Math.random() * 1.8),
+                    radius * (0.42 + Math.random() * 0.72), -0.46 + randomBell() * 0.48,
+                    [
+                        [0, `hsla(${hue},96%,68%,${alpha})`],
+                        [0.34, `hsla(${hue + 18},94%,52%,${alpha * 0.72})`],
+                        [0.72, `hsla(${hue - 24},90%,32%,${alpha * 0.22})`],
+                        [1, `hsla(${hue},88%,20%,0)`],
+                    ]
+                );
+            }
+
+            textureCtx.filter = 'blur(1.4px)';
+            textureCtx.lineCap = 'round';
+            for (let filament = 0; filament < 34; filament++) {
+                const offset = randomBell() * H * 0.08;
+                const hue = getNebulaHue(Math.random());
+                textureCtx.strokeStyle = `hsla(${hue},96%,72%,${0.025 + Math.random() * 0.05})`;
+                textureCtx.lineWidth = 0.7 + Math.random() * 2.4;
+                textureCtx.beginPath();
+                for (let step = 0; step <= 28; step++) {
+                    const p = step / 28;
+                    const spine = getNebulaSpine(p);
+                    const taper = Math.sin(p * Math.PI);
+                    const ripple = Math.sin(p * (10 + filament % 6) + filament) * H * 0.018;
+                    const x = spine.x + ripple * 0.75 + offset * taper * 0.35;
+                    const y = spine.y + ripple + offset * taper;
+                    if (step === 0) textureCtx.moveTo(x, y);
+                    else textureCtx.lineTo(x, y);
+                }
+                textureCtx.stroke();
+            }
+            textureCtx.filter = 'none';
+
+            textureCtx.globalCompositeOperation = 'source-over';
+            textureCtx.filter = 'blur(5px)';
+            for (let i = 0; i < 105; i++) {
+                const p = Math.random();
+                const spine = getNebulaSpine(p);
+                const spread = H * (0.025 + Math.sin(p * Math.PI) * 0.09);
+                const x = spine.x + randomBell() * spread;
+                const y = spine.y + randomBell() * spread * 0.65;
+                const radius = Math.min(W, H) * (0.008 + Math.random() * 0.045);
+                textureCtx.fillStyle = `rgba(0,1,8,${0.07 + Math.random() * 0.18})`;
+                textureCtx.beginPath();
+                textureCtx.ellipse(
+                    x, y, radius * (1.4 + Math.random() * 2.4), radius,
+                    -0.48 + randomBell() * 0.38, 0, Math.PI * 2
+                );
+                textureCtx.fill();
+            }
+            textureCtx.filter = 'none';
+
+            textureCtx.globalCompositeOperation = 'lighter';
+            const clusterCenters = [
+                { x: 0.24, y: 0.62, hue: 24 },
+                { x: 0.51, y: 0.45, hue: 318 },
+                { x: 0.74, y: 0.32, hue: 202 },
+            ];
+            for (const cluster of clusterCenters) {
+                paintEllipticalGlow(
+                    textureCtx, cluster.x * W, cluster.y * H,
+                    Math.min(W, H) * 0.09, Math.min(W, H) * 0.065, -0.35,
+                    [
+                        [0, `hsla(${cluster.hue},100%,90%,0.16)`],
+                        [0.18, `hsla(${cluster.hue},100%,68%,0.10)`],
+                        [1, `hsla(${cluster.hue},95%,45%,0)`],
+                    ]
+                );
+            }
+
+            const baseStarCount = Math.max(420, Math.min(1100, Math.floor(W * H / 1300)));
+            for (let i = 0; i < baseStarCount; i++) {
+                const star = {
+                    x: Math.random() * W,
+                    y: Math.random() * H,
+                    radius: 0.18 + Math.random() * 0.62,
+                    alpha: 0.12 + Math.random() * 0.46,
+                    hue: Math.random() < 0.86 ? 210 : 40,
+                };
+                drawStarPoint(textureCtx, star);
+            }
+
+            nebulaStars = Array.from({ length: 30 }, (_, index) => {
+                const cluster = clusterCenters[index % clusterCenters.length];
+                return {
+                    x: cluster.x * W + randomBell() * Math.min(W, H) * 0.10,
+                    y: cluster.y * H + randomBell() * Math.min(W, H) * 0.08,
+                    radius: 0.65 + Math.random() * 0.95,
+                    alpha: 0.42 + Math.random() * 0.38,
+                    hue: index % 5 === 0 ? cluster.hue : 210,
+                    phase: Math.random() * Math.PI * 2,
+                    speed: 0.35 + Math.random() * 0.8,
+                };
+            });
         }
 
         function initMatrix() {
@@ -1846,97 +2149,107 @@
             matrixDrops = Array.from({ length: columns }, () => -Math.random() * 18);
         }
 
-        function initRain() {
-            const count = Math.max(80, Math.floor(W / 16));
-            rainDrops = Array.from({ length: count }, () => ({
-                x: Math.random() * W,
-                y: Math.random() * H,
-                length: 28 + Math.random() * 58,
-                speed: 5 + Math.random() * 8,
-                drift: -0.8 + Math.random() * 1.6,
-                hue: Math.random() < 0.6 ? 195 : 285,
-            }));
+        function drawStarfield(t) {
+            if (theme !== 'starfield') return;
+            ctx.save();
+            const driftX = Math.sin(t * 0.012) * 1.5;
+            const driftY = Math.cos(t * 0.010) * 1.5;
+            ctx.drawImage(starfieldTexture, driftX - 2, driftY - 2, W + 4, H + 4);
+            ctx.globalCompositeOperation = 'lighter';
+            for (const star of starfieldStars) {
+                const pulse = 0.72 + Math.sin(t * star.speed + star.phase) * 0.28;
+                drawBrightStar(ctx, star, star.alpha * pulse);
+            }
+            ctx.restore();
         }
 
         function drawNebula(t) {
             if (theme !== 'nebula') return;
             ctx.save();
+            const driftX = Math.sin(t * 0.009) * 1.8;
+            const driftY = Math.cos(t * 0.008) * 1.4;
+            ctx.drawImage(nebulaTexture, driftX - 2, driftY - 2, W + 4, H + 4);
             ctx.globalCompositeOperation = 'lighter';
-            for (const cloud of nebulae) {
-                const x = cloud.x + Math.sin(t * cloud.drift + cloud.phase) * 28;
-                const y = cloud.y + Math.cos(t * cloud.drift * 0.8 + cloud.phase) * 22;
-                const gradient = ctx.createRadialGradient(x, y, 0, x, y, cloud.radius);
-                gradient.addColorStop(0, `hsla(${cloud.hue}, 95%, 58%, 0.16)`);
-                gradient.addColorStop(0.38, `hsla(${cloud.hue + 24}, 90%, 48%, 0.07)`);
-                gradient.addColorStop(1, `hsla(${cloud.hue}, 90%, 30%, 0)`);
-                ctx.fillStyle = gradient;
-                ctx.fillRect(0, 0, W, H);
+            for (const star of nebulaStars) {
+                const pulse = 0.68 + Math.sin(t * star.speed + star.phase) * 0.32;
+                drawBrightStar(ctx, star, star.alpha * pulse);
             }
-            ctx.restore();
-        }
-
-        function drawAurora(t) {
-            if (theme !== 'aurora') return;
-            const hues = [150, 190, 285];
-            ctx.save();
-            ctx.globalCompositeOperation = 'lighter';
-            hues.forEach((hue, band) => {
-                const baseY = H * (0.24 + band * 0.12);
-                const floorY = H * (0.60 + band * 0.08);
-                const gradient = ctx.createLinearGradient(0, baseY - 110, 0, floorY);
-                gradient.addColorStop(0, `hsla(${hue}, 95%, 64%, 0)`);
-                gradient.addColorStop(0.34, `hsla(${hue}, 95%, 62%, 0.16)`);
-                gradient.addColorStop(0.72, `hsla(${hue + 35}, 95%, 58%, 0.08)`);
-                gradient.addColorStop(1, `hsla(${hue}, 95%, 44%, 0)`);
-
-                ctx.beginPath();
-                ctx.moveTo(0, floorY);
-                for (let x = 0; x <= W + 48; x += 48) {
-                    const y = baseY
-                        + Math.sin(x * 0.006 + t * (0.55 + band * 0.12) + band) * 44
-                        + Math.sin(x * 0.014 - t * 0.42 + band * 2) * 24;
-                    ctx.lineTo(x, y);
-                }
-                ctx.lineTo(W, floorY);
-                ctx.closePath();
-                ctx.fillStyle = gradient;
-                ctx.fill();
-            });
             ctx.restore();
         }
 
         function drawGrid(t) {
             if (theme !== 'grid') return;
-            const horizon = H * 0.64;
+            const horizon = H * 0.56;
             ctx.save();
-            ctx.globalAlpha = 0.78;
-            ctx.strokeStyle = 'rgba(0,255,204,0.28)';
-            ctx.lineWidth = 1;
+            const sky = ctx.createLinearGradient(0, 0, 0, horizon + 80);
+            sky.addColorStop(0, 'rgba(12,10,42,0.72)');
+            sky.addColorStop(0.55, 'rgba(82,24,88,0.44)');
+            sky.addColorStop(1, 'rgba(255,112,72,0.18)');
+            ctx.fillStyle = sky;
+            ctx.fillRect(0, 0, W, horizon + 90);
 
-            for (let i = 0; i < 18; i++) {
-                const p = i / 17;
-                const y = horizon + Math.pow(p, 2.2) * (H - horizon);
+            const sunX = W / 2 + Math.sin(t * 0.08) * 18;
+            const sunY = horizon + 8;
+            const sunR = Math.min(W, H) * 0.17;
+            const sun = ctx.createRadialGradient(sunX, sunY - sunR * 0.3, 0, sunX, sunY, sunR);
+            sun.addColorStop(0, 'rgba(255,245,130,0.78)');
+            sun.addColorStop(0.55, 'rgba(255,105,96,0.46)');
+            sun.addColorStop(1, 'rgba(255,0,170,0)');
+            ctx.fillStyle = sun;
+            ctx.beginPath();
+            ctx.arc(sunX, sunY, sunR, Math.PI, 0);
+            ctx.lineTo(sunX + sunR, sunY);
+            ctx.arc(sunX, sunY, sunR, 0, Math.PI, true);
+            ctx.fill();
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.fillStyle = 'rgba(2,4,16,0.52)';
+            for (let stripe = 0; stripe < 9; stripe++) {
+                const y = sunY - sunR * 0.72 + stripe * sunR * 0.19;
+                ctx.fillRect(sunX - sunR, y, sunR * 2, 4 + stripe * 1.2);
+            }
+            ctx.restore();
+
+            ctx.fillStyle = 'rgba(6,8,23,0.72)';
+            ctx.beginPath();
+            ctx.moveTo(0, horizon + 22);
+            for (let x = 0; x <= W; x += 56) {
+                const y = horizon + 12 - Math.abs(Math.sin(x * 0.018 + 0.4)) * 54;
+                ctx.lineTo(x, y);
+            }
+            ctx.lineTo(W, H);
+            ctx.lineTo(0, H);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.strokeStyle = 'rgba(0,255,204,0.30)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 22; i++) {
+                const p = i / 21;
+                const y = horizon + Math.pow(p, 2.35) * (H - horizon);
                 ctx.beginPath();
                 ctx.moveTo(0, y);
                 ctx.lineTo(W, y);
                 ctx.stroke();
             }
 
-            const vanishingX = W / 2 + Math.sin(t * 0.18) * 28;
-            for (let i = -12; i <= 12; i++) {
-                const x = W / 2 + i * W * 0.09;
+            const vanishingX = W / 2;
+            for (let i = -14; i <= 14; i++) {
+                const x = W / 2 + i * W * 0.085;
                 ctx.beginPath();
                 ctx.moveTo(vanishingX, horizon);
                 ctx.lineTo(x, H);
                 ctx.stroke();
             }
 
-            const glow = ctx.createLinearGradient(0, horizon - 80, 0, H);
-            glow.addColorStop(0, 'rgba(255,0,180,0)');
-            glow.addColorStop(0.22, 'rgba(255,0,180,0.12)');
-            glow.addColorStop(1, 'rgba(0,255,204,0.08)');
-            ctx.fillStyle = glow;
-            ctx.fillRect(0, horizon - 80, W, H - horizon + 80);
+            const floorGlow = ctx.createLinearGradient(0, horizon, 0, H);
+            floorGlow.addColorStop(0, 'rgba(255,0,160,0.10)');
+            floorGlow.addColorStop(1, 'rgba(0,255,204,0.08)');
+            ctx.fillStyle = floorGlow;
+            ctx.fillRect(0, horizon, W, H - horizon);
             ctx.restore();
         }
 
@@ -1966,76 +2279,6 @@
                     matrixDrops[column] = -Math.random() * 16;
                 }
             });
-            ctx.restore();
-        }
-
-        function drawRain() {
-            if (theme !== 'rain') return;
-            ctx.save();
-            ctx.lineCap = 'round';
-            for (const drop of rainDrops) {
-                const alpha = 0.16 + drop.speed / 80;
-                const tailX = drop.x - drop.length * 0.36;
-                const tailY = drop.y + drop.length;
-                const gradient = ctx.createLinearGradient(drop.x, drop.y, tailX, tailY);
-                gradient.addColorStop(0, `hsla(${drop.hue},100%,76%,${alpha})`);
-                gradient.addColorStop(1, `hsla(${drop.hue},100%,58%,0)`);
-                ctx.strokeStyle = gradient;
-                ctx.lineWidth = 1.1;
-                ctx.beginPath();
-                ctx.moveTo(drop.x, drop.y);
-                ctx.lineTo(tailX, tailY);
-                ctx.stroke();
-
-                drop.x += drop.drift;
-                drop.y += drop.speed;
-                if (drop.y > H + drop.length || drop.x < -drop.length) {
-                    drop.x = Math.random() * (W + drop.length);
-                    drop.y = -drop.length;
-                    drop.speed = 5 + Math.random() * 8;
-                }
-            }
-            ctx.restore();
-        }
-
-        function drawStars(t) {
-            if (!hasStarBackdrop(theme)) return;
-            for (const star of stars) {
-                star.y += star.layer.speed;
-                if (theme === 'grid') star.y += 0.1;
-                if (theme === 'aurora') star.y += 0.03;
-                if (star.y > H) { star.y = 0; star.x = Math.random() * W; }
-
-                const alpha = star.layer.alpha * (0.7 + 0.3 * Math.sin(t * 1.8 + star.twinklePhase));
-                const hue = (star.twinklePhase * 57) % 360;
-                const pastel = hue < 60 ? `hsla(186,100%,70%,${alpha})` : `hsla(0,0%,100%,${alpha})`;
-                ctx.beginPath();
-                ctx.arc(star.x, star.y, star.layer.size, 0, Math.PI * 2);
-                ctx.fillStyle = pastel;
-                ctx.fill();
-            }
-        }
-
-        function drawConstellations() {
-            if (theme !== 'constellation') return;
-            const nodes = stars.slice(0, 76);
-            const maxDistance = Math.min(128, Math.max(82, Math.min(W, H) * 0.12));
-            ctx.save();
-            ctx.lineWidth = 1;
-            for (let i = 0; i < nodes.length; i++) {
-                for (let j = i + 1; j < nodes.length; j++) {
-                    const dx = nodes[i].x - nodes[j].x;
-                    const dy = nodes[i].y - nodes[j].y;
-                    const dist = Math.hypot(dx, dy);
-                    if (dist > maxDistance) continue;
-                    const alpha = (1 - dist / maxDistance) * 0.20;
-                    ctx.strokeStyle = `rgba(125,210,255,${alpha})`;
-                    ctx.beginPath();
-                    ctx.moveTo(nodes[i].x, nodes[i].y);
-                    ctx.lineTo(nodes[j].x, nodes[j].y);
-                    ctx.stroke();
-                }
-            }
             ctx.restore();
         }
 
@@ -2069,34 +2312,26 @@
         function tick() {
             ctx.clearRect(0, 0, W, H);
             const t = performance.now() / 1000;
+            drawStarfield(t);
             drawNebula(t);
-            drawAurora(t);
-            drawStars(t);
-            drawConstellations();
-            drawMatrix(t);
-            drawRain();
             drawGrid(t);
-            if (hasShootingStars(theme)
-                && Math.random() < (theme === 'nebula' || theme === 'aurora' ? 0.005 : 0.002)) {
-                triggerShootingStar();
-            }
+            drawMatrix(t);
+            if (hasShootingStars(theme) && Math.random() < 0.0025) triggerShootingStar();
             drawShootingStars();
             starRaf = requestAnimationFrame(tick);
         }
 
         starResizeHandler = () => {
             resize();
-            initStars();
-            initNebulae();
-            initMatrix();
-            initRain();
+            if (theme === 'starfield') initStarfield();
+            if (theme === 'nebula') initNebula();
+            if (theme === 'matrix') initMatrix();
         };
         window.addEventListener('resize', starResizeHandler);
         resize();
-        initStars();
-        initNebulae();
-        initMatrix();
-        initRain();
+        if (theme === 'starfield') initStarfield();
+        if (theme === 'nebula') initNebula();
+        if (theme === 'matrix') initMatrix();
         tick();
     }
 
@@ -2500,6 +2735,7 @@
 
     function init() {
         if (initialized || !document.querySelector('.input-wrapper')) return;
+        settings.backgroundTheme = settings.pinnedBackgroundTheme;
         resetState();
         injectStyles();
         injectUI();
