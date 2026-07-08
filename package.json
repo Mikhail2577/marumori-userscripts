@@ -1,0 +1,14 @@
+{
+  "name": "marumori-gamified-userscript",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check marumori_even_more_gamified.user.js",
+    "lint": "eslint marumori_even_more_gamified.user.js",
+    "test": "npm run check && npm run lint"
+  },
+  "devDependencies": {
+    "eslint": "^10.6.0"
+  }
+}
