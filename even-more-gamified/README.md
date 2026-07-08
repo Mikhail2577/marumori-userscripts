@@ -19,7 +19,7 @@ This is intended to be shared back with the original script author as an experim
 - Per-word timer behavior, including optional Timeout Fail mode.
 - Font Challenge difficulty mode with random Japanese fonts.
 - Difficulty XP multipliers.
-- CRT theme with scanlines, starfield, nebula, grid, void mode, and shooting stars.
+- CRT theme with scanlines, multiple procedural backgrounds, void mode, and shooting stars.
 - Optional procedural `LO-FI` and `RETRO` music with independent volume.
 - Expanded word-clear celebration variants.
 - Reduced-motion support.
@@ -29,9 +29,16 @@ This is intended to be shared back with the original script author as an experim
 
 The settings panel includes a `Background` cycle button:
 
+`DEFAULT` keeps MaruMori's normal background without a generated canvas backdrop.
+
+- `DEFAULT`
 - `STARFIELD`
 - `NEBULA`
 - `GRID`
+- `AURORA`
+- `MATRIX`
+- `RAIN`
+- `CONSTELLATION`
 - `VOID`
 
 ## Music

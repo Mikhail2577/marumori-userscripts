@@ -29,21 +29,35 @@
         musicEnabled:   false,
         musicStyle:     'lofi',
         musicVolume:    0.16,
-        backgroundTheme: 'starfield',
+        backgroundTheme: 'default',
         volume:         0.5,    // 0–1
         comboTimeout:   15000,  // ms before idle combo reset
         hudPosition:    null,
     };
 
-    const BACKGROUND_THEMES = ['starfield', 'nebula', 'grid', 'void'];
+    const BACKGROUND_THEMES = [
+        'default', 'starfield', 'nebula', 'grid', 'aurora',
+        'matrix', 'rain', 'constellation', 'void',
+    ];
+    const CANVAS_BACKGROUND_THEMES = [
+        'starfield', 'nebula', 'grid', 'aurora', 'matrix', 'rain', 'constellation',
+    ];
+    const STAR_BACKGROUND_THEMES = ['starfield', 'nebula', 'grid', 'aurora', 'constellation'];
+    const SHOOTING_STAR_THEMES = ['starfield', 'nebula', 'grid', 'aurora', 'constellation'];
     const MUSIC_STYLES = ['lofi', 'retro'];
     const MUSIC_STYLE_LABELS = { lofi: 'LO-FI', retro: 'RETRO' };
     const BACKGROUND_THEME_LABELS = {
+        default: 'DEFAULT',
         starfield: 'STARFIELD',
         nebula: 'NEBULA',
         grid: 'GRID',
+        aurora: 'AURORA',
+        matrix: 'MATRIX',
+        rain: 'RAIN',
+        constellation: 'CONSTELLATION',
         void: 'VOID',
     };
+    const RESOLVED_BACKDROP_OPACITY = 0.5;
 
     const BOOL_SETTINGS = [
         'sfxEnabled', 'visualsEnabled', 'hudEnabled', 'shakeEnabled',
@@ -1557,47 +1571,48 @@
 
     const ARCADE_CSS = `
         /* ── PHOSPHOR PALETTE SHIFT ── */
-        html {
+        body.mm-arcade:not([data-mm-bg="default"]) {
             background-color: #02040a !important;
         }
 
-        body.mm-arcade {
+        body.mm-arcade:not([data-mm-bg="default"]) #__nuxt,
+        body.mm-arcade:not([data-mm-bg="default"]) #app,
+        body.mm-arcade:not([data-mm-bg="default"]) [data-v-app],
+        body.mm-arcade:not([data-mm-bg="default"]) main,
+        body.mm-arcade:not([data-mm-bg="default"]) #main {
             background-color: #02040a !important;
         }
 
-        body.mm-arcade #__nuxt,
-        body.mm-arcade #app,
-        body.mm-arcade [data-v-app],
-        body.mm-arcade main,
-        body.mm-arcade #main {
-            background-color: #02040a !important;
-        }
-
-        body.mm-arcade.mm-arcade-resolved {
+        body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) {
             color: rgba(245,248,255,0.9);
         }
 
-        body.mm-arcade.mm-arcade-resolved #__nuxt,
-        body.mm-arcade.mm-arcade-resolved #app,
-        body.mm-arcade.mm-arcade-resolved [data-v-app],
-        body.mm-arcade.mm-arcade-resolved main,
-        body.mm-arcade.mm-arcade-resolved #main,
-        body.mm-arcade.mm-arcade-resolved [class*="page"],
-        body.mm-arcade.mm-arcade-resolved [class*="layout"],
-        body.mm-arcade.mm-arcade-resolved [class*="content"],
-        body.mm-arcade.mm-arcade-resolved [class*="review"] {
+        body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) #__nuxt,
+        body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) #app,
+        body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) [data-v-app],
+        body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) main,
+        body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) #main,
+        body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) [class*="page"],
+        body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) [class*="layout"],
+        body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) [class*="content"],
+        body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) [class*="review"] {
             background-color: #02040a !important;
             color: rgba(245,248,255,0.9) !important;
         }
 
-        body.mm-arcade.mm-arcade-resolved h1,
-        body.mm-arcade.mm-arcade-resolved h2,
-        body.mm-arcade.mm-arcade-resolved h3,
-        body.mm-arcade.mm-arcade-resolved h4 {
+        body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) h1,
+        body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) h2,
+        body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) h3,
+        body.mm-arcade.mm-arcade-resolved:not([data-mm-bg="default"]) h4 {
             color: rgba(245,248,255,0.94) !important;
         }
 
-        body.mm-arcade.mm-arcade-resolved #mm-starfield,
+        body.mm-arcade.mm-arcade-resolved #mm-starfield {
+            opacity: ${RESOLVED_BACKDROP_OPACITY};
+        }
+
+        body.mm-arcade.mm-arcade-resolved[data-mm-bg="default"] #mm-starfield,
+        body.mm-arcade.mm-arcade-resolved[data-mm-bg="void"] #mm-starfield,
         body.mm-arcade.mm-arcade-resolved #mm-crt-tint,
         body.mm-arcade.mm-arcade-resolved #mm-scanlines {
             display: none !important;
@@ -1743,18 +1758,26 @@
     function restartArcadeBackdrop() {
         if (!settings.arcadeEnabled || !settings.visualsEnabled) return;
         document.body.dataset.mmBg = settings.backgroundTheme;
-        if (isAnswerResolved()) {
-            syncArcadePresentation();
-            return;
-        }
         stopArcadeBackdrop();
-        buildStarfield();
+        syncArcadePresentation();
+    }
+
+    function hasCanvasBackdrop(theme = settings.backgroundTheme) {
+        return CANVAS_BACKGROUND_THEMES.includes(theme);
+    }
+
+    function hasStarBackdrop(theme = settings.backgroundTheme) {
+        return STAR_BACKGROUND_THEMES.includes(theme);
+    }
+
+    function hasShootingStars(theme = settings.backgroundTheme) {
+        return SHOOTING_STAR_THEMES.includes(theme);
     }
 
     function triggerShootingStar() {
         if (!settings.arcadeEnabled || !settings.visualsEnabled
             || prefersReducedMotion() || isAnswerResolved()) return;
-        if (settings.backgroundTheme === 'void') return;
+        if (!hasShootingStars()) return;
         shootingStars.push({
             x: window.innerWidth * (0.65 + Math.random() * 0.45),
             y: window.innerHeight * (0.06 + Math.random() * 0.38),
@@ -1767,7 +1790,7 @@
     }
 
     function buildStarfield() {
-        if (prefersReducedMotion()) return;
+        if (prefersReducedMotion() || !hasCanvasBackdrop()) return;
         document.getElementById('mm-starfield')?.remove();
         const canvas = document.createElement('canvas');
         canvas.id = 'mm-starfield';
@@ -1778,9 +1801,11 @@
             canvas.remove();
             return;
         }
-        let W, H, stars, nebulae;
+        let W, H, stars, nebulae, matrixDrops, rainDrops;
 
         const STAR_COUNT = 160;
+        const MATRIX_FONT_SIZE = 18;
+        const MATRIX_GLYPHS = '日月火水木金土山川人大小日本語学習01';
         const LAYERS = [
             { speed: 0.08, size: 0.6, alpha: 0.35 },
             { speed: 0.20, size: 1.0, alpha: 0.55 },
@@ -1816,6 +1841,23 @@
             }));
         }
 
+        function initMatrix() {
+            const columns = Math.ceil(W / MATRIX_FONT_SIZE);
+            matrixDrops = Array.from({ length: columns }, () => -Math.random() * 18);
+        }
+
+        function initRain() {
+            const count = Math.max(80, Math.floor(W / 16));
+            rainDrops = Array.from({ length: count }, () => ({
+                x: Math.random() * W,
+                y: Math.random() * H,
+                length: 28 + Math.random() * 58,
+                speed: 5 + Math.random() * 8,
+                drift: -0.8 + Math.random() * 1.6,
+                hue: Math.random() < 0.6 ? 195 : 285,
+            }));
+        }
+
         function drawNebula(t) {
             if (theme !== 'nebula') return;
             ctx.save();
@@ -1830,6 +1872,36 @@
                 ctx.fillStyle = gradient;
                 ctx.fillRect(0, 0, W, H);
             }
+            ctx.restore();
+        }
+
+        function drawAurora(t) {
+            if (theme !== 'aurora') return;
+            const hues = [150, 190, 285];
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            hues.forEach((hue, band) => {
+                const baseY = H * (0.24 + band * 0.12);
+                const floorY = H * (0.60 + band * 0.08);
+                const gradient = ctx.createLinearGradient(0, baseY - 110, 0, floorY);
+                gradient.addColorStop(0, `hsla(${hue}, 95%, 64%, 0)`);
+                gradient.addColorStop(0.34, `hsla(${hue}, 95%, 62%, 0.16)`);
+                gradient.addColorStop(0.72, `hsla(${hue + 35}, 95%, 58%, 0.08)`);
+                gradient.addColorStop(1, `hsla(${hue}, 95%, 44%, 0)`);
+
+                ctx.beginPath();
+                ctx.moveTo(0, floorY);
+                for (let x = 0; x <= W + 48; x += 48) {
+                    const y = baseY
+                        + Math.sin(x * 0.006 + t * (0.55 + band * 0.12) + band) * 44
+                        + Math.sin(x * 0.014 - t * 0.42 + band * 2) * 24;
+                    ctx.lineTo(x, y);
+                }
+                ctx.lineTo(W, floorY);
+                ctx.closePath();
+                ctx.fillStyle = gradient;
+                ctx.fill();
+            });
             ctx.restore();
         }
 
@@ -1868,6 +1940,105 @@
             ctx.restore();
         }
 
+        function drawMatrix(t) {
+            if (theme !== 'matrix') return;
+            ctx.save();
+            ctx.font = `${MATRIX_FONT_SIZE}px monospace`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+
+            matrixDrops.forEach((drop, column) => {
+                const x = column * MATRIX_FONT_SIZE + MATRIX_FONT_SIZE / 2;
+                const headY = drop * MATRIX_FONT_SIZE;
+                for (let trail = 0; trail < 12; trail++) {
+                    const y = headY - trail * MATRIX_FONT_SIZE;
+                    if (y < -MATRIX_FONT_SIZE || y > H + MATRIX_FONT_SIZE) continue;
+                    const alpha = Math.max(0, 0.28 - trail * 0.022);
+                    const charIndex = Math.floor(t * 8 + column * 7 + trail * 3) % MATRIX_GLYPHS.length;
+                    ctx.fillStyle = trail === 0
+                        ? 'rgba(210,255,240,0.38)'
+                        : `rgba(0,255,180,${alpha})`;
+                    ctx.fillText(MATRIX_GLYPHS[charIndex], x, y);
+                }
+
+                matrixDrops[column] += 0.32 + (column % 5) * 0.045;
+                if (headY > H + MATRIX_FONT_SIZE * 12 && Math.random() < 0.04) {
+                    matrixDrops[column] = -Math.random() * 16;
+                }
+            });
+            ctx.restore();
+        }
+
+        function drawRain() {
+            if (theme !== 'rain') return;
+            ctx.save();
+            ctx.lineCap = 'round';
+            for (const drop of rainDrops) {
+                const alpha = 0.16 + drop.speed / 80;
+                const tailX = drop.x - drop.length * 0.36;
+                const tailY = drop.y + drop.length;
+                const gradient = ctx.createLinearGradient(drop.x, drop.y, tailX, tailY);
+                gradient.addColorStop(0, `hsla(${drop.hue},100%,76%,${alpha})`);
+                gradient.addColorStop(1, `hsla(${drop.hue},100%,58%,0)`);
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = 1.1;
+                ctx.beginPath();
+                ctx.moveTo(drop.x, drop.y);
+                ctx.lineTo(tailX, tailY);
+                ctx.stroke();
+
+                drop.x += drop.drift;
+                drop.y += drop.speed;
+                if (drop.y > H + drop.length || drop.x < -drop.length) {
+                    drop.x = Math.random() * (W + drop.length);
+                    drop.y = -drop.length;
+                    drop.speed = 5 + Math.random() * 8;
+                }
+            }
+            ctx.restore();
+        }
+
+        function drawStars(t) {
+            if (!hasStarBackdrop(theme)) return;
+            for (const star of stars) {
+                star.y += star.layer.speed;
+                if (theme === 'grid') star.y += 0.1;
+                if (theme === 'aurora') star.y += 0.03;
+                if (star.y > H) { star.y = 0; star.x = Math.random() * W; }
+
+                const alpha = star.layer.alpha * (0.7 + 0.3 * Math.sin(t * 1.8 + star.twinklePhase));
+                const hue = (star.twinklePhase * 57) % 360;
+                const pastel = hue < 60 ? `hsla(186,100%,70%,${alpha})` : `hsla(0,0%,100%,${alpha})`;
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.layer.size, 0, Math.PI * 2);
+                ctx.fillStyle = pastel;
+                ctx.fill();
+            }
+        }
+
+        function drawConstellations() {
+            if (theme !== 'constellation') return;
+            const nodes = stars.slice(0, 76);
+            const maxDistance = Math.min(128, Math.max(82, Math.min(W, H) * 0.12));
+            ctx.save();
+            ctx.lineWidth = 1;
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    const dx = nodes[i].x - nodes[j].x;
+                    const dy = nodes[i].y - nodes[j].y;
+                    const dist = Math.hypot(dx, dy);
+                    if (dist > maxDistance) continue;
+                    const alpha = (1 - dist / maxDistance) * 0.20;
+                    ctx.strokeStyle = `rgba(125,210,255,${alpha})`;
+                    ctx.beginPath();
+                    ctx.moveTo(nodes[i].x, nodes[i].y);
+                    ctx.lineTo(nodes[j].x, nodes[j].y);
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+        }
+
         function drawShootingStars() {
             shootingStars = shootingStars.filter(star => star.life > 0);
             for (const star of shootingStars) {
@@ -1899,32 +2070,33 @@
             ctx.clearRect(0, 0, W, H);
             const t = performance.now() / 1000;
             drawNebula(t);
-            if (theme !== 'void') {
-                for (const star of stars) {
-                    star.y += star.layer.speed;
-                    if (theme === 'grid') star.y += 0.1;
-                    if (star.y > H) { star.y = 0; star.x = Math.random() * W; }
-
-                    const alpha = star.layer.alpha * (0.7 + 0.3 * Math.sin(t * 1.8 + star.twinklePhase));
-                    const hue = (star.twinklePhase * 57) % 360;
-                    const pastel = hue < 60 ? `hsla(186,100%,70%,${alpha})` : `hsla(0,0%,100%,${alpha})`;
-                    ctx.beginPath();
-                    ctx.arc(star.x, star.y, star.layer.size, 0, Math.PI * 2);
-                    ctx.fillStyle = pastel;
-                    ctx.fill();
-                }
-                if (Math.random() < (theme === 'nebula' ? 0.005 : 0.002)) triggerShootingStar();
-            }
+            drawAurora(t);
+            drawStars(t);
+            drawConstellations();
+            drawMatrix(t);
+            drawRain();
             drawGrid(t);
+            if (hasShootingStars(theme)
+                && Math.random() < (theme === 'nebula' || theme === 'aurora' ? 0.005 : 0.002)) {
+                triggerShootingStar();
+            }
             drawShootingStars();
             starRaf = requestAnimationFrame(tick);
         }
 
-        starResizeHandler = () => { resize(); initStars(); initNebulae(); };
+        starResizeHandler = () => {
+            resize();
+            initStars();
+            initNebulae();
+            initMatrix();
+            initRain();
+        };
         window.addEventListener('resize', starResizeHandler);
         resize();
         initStars();
         initNebulae();
+        initMatrix();
+        initRain();
         tick();
     }
 
@@ -1937,13 +2109,17 @@
         document.body.dataset.mmBg = settings.backgroundTheme;
 
         if (resolved) {
-            stopArcadeBackdrop();
             document.getElementById('mm-crt-tint')?.remove();
             document.getElementById('mm-scanlines')?.remove();
+            if (!hasCanvasBackdrop()) {
+                stopArcadeBackdrop();
+            } else if (!document.getElementById('mm-starfield')) {
+                buildStarfield();
+            }
             return;
         }
 
-        if (!document.getElementById('mm-starfield')) buildStarfield();
+        if (hasCanvasBackdrop() && !document.getElementById('mm-starfield')) buildStarfield();
 
         const frag = document.createDocumentFragment();
         if (!document.getElementById('mm-crt-tint'))   frag.appendChild(el('div', 'mm-crt-tint'));

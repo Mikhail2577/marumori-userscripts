@@ -48,12 +48,18 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
   - `Font Challenge`: `x1.15`.
   - Combined: approximately `x1.44`.
 - Added a background theme selector:
+  - `DEFAULT`.
   - `STARFIELD`.
   - `NEBULA`.
   - `GRID`.
+  - `AURORA`.
+  - `MATRIX`.
+  - `RAIN`.
+  - `CONSTELLATION`.
   - `VOID`.
 - Added nebula cloud rendering.
 - Added retro perspective grid rendering.
+- Added aurora, matrix, rain, and constellation backdrop rendering.
 - Added shooting stars.
 - Added word-clear shooting star triggers.
 - Expanded word-clear celebrations from 8 emoji variants to 27 celebration variants.
@@ -77,8 +83,8 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ### Fixed / Hardened
 
-- CRT overlays and animated backgrounds now switch to a quiet dark result mode on
-  MaruMori answer/result screens, then return when the next unresolved question appears.
+- CRT overlays now pause on MaruMori answer/result screens; `VOID` keeps a quiet
+  dark result mode, while animated canvas backgrounds keep a half-strength backdrop.
 - Added safer userscript settings parsing with fallback defaults.
 - Added safer rolling-record parsing and pruning.
 - Added native input value setting for timeout auto-fail compatibility with framework-controlled inputs.
