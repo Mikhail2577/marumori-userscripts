@@ -54,4 +54,4 @@ This runs:
 
 ## License
 
-The userscript metadata declares `WTFPL`, matching the existing script header.
+The userscript metadata declares `WTFPL`, matching the existing script header. The repository includes the full license text in [../LICENSE](../LICENSE).

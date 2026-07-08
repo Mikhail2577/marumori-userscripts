@@ -14,6 +14,7 @@ Each userscript lives in its own directory so the repository can grow without mi
 
 ```text
 marumori-userscripts/
+├── LICENSE
 ├── even-more-gamified/
 │   ├── marumori_even_more_gamified.user.js
 │   ├── README.md
@@ -35,3 +36,7 @@ npm test
 ## Sharing Back
 
 This repository is intended to make it easy to share experimental changes, compare forks, and discuss improvements with the original userscript author.
+
+## License
+
+This repository uses the [WTFPL](./LICENSE), matching the original userscript's `@license` metadata and keeping the same very permissive spirit.
