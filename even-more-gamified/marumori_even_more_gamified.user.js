@@ -132,6 +132,7 @@
     function resetState() {
         if (state.comboTimer) { clearTimeout(state.comboTimer); }
         Object.assign(state, STATE_INIT, { sessionActive: true, sessionStart: Date.now() });
+        firstAnswerTimerStarted = false;
     }
 
     function recordKeyToTime(key) {
@@ -191,6 +192,9 @@
     let pendingRewindRestore = false;
     let timeoutAutoFailing  = false;
     let timeoutInjectedInput = null;
+    let firstAnswerTimerStarted = false;
+    let firstAnswerInputEl = null;
+    let firstAnswerInputHandler = null;
     let previousFontChallengeText = null;
     let documentClickHandler = null;
     let documentKeyHandler   = null;
@@ -1004,6 +1008,12 @@
         return wrapper?.classList.contains('correct') || wrapper?.classList.contains('incorrect');
     }
 
+    function getAnswerInput() {
+        const wrapper = getInputWrapper();
+        return wrapper?.querySelector('input[type="text"], input:not([type]), textarea')
+            || document.querySelector('input[type="text"], input:not([type]), textarea');
+    }
+
     function startComboBar() {
         stopComboBar();
         comboBarStart = performance.now();
@@ -1031,6 +1041,54 @@
             state.comboTimer = null;
         }
         stopComboBar();
+    }
+
+    function removeFirstAnswerInputGate() {
+        if (firstAnswerInputEl && firstAnswerInputHandler) {
+            firstAnswerInputEl.removeEventListener('input', firstAnswerInputHandler, true);
+        }
+        firstAnswerInputEl = null;
+        firstAnswerInputHandler = null;
+    }
+
+    function pauseFirstAnswerTimer() {
+        if (state.comboTimer) clearTimeout(state.comboTimer);
+        state.comboTimer = null;
+        stopComboBar();
+        if (els.bar) {
+            els.bar.style.width = '100%';
+            els.bar.classList.remove('low');
+        }
+    }
+
+    function armFirstAnswerTimer() {
+        if (firstAnswerTimerStarted || isAnswerResolved()) {
+            resetComboTimer();
+            return;
+        }
+
+        const input = getAnswerInput();
+        if (!input) return;
+
+        pauseFirstAnswerTimer();
+        removeFirstAnswerInputGate();
+        firstAnswerInputHandler = event => {
+            const value = event.target?.value ?? '';
+            if (!value.length || firstAnswerTimerStarted || isAnswerResolved()) return;
+            firstAnswerTimerStarted = true;
+            removeFirstAnswerInputGate();
+            resetComboTimer();
+        };
+        firstAnswerInputEl = input;
+        input.addEventListener('input', firstAnswerInputHandler, true);
+    }
+
+    function refreshAnswerTimerForCurrentQuestion() {
+        if (firstAnswerTimerStarted) {
+            resetComboTimer();
+        } else {
+            armFirstAnswerTimer();
+        }
     }
 
     function resetComboTimer() {
@@ -1922,7 +1980,7 @@
                         setRewindSnapshot(null);
                         timeoutAutoFailing = false;
                         applyFontChallenge();
-                        resetComboTimer();
+                        refreshAnswerTimerForCurrentQuestion();
                     }
                     lastAnswerState = null;
                     continue;
@@ -1951,7 +2009,7 @@
                 state.lastCompleted = current;
                 handleWordComplete();
                 applyFontChallenge();
-                resetComboTimer();
+                refreshAnswerTimerForCurrentQuestion();
             }
             if (current === max && max > 0 && state.sessionActive
                 && !document.getElementById('mm-summary').classList.contains('open')) {
@@ -1983,7 +2041,7 @@
         installNativeRewindDetection();
         updateHUD();
         applyFontChallenge();
-        resetComboTimer();
+        armFirstAnswerTimer();
         if (settings.arcadeEnabled) arcadeOn();
         initialized = true;
     }
@@ -1997,12 +2055,14 @@
             hudResizeHandler = null;
         }
         stopAnswerTimer();
+        removeFirstAnswerInputGate();
         clearFontChallenge();
         hudDrag = null;
         rewindSnapshot = null;
         pendingRewindRestore = false;
         timeoutAutoFailing = false;
         timeoutInjectedInput = null;
+        firstAnswerTimerStarted = false;
         els = {};
         initialized     = false;
         lastAnswerState = null;

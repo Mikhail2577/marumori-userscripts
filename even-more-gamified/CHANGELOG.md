@@ -7,6 +7,10 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 ### Added
 
 - Renamed the userscript to `MaruMori Even More Gamified - Updated`.
+- Added a first-answer timer grace period:
+  - The initial review item starts with the timer paused.
+  - The timer begins when the user enters the first character in the answer field.
+  - All later review items in the session are timed immediately.
 - Added a draggable HUD with saved position.
 - Added a `RESET HUD POSITION` settings action.
 - Added local/system fallback fonts for the arcade HUD.
