@@ -33,6 +33,10 @@ The settings panel includes a `Background` cycle button:
 - `GRID`
 - `VOID`
 
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for the release notes for this userscript.
+
 ## Development
 
 Install dependencies:
