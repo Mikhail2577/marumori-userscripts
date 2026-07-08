@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         MaruMori Even More Gamified - Updated
 // @namespace    marumori-gamify
-// @version      3.4.0
+// @version      3.4.1
 // @description  Gamifies MaruMori review sessions with arcade combo audio, score multipliers, screen shake, floating damage numbers, and more
 // @match        https://marumori.io/*
 // @author       matskye
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_getResourceURL
-// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.0
+// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.1
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=marumori.io
 // @license      WTFPL
 // @downloadURL https://update.greasyfork.org/scripts/566950/MaruMori%20Even%20More%20Gamified.user.js
@@ -63,6 +63,9 @@
         constellation: 'starfield',
         snow: 'default',
     };
+    const SHRINE_IMAGE_URL =
+        'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/'
+        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.1';
     const RESOLVED_BACKDROP_OPACITY = 0.5;
 
     const BOOL_SETTINGS = [
@@ -1875,7 +1878,8 @@
         let nebulaTexture, nebulaStars, nebulaWisps;
         let gridTexture, gridStars, gridMountainLayers, gridPalms, matrixDrops;
         let gameCenterTexture, gameCenterCabinets, gameCenterLights;
-        let shrineImage, shrineImageReady = false, shrinePetals;
+        let shrineImage, shrineImageReady = false, shrineDirectFallbackTried = false;
+        let shrinePetals;
 
         const theme = settings.backgroundTheme;
         const MATRIX_FONT_SIZE = 18;
@@ -2479,14 +2483,26 @@
                 shrineImageReady = true;
                 if (prefersReducedMotion()) tick();
             };
-            shrineImage.onerror = () => {
-                shrineImageReady = false;
-                console.warn('[MMGamify] Shrine background resource failed to load.');
+            const loadShrineDirectly = () => {
+                if (shrineDirectFallbackTried) {
+                    shrineImageReady = false;
+                    console.warn('[MMGamify] Shrine background resource failed to load.');
+                    return;
+                }
+                shrineDirectFallbackTried = true;
+                shrineImage.crossOrigin = 'anonymous';
+                shrineImage.src = SHRINE_IMAGE_URL;
             };
+            shrineImage.onerror = loadShrineDirectly;
             try {
-                shrineImage.src = GM_getResourceURL('mmShrineGarden');
+                Promise.resolve(GM_getResourceURL('mmShrineGarden'))
+                    .then(resourceUrl => {
+                        if (!resourceUrl) throw new Error('Empty shrine resource URL');
+                        shrineImage.src = resourceUrl;
+                    })
+                    .catch(loadShrineDirectly);
             } catch {
-                shrineImage.onerror();
+                loadShrineDirectly();
             }
         }
 

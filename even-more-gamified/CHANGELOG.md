@@ -6,7 +6,7 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ### Added
 
-- Bumped the userscript version to `3.4.0` so managers detect this update.
+- Bumped the userscript version to `3.4.1` so managers detect this update.
 - Renamed the userscript to `MaruMori Even More Gamified - Updated`.
 - Added a first-answer timer grace period:
   - The initial review item starts with the timer paused.
@@ -109,6 +109,8 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ### Fixed / Hardened
 
+- Added promise-aware shrine resource loading with a verified direct-CORS fallback
+  for userscript managers that return an unusable `GM_getResourceURL` value.
 - Fixed opaque `STARFIELD` and `NEBULA` canvases covering MaruMori's review
   content by isolating the body stack and placing the backdrop in a true negative layer.
 - CRT overlays now pause on MaruMori answer/result screens; `VOID` keeps a quiet
