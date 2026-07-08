@@ -11,6 +11,13 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
   - The initial review item starts with the timer paused.
   - The timer begins when the user enters the first character in the answer field.
   - All later review items in the session are timed immediately.
+- Added optional procedural background music, disabled by default:
+  - Subtle `LO-FI` and `RETRO` soundtrack styles.
+  - Independent music volume control.
+  - Self-contained Web Audio synthesis with no external audio files.
+  - Starts after a browser-approved user interaction.
+  - Fades out on session completion and pauses while the tab is hidden.
+  - Expanded Lo-fi progression and melody variation to reduce repetition.
 - Added a draggable HUD with saved position.
 - Added a `RESET HUD POSITION` settings action.
 - Added local/system fallback fonts for the arcade HUD.
@@ -70,6 +77,8 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ### Fixed / Hardened
 
+- CRT overlays and animated backgrounds now switch to a quiet dark result mode on
+  MaruMori answer/result screens, then return when the next unresolved question appears.
 - Added safer userscript settings parsing with fallback defaults.
 - Added safer rolling-record parsing and pruning.
 - Added native input value setting for timeout auto-fail compatibility with framework-controlled inputs.

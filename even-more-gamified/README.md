@@ -20,6 +20,7 @@ This is intended to be shared back with the original script author as an experim
 - Font Challenge difficulty mode with random Japanese fonts.
 - Difficulty XP multipliers.
 - CRT theme with scanlines, starfield, nebula, grid, void mode, and shooting stars.
+- Optional procedural `LO-FI` and `RETRO` music with independent volume.
 - Expanded word-clear celebration variants.
 - Reduced-motion support.
 - Local/system arcade font fallback.
@@ -32,6 +33,12 @@ The settings panel includes a `Background` cycle button:
 - `NEBULA`
 - `GRID`
 - `VOID`
+
+## Music
+
+Music is disabled by default. Enable it from the settings panel, choose `LO-FI` or
+`RETRO`, and adjust its volume independently from sound effects. The soundtrack is
+generated locally with Web Audio and uses no external recordings.
 
 ## Changelog
 

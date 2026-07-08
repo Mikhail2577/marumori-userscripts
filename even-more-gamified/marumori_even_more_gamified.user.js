@@ -26,6 +26,9 @@
         arcadeEnabled:  true,
         autoFailTimeout: false,
         fontChallengeEnabled: false,
+        musicEnabled:   false,
+        musicStyle:     'lofi',
+        musicVolume:    0.16,
         backgroundTheme: 'starfield',
         volume:         0.5,    // 0–1
         comboTimeout:   15000,  // ms before idle combo reset
@@ -33,6 +36,8 @@
     };
 
     const BACKGROUND_THEMES = ['starfield', 'nebula', 'grid', 'void'];
+    const MUSIC_STYLES = ['lofi', 'retro'];
+    const MUSIC_STYLE_LABELS = { lofi: 'LO-FI', retro: 'RETRO' };
     const BACKGROUND_THEME_LABELS = {
         starfield: 'STARFIELD',
         nebula: 'NEBULA',
@@ -43,7 +48,7 @@
     const BOOL_SETTINGS = [
         'sfxEnabled', 'visualsEnabled', 'hudEnabled', 'shakeEnabled',
         'floatEnabled', 'flashEnabled', 'arcadeEnabled', 'autoFailTimeout',
-        'fontChallengeEnabled',
+        'fontChallengeEnabled', 'musicEnabled',
     ];
 
     function clamp(num, min, max, fallback) {
@@ -57,7 +62,9 @@
             if (typeof raw[key] === 'boolean') next[key] = raw[key];
         }
         next.volume = clamp(raw.volume, 0, 1, DEFAULTS.volume);
+        next.musicVolume = clamp(raw.musicVolume, 0, 0.5, DEFAULTS.musicVolume);
         next.comboTimeout = clamp(raw.comboTimeout, 3000, 60000, DEFAULTS.comboTimeout);
+        if (MUSIC_STYLES.includes(raw.musicStyle)) next.musicStyle = raw.musicStyle;
         if (BACKGROUND_THEMES.includes(raw.backgroundTheme)) {
             next.backgroundTheme = raw.backgroundTheme;
         }
@@ -201,6 +208,11 @@
     let els = {};
 
     let audioCtx = null;
+    let musicGain = null;
+    let musicTimer = null;
+    let musicPatternIndex = 0;
+    let musicGestureHandler = null;
+    let musicVisibilityHandler = null;
     const reduceMotionMedia = window.matchMedia?.('(prefers-reduced-motion: reduce)');
 
     function prefersReducedMotion() {
@@ -235,6 +247,194 @@
             osc.start(now);
             osc.stop(now + duration + 0.01);
         } catch (e) { console.warn('[MMGamify] Audio error:', e); }
+    }
+
+    const MUSIC_PROGRESSIONS = [
+        [[220.00, 261.63, 329.63], [174.61, 220.00, 261.63],
+         [196.00, 246.94, 293.66], [164.81, 207.65, 246.94]],
+        [[196.00, 246.94, 293.66], [146.83, 196.00, 246.94],
+         [164.81, 207.65, 261.63], [174.61, 220.00, 261.63]],
+        [[164.81, 207.65, 246.94], [196.00, 246.94, 293.66],
+         [146.83, 185.00, 220.00], [174.61, 220.00, 261.63]],
+        [[174.61, 220.00, 261.63], [164.81, 207.65, 246.94],
+         [130.81, 164.81, 196.00], [146.83, 185.00, 220.00]],
+    ];
+
+    const LOFI_MELODIES = [
+        [null, 4, null, 2, null, null, 5, null, 4, null, null, 1, null, 2, null, null],
+        [2, null, null, 4, null, 5, null, null, null, 4, null, 2, null, null, 1, null],
+        [null, null, 5, null, 4, null, null, 2, null, 1, null, null, 2, null, null, 4],
+        [4, null, 2, null, null, 1, null, null, 5, null, null, 4, null, 2, null, null],
+    ];
+
+    const RETRO_MELODIES = [
+        [0, 2, 4, null, 7, 4, 2, null, 0, 2, 5, null, 4, 2, 0, null],
+        [4, null, 2, 0, 2, null, 5, 4, 7, null, 5, 4, 2, null, 0, null],
+    ];
+
+    const NOTE_RATIOS = [1, 9 / 8, 5 / 4, 4 / 3, 3 / 2, 5 / 3, 15 / 8, 2];
+
+    function scheduleMusicNote(ctx, destination, frequency, start, duration, options = {}) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        osc.type = options.type || 'triangle';
+        osc.frequency.setValueAtTime(frequency, start);
+        if (options.detune) osc.detune.setValueAtTime(options.detune, start);
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(options.cutoff || 1800, start);
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.linearRampToValueAtTime(options.volume || 0.08, start + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(destination);
+        osc.start(start);
+        osc.stop(start + duration + 0.03);
+    }
+
+    function scheduleLofiBar(ctx, destination, start, progression) {
+        const beat = 60 / 74;
+        progression.forEach((chord, chordIndex) => {
+            const chordStart = start + chordIndex * beat * 2;
+            chord.forEach((frequency, voice) => {
+                scheduleMusicNote(ctx, destination, frequency, chordStart, beat * 1.85, {
+                    type: 'triangle',
+                    volume: voice === 0 ? 0.045 : 0.032,
+                    cutoff: 950,
+                    detune: (voice - 1) * 4,
+                });
+            });
+            const bassDelay = chordIndex % 2 === musicPatternIndex % 2 ? 0 : beat / 2;
+            scheduleMusicNote(ctx, destination, chord[0] / 2, chordStart + bassDelay, beat * 0.72, {
+                type: 'sine', volume: 0.055, cutoff: 520,
+            });
+        });
+
+        const melody = LOFI_MELODIES[musicPatternIndex % LOFI_MELODIES.length];
+        melody.forEach((degree, step) => {
+            if (degree === null) return;
+            const chordIndex = Math.min(3, Math.floor(step / 4));
+            const root = progression[chordIndex][0] * 2;
+            const octave = (musicPatternIndex + step) % 11 === 0 ? 2 : 1;
+            scheduleMusicNote(ctx, destination, root * NOTE_RATIOS[degree] * octave,
+                start + step * beat / 2, beat * (step % 4 === 3 ? 0.62 : 0.38), {
+                    type: 'sine',
+                    volume: octave === 2 ? 0.014 : 0.022,
+                    cutoff: octave === 2 ? 1550 : 1150,
+                });
+        });
+        return beat * 8;
+    }
+
+    function scheduleRetroBar(ctx, destination, start, progression) {
+        const beat = 60 / 104;
+        const melody = RETRO_MELODIES[musicPatternIndex % RETRO_MELODIES.length];
+        const root = progression[musicPatternIndex % progression.length][0];
+        melody.forEach((degree, step) => {
+            if (degree === null) return;
+            scheduleMusicNote(ctx, destination, root * 2 * NOTE_RATIOS[degree],
+                start + step * beat / 2, beat * 0.38, {
+                    type: step % 4 === 0 ? 'square' : 'triangle',
+                    volume: 0.035,
+                    cutoff: 2100,
+                });
+        });
+        progression.forEach((chord, index) => {
+            const chordStart = start + index * beat * 2;
+            scheduleMusicNote(ctx, destination, chord[0] / 2, chordStart, beat * 0.7, {
+                type: 'square', volume: 0.035, cutoff: 700,
+            });
+            chord.slice(1).forEach(frequency => {
+                scheduleMusicNote(ctx, destination, frequency, chordStart, beat * 1.75, {
+                    type: 'triangle', volume: 0.018, cutoff: 1300,
+                });
+            });
+        });
+        return beat * 8;
+    }
+
+    function scheduleNextMusicPattern() {
+        if (!musicGain || !settings.musicEnabled || !state.sessionActive || document.hidden) return;
+        const ctx = getAudioCtx();
+        if (!ctx) return;
+        const start = ctx.currentTime + 0.08;
+        const progression = MUSIC_PROGRESSIONS[musicPatternIndex % MUSIC_PROGRESSIONS.length];
+        const duration = settings.musicStyle === 'retro'
+            ? scheduleRetroBar(ctx, musicGain, start, progression)
+            : scheduleLofiBar(ctx, musicGain, start, progression);
+        musicPatternIndex++;
+        musicTimer = setTimeout(scheduleNextMusicPattern, Math.max(100, (duration - 0.12) * 1000));
+    }
+
+    function stopMusic(fadeSeconds = 0.35) {
+        if (musicTimer) {
+            clearTimeout(musicTimer);
+            musicTimer = null;
+        }
+        if (!musicGain || !audioCtx || audioCtx.state === 'closed') {
+            musicGain = null;
+            return;
+        }
+        const gain = musicGain;
+        musicGain = null;
+        const now = audioCtx.currentTime;
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.setValueAtTime(gain.gain.value, now);
+        gain.gain.linearRampToValueAtTime(0, now + fadeSeconds);
+        setTimeout(() => gain.disconnect(), (fadeSeconds + 0.1) * 1000);
+    }
+
+    function startMusic() {
+        if (!settings.musicEnabled || !state.sessionActive || document.hidden || musicGain) return;
+        const ctx = getAudioCtx();
+        if (!ctx) return;
+        musicGain = ctx.createGain();
+        musicGain.gain.setValueAtTime(0, ctx.currentTime);
+        musicGain.gain.linearRampToValueAtTime(settings.musicVolume, ctx.currentTime + 0.7);
+        musicGain.connect(ctx.destination);
+        scheduleNextMusicPattern();
+    }
+
+    function restartMusic() {
+        stopMusic(0.15);
+        musicPatternIndex = 0;
+        setTimeout(startMusic, 180);
+    }
+
+    function installMusicLifecycle() {
+        if (!musicGestureHandler) {
+            musicGestureHandler = () => {
+                if (settings.musicEnabled) startMusic();
+                if (musicGain || !settings.musicEnabled) {
+                    document.removeEventListener('pointerdown', musicGestureHandler, true);
+                    document.removeEventListener('keydown', musicGestureHandler, true);
+                    musicGestureHandler = null;
+                }
+            };
+            document.addEventListener('pointerdown', musicGestureHandler, true);
+            document.addEventListener('keydown', musicGestureHandler, true);
+        }
+        if (!musicVisibilityHandler) {
+            musicVisibilityHandler = () => {
+                if (document.hidden) stopMusic(0.2);
+                else startMusic();
+            };
+            document.addEventListener('visibilitychange', musicVisibilityHandler);
+        }
+    }
+
+    function uninstallMusicLifecycle() {
+        stopMusic();
+        if (musicGestureHandler) {
+            document.removeEventListener('pointerdown', musicGestureHandler, true);
+            document.removeEventListener('keydown', musicGestureHandler, true);
+            musicGestureHandler = null;
+        }
+        if (musicVisibilityHandler) {
+            document.removeEventListener('visibilitychange', musicVisibilityHandler);
+            musicVisibilityHandler = null;
+        }
     }
 
     function playCorrectSound() {
@@ -520,11 +720,11 @@
             min-width: 86px; text-align: center;
         }
         .mm-cycle-btn:hover { border-color: #7cf; color: #fff; }
-        #mm-vol-slider {
+        #mm-vol-slider, #mm-music-vol-slider {
             -webkit-appearance: none; width: 80px; height: 4px;
             background: #555; border-radius: 2px; outline: none; cursor: pointer;
         }
-        #mm-vol-slider::-webkit-slider-thumb {
+        #mm-vol-slider::-webkit-slider-thumb, #mm-music-vol-slider::-webkit-slider-thumb {
             -webkit-appearance: none; width: 12px; height: 12px;
             background: #f90; border-radius: 50%;
         }
@@ -900,6 +1100,7 @@
         ['floatEnabled',   'Floating Text'],
         ['flashEnabled',   'Screen Flash'],
         ['arcadeEnabled',  'CRT Theme'],
+        ['musicEnabled',   'Music'],
         ['autoFailTimeout', 'Timeout Fail'],
         ['fontChallengeEnabled', 'Font Challenge'],
     ];
@@ -916,8 +1117,19 @@
             <h3>⚙ SETTINGS</h3>
             ${rows}
             <div class="mm-setting-row">
-                <label>Volume</label>
+                <label>SFX Volume</label>
                 <input id="mm-vol-slider" type="range" min="0" max="1" step="0.05" value="${settings.volume}">
+            </div>
+            <div class="mm-setting-row">
+                <label>Music Style</label>
+                <button class="mm-cycle-btn" id="mm-music-style" type="button">
+                    ${MUSIC_STYLE_LABELS[settings.musicStyle]}
+                </button>
+            </div>
+            <div class="mm-setting-row">
+                <label>Music Volume</label>
+                <input id="mm-music-vol-slider" type="range" min="0" max="0.5" step="0.01"
+                    value="${settings.musicVolume}">
             </div>
             <div class="mm-setting-row">
                 <label>Background</label>
@@ -947,6 +1159,24 @@
 
         panel.querySelector('#mm-vol-slider').addEventListener('input', e => {
             settings.volume = clamp(e.target.value, 0, 1, DEFAULTS.volume);
+            saveSettings();
+        });
+
+        panel.querySelector('#mm-music-style').addEventListener('click', e => {
+            const current = MUSIC_STYLES.indexOf(settings.musicStyle);
+            settings.musicStyle = MUSIC_STYLES[(current + 1) % MUSIC_STYLES.length];
+            e.currentTarget.textContent = MUSIC_STYLE_LABELS[settings.musicStyle];
+            saveSettings();
+            if (settings.musicEnabled) restartMusic();
+        });
+
+        panel.querySelector('#mm-music-vol-slider').addEventListener('input', e => {
+            settings.musicVolume = clamp(e.target.value, 0, 0.5, DEFAULTS.musicVolume);
+            if (musicGain && audioCtx) {
+                musicGain.gain.setTargetAtTime(
+                    settings.musicVolume, audioCtx.currentTime, 0.05
+                );
+            }
             saveSettings();
         });
 
@@ -986,12 +1216,16 @@
                     'mm-shake-light', 'mm-shake-hard', 'mm-chromatic', 'mm-wrong-dim'
                 );
             } else if (settings.arcadeEnabled) {
-                arcadeOn();
+                syncArcadePresentation();
             }
         }
 
         if (key === 'arcadeEnabled') {
-            settings.arcadeEnabled ? arcadeOn() : arcadeOff();
+            settings.arcadeEnabled ? syncArcadePresentation() : arcadeOff();
+        }
+
+        if (key === 'musicEnabled') {
+            settings.musicEnabled ? startMusic() : stopMusic();
         }
 
         if (key === 'autoFailTimeout' || key === 'fontChallengeEnabled') {
@@ -1323,8 +1557,50 @@
 
     const ARCADE_CSS = `
         /* ── PHOSPHOR PALETTE SHIFT ── */
+        html {
+            background-color: #02040a !important;
+        }
+
         body.mm-arcade {
-            background-color: #000 !important;
+            background-color: #02040a !important;
+        }
+
+        body.mm-arcade #__nuxt,
+        body.mm-arcade #app,
+        body.mm-arcade [data-v-app],
+        body.mm-arcade main,
+        body.mm-arcade #main {
+            background-color: #02040a !important;
+        }
+
+        body.mm-arcade.mm-arcade-resolved {
+            color: rgba(245,248,255,0.9);
+        }
+
+        body.mm-arcade.mm-arcade-resolved #__nuxt,
+        body.mm-arcade.mm-arcade-resolved #app,
+        body.mm-arcade.mm-arcade-resolved [data-v-app],
+        body.mm-arcade.mm-arcade-resolved main,
+        body.mm-arcade.mm-arcade-resolved #main,
+        body.mm-arcade.mm-arcade-resolved [class*="page"],
+        body.mm-arcade.mm-arcade-resolved [class*="layout"],
+        body.mm-arcade.mm-arcade-resolved [class*="content"],
+        body.mm-arcade.mm-arcade-resolved [class*="review"] {
+            background-color: #02040a !important;
+            color: rgba(245,248,255,0.9) !important;
+        }
+
+        body.mm-arcade.mm-arcade-resolved h1,
+        body.mm-arcade.mm-arcade-resolved h2,
+        body.mm-arcade.mm-arcade-resolved h3,
+        body.mm-arcade.mm-arcade-resolved h4 {
+            color: rgba(245,248,255,0.94) !important;
+        }
+
+        body.mm-arcade.mm-arcade-resolved #mm-starfield,
+        body.mm-arcade.mm-arcade-resolved #mm-crt-tint,
+        body.mm-arcade.mm-arcade-resolved #mm-scanlines {
+            display: none !important;
         }
 
         /* Phosphor tint + subtle bloom on the whole viewport */
@@ -1467,12 +1743,17 @@
     function restartArcadeBackdrop() {
         if (!settings.arcadeEnabled || !settings.visualsEnabled) return;
         document.body.dataset.mmBg = settings.backgroundTheme;
+        if (isAnswerResolved()) {
+            syncArcadePresentation();
+            return;
+        }
         stopArcadeBackdrop();
         buildStarfield();
     }
 
     function triggerShootingStar() {
-        if (!settings.arcadeEnabled || !settings.visualsEnabled || prefersReducedMotion()) return;
+        if (!settings.arcadeEnabled || !settings.visualsEnabled
+            || prefersReducedMotion() || isAnswerResolved()) return;
         if (settings.backgroundTheme === 'void') return;
         shootingStars.push({
             x: window.innerWidth * (0.65 + Math.random() * 0.45),
@@ -1649,9 +1930,18 @@
 
     function arcadeOn() {
         if (!settings.visualsEnabled) return;
+        const resolved = isAnswerResolved();
         injectArcadeStyles();
         document.body.classList.add('mm-arcade');
+        document.body.classList.toggle('mm-arcade-resolved', resolved);
         document.body.dataset.mmBg = settings.backgroundTheme;
+
+        if (resolved) {
+            stopArcadeBackdrop();
+            document.getElementById('mm-crt-tint')?.remove();
+            document.getElementById('mm-scanlines')?.remove();
+            return;
+        }
 
         if (!document.getElementById('mm-starfield')) buildStarfield();
 
@@ -1662,12 +1952,20 @@
     }
 
     function arcadeOff() {
-        document.body.classList.remove('mm-arcade');
+        document.body.classList.remove('mm-arcade', 'mm-arcade-resolved');
         delete document.body.dataset.mmBg;
         stopArcadeBackdrop();
         ['mm-starfield', 'mm-crt-tint', 'mm-scanlines', 'mm-arcade-styles'].forEach(id =>
             document.getElementById(id)?.remove()
         );
+    }
+
+    function syncArcadePresentation() {
+        if (settings.arcadeEnabled && settings.visualsEnabled) {
+            arcadeOn();
+        } else {
+            arcadeOff();
+        }
     }
 
     function arcadeChromatic() {
@@ -1934,6 +2232,7 @@
     }
 
     function showSummary() {
+        stopMusic(0.6);
         playSessionEndSound();
         const total   = state.sessionCorrect + state.sessionIncorrect;
         const acc     = total > 0 ? Math.round(state.sessionCorrect / total * 100) : 0;
@@ -1983,6 +2282,7 @@
                         refreshAnswerTimerForCurrentQuestion();
                     }
                     lastAnswerState = null;
+                    syncArcadePresentation();
                     continue;
                 }
                 if (correct   && lastAnswerState !== 'correct')   { lastAnswerState = 'correct';   handleCorrect();   }
@@ -1991,6 +2291,7 @@
                     handleIncorrect();
                     if (timeoutAutoFailing) setTimeout(clickNextAfterTimeoutFail, 150);
                 }
+                syncArcadePresentation();
             }
         });
         correctnessObserver.observe(document.body,
@@ -2039,10 +2340,11 @@
         observeCorrectness();
         observeCounter();
         installNativeRewindDetection();
+        installMusicLifecycle();
         updateHUD();
         applyFontChallenge();
         armFirstAnswerTimer();
-        if (settings.arcadeEnabled) arcadeOn();
+        syncArcadePresentation();
         initialized = true;
     }
 
@@ -2050,6 +2352,7 @@
         correctnessObserver?.disconnect();  correctnessObserver = null;
         counterObserver?.disconnect();      counterObserver = null;
         uninstallNativeRewindDetection();
+        uninstallMusicLifecycle();
         if (hudResizeHandler) {
             window.removeEventListener('resize', hudResizeHandler);
             hudResizeHandler = null;
