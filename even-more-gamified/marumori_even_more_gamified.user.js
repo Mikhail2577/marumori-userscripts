@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MaruMori Even More Gamified - Updated
 // @namespace    marumori-gamify
-// @version      3.1.2
+// @version      3.3.1
 // @description  Gamifies MaruMori review sessions with arcade combo audio, score multipliers, screen shake, floating damage numbers, and more
 // @match        https://marumori.io/*
 // @author       matskye
@@ -36,8 +36,10 @@
         hudPosition:    null,
     };
 
-    const BACKGROUND_THEMES = ['default', 'starfield', 'nebula', 'grid', 'matrix', 'void'];
-    const CANVAS_BACKGROUND_THEMES = ['starfield', 'nebula', 'grid', 'matrix'];
+    const BACKGROUND_THEMES = [
+        'default', 'starfield', 'nebula', 'grid', 'gamecenter', 'matrix', 'void',
+    ];
+    const CANVAS_BACKGROUND_THEMES = ['starfield', 'nebula', 'grid', 'gamecenter', 'matrix'];
     const SHOOTING_STAR_THEMES = ['starfield'];
     const MUSIC_STYLES = ['lofi', 'retro'];
     const MUSIC_STYLE_LABELS = { lofi: 'LO-FI', retro: 'RETRO' };
@@ -46,6 +48,7 @@
         starfield: 'STARFIELD',
         nebula: 'NEBULA',
         grid: 'GRID',
+        gamecenter: 'GAME CENTER',
         matrix: 'MATRIX',
         void: 'VOID',
     };
@@ -1859,7 +1862,10 @@
         }
 
         let W, H;
-        let starfieldTexture, starfieldStars, nebulaTexture, nebulaStars, matrixDrops;
+        let starfieldTexture, starfieldStars, starfieldSparkles, nextStarfieldSparkleAt;
+        let nebulaTexture, nebulaStars, nebulaWisps;
+        let gridTexture, gridStars, gridMountainLayers, gridPalms, matrixDrops;
+        let gameCenterTexture, gameCenterCabinets, gameCenterLights;
 
         const theme = settings.backgroundTheme;
         const MATRIX_FONT_SIZE = 18;
@@ -2007,6 +2013,8 @@
                     speed: 0.45 + Math.random() * 0.85,
                 };
             });
+            starfieldSparkles = [];
+            nextStarfieldSparkleAt = performance.now() / 1000 + 0.8 + Math.random() * 1.6;
         }
 
         function getNebulaSpine(p) {
@@ -2142,6 +2150,297 @@
                     speed: 0.35 + Math.random() * 0.8,
                 };
             });
+
+            nebulaWisps = Array.from({ length: 11 }, (_, index) => {
+                const p = (index + 0.5 + Math.random() * 0.45) / 11;
+                const spine = getNebulaSpine(p);
+                const radius = Math.min(W, H) * (0.045 + Math.random() * 0.055);
+                return {
+                    x: spine.x + randomBell() * H * 0.035,
+                    y: spine.y + randomBell() * H * 0.045,
+                    radiusX: radius * (1.35 + Math.random() * 1.2),
+                    radiusY: radius * (0.42 + Math.random() * 0.38),
+                    rotation: -0.48 + randomBell() * 0.28,
+                    hue: getNebulaHue(p) + randomBell() * 12,
+                    alpha: 0.04 + Math.random() * 0.05,
+                    phase: Math.random() * Math.PI * 2,
+                    speed: 0.18 + Math.random() * 0.16,
+                    driftX: 10 + Math.random() * 14,
+                    driftY: 7 + Math.random() * 10,
+                };
+            });
+        }
+
+        function makeGridMountainLayer(baseY, step, minHeight, maxHeight, color, fill) {
+            const points = [];
+            const count = Math.ceil(W / step) + 2;
+            for (let index = -1; index <= count; index++) {
+                const peakBoost = index % 3 === 0 ? 1.25 : 1;
+                const height = (minHeight + Math.random() * (maxHeight - minHeight)) * peakBoost;
+                points.push({ x: index * step, y: baseY - height });
+            }
+            return { baseY, points, color, fill };
+        }
+
+        function initGrid() {
+            const horizon = H * 0.56;
+            gridTexture = createBackdropTexture();
+            const textureCtx = gridTexture.getContext('2d');
+            if (!textureCtx) return;
+
+            const sky = textureCtx.createLinearGradient(0, 0, 0, horizon);
+            sky.addColorStop(0, '#030416');
+            sky.addColorStop(0.48, '#12072d');
+            sky.addColorStop(0.78, '#32104b');
+            sky.addColorStop(1, '#651452');
+            textureCtx.fillStyle = sky;
+            textureCtx.fillRect(0, 0, W, horizon + 1);
+
+            const horizonGlow = textureCtx.createRadialGradient(
+                W * 0.5, horizon, 0, W * 0.5, horizon, Math.max(W * 0.52, H * 0.34)
+            );
+            horizonGlow.addColorStop(0, 'rgba(255,50,180,0.24)');
+            horizonGlow.addColorStop(0.38, 'rgba(115,30,180,0.10)');
+            horizonGlow.addColorStop(1, 'rgba(10,4,32,0)');
+            textureCtx.fillStyle = horizonGlow;
+            textureCtx.fillRect(0, 0, W, horizon + 1);
+
+            const starCount = Math.max(100, Math.min(280, Math.floor(W * H / 6200)));
+            for (let index = 0; index < starCount; index++) {
+                const star = {
+                    x: Math.random() * W,
+                    y: Math.random() * horizon * 0.88,
+                    radius: 0.25 + Math.random() * 0.8,
+                    alpha: 0.18 + Math.random() * 0.52,
+                    hue: Math.random() < 0.72 ? 202 : 312,
+                };
+                drawStarPoint(textureCtx, star);
+            }
+
+            gridStars = Array.from({ length: 26 }, () => ({
+                x: W * (0.04 + Math.random() * 0.92),
+                y: horizon * (0.08 + Math.random() * 0.72),
+                radius: 0.65 + Math.random() * 0.85,
+                alpha: 0.32 + Math.random() * 0.4,
+                hue: Math.random() < 0.62 ? 196 : 315,
+                phase: Math.random() * Math.PI * 2,
+                speed: 0.35 + Math.random() * 0.8,
+            }));
+
+            gridMountainLayers = [
+                makeGridMountainLayer(
+                    horizon + 8, Math.max(62, W / 22), H * 0.075, H * 0.18,
+                    'rgba(0,205,255,0.64)', 'rgba(3,5,28,0.88)'
+                ),
+                makeGridMountainLayer(
+                    horizon + 24, Math.max(44, W / 30), H * 0.045, H * 0.13,
+                    'rgba(255,0,210,0.62)', 'rgba(9,3,30,0.94)'
+                ),
+            ];
+
+            const palmSize = Math.min(W, H);
+            gridPalms = [
+                { x: W * 0.055, size: palmSize * 0.19, lean: -0.18 },
+                { x: W * 0.15, size: palmSize * 0.13, lean: 0.12 },
+                { x: W * 0.85, size: palmSize * 0.13, lean: -0.1 },
+                { x: W * 0.945, size: palmSize * 0.2, lean: 0.17 },
+            ];
+        }
+
+        function drawGameCenterPanel(target, x, y, width, height, hue, label, sublabel = '') {
+            target.save();
+            target.fillStyle = 'rgba(5,4,18,0.92)';
+            target.strokeStyle = `hsla(${hue},100%,58%,0.52)`;
+            target.shadowColor = `hsla(${hue},100%,56%,0.4)`;
+            target.shadowBlur = Math.max(3, height * 0.09);
+            target.lineWidth = Math.max(1, height * 0.035);
+            target.fillRect(x, y, width, height);
+            target.strokeRect(x, y, width, height);
+            target.shadowBlur = Math.max(2, height * 0.05);
+            target.fillStyle = `hsla(${hue},100%,70%,0.72)`;
+            const labelSize = Math.max(
+                6,
+                Math.min(height * 0.34, width / Math.max(4, label.length * 0.72))
+            );
+            target.font = `700 ${labelSize}px sans-serif`;
+            target.textAlign = 'center';
+            target.textBaseline = 'middle';
+            target.fillText(label, x + width / 2, y + height * (sublabel ? 0.42 : 0.52));
+            if (sublabel) {
+                target.shadowBlur = 0;
+                target.fillStyle = 'rgba(220,245,255,0.52)';
+                const sublabelSize = Math.max(
+                    5,
+                    Math.min(height * 0.16, width / Math.max(5, sublabel.length * 0.68))
+                );
+                target.font = `600 ${sublabelSize}px sans-serif`;
+                target.fillText(sublabel, x + width / 2, y + height * 0.76);
+            }
+            target.restore();
+        }
+
+        function initGameCenter() {
+            gameCenterTexture = createBackdropTexture();
+            const textureCtx = gameCenterTexture.getContext('2d');
+            if (!textureCtx) return;
+
+            const horizon = H * 0.53;
+            const vanishingX = W / 2;
+            const vanishingY = H * 0.4;
+            const room = textureCtx.createRadialGradient(
+                vanishingX, vanishingY, 0,
+                vanishingX, vanishingY, Math.max(W, H) * 0.78
+            );
+            room.addColorStop(0, '#141025');
+            room.addColorStop(0.46, '#080818');
+            room.addColorStop(1, '#02040a');
+            textureCtx.fillStyle = room;
+            textureCtx.fillRect(0, 0, W, H);
+
+            const leftWall = textureCtx.createLinearGradient(0, 0, W * 0.34, 0);
+            leftWall.addColorStop(0, 'rgba(7,12,25,0.98)');
+            leftWall.addColorStop(1, 'rgba(25,8,38,0.74)');
+            textureCtx.fillStyle = leftWall;
+            textureCtx.beginPath();
+            textureCtx.moveTo(0, 0);
+            textureCtx.lineTo(W * 0.3, H * 0.18);
+            textureCtx.lineTo(W * 0.34, horizon);
+            textureCtx.lineTo(0, H * 0.72);
+            textureCtx.closePath();
+            textureCtx.fill();
+
+            const rightWall = textureCtx.createLinearGradient(W, 0, W * 0.66, 0);
+            rightWall.addColorStop(0, 'rgba(7,12,25,0.98)');
+            rightWall.addColorStop(1, 'rgba(28,7,32,0.74)');
+            textureCtx.fillStyle = rightWall;
+            textureCtx.beginPath();
+            textureCtx.moveTo(W, 0);
+            textureCtx.lineTo(W * 0.7, H * 0.18);
+            textureCtx.lineTo(W * 0.66, horizon);
+            textureCtx.lineTo(W, H * 0.72);
+            textureCtx.closePath();
+            textureCtx.fill();
+
+            textureCtx.fillStyle = 'rgba(5,7,16,0.96)';
+            textureCtx.fillRect(W * 0.3, H * 0.18, W * 0.4, horizon - H * 0.18);
+            textureCtx.strokeStyle = 'rgba(0,205,255,0.07)';
+            textureCtx.lineWidth = 1;
+            for (let panel = 0; panel <= 8; panel++) {
+                const x = W * 0.3 + panel * W * 0.05;
+                textureCtx.beginPath();
+                textureCtx.moveTo(x, H * 0.18);
+                textureCtx.lineTo(x, horizon);
+                textureCtx.stroke();
+            }
+
+            textureCtx.strokeStyle = 'rgba(70,150,220,0.06)';
+            for (let beam = 0; beam <= 12; beam++) {
+                textureCtx.beginPath();
+                textureCtx.moveTo(vanishingX, vanishingY);
+                textureCtx.lineTo(beam * W / 12, 0);
+                textureCtx.stroke();
+            }
+            for (let row = 0; row < 5; row++) {
+                const y = H * 0.04 + row * H * 0.055;
+                const spread = W * (0.5 - row * 0.065);
+                textureCtx.beginPath();
+                textureCtx.moveTo(vanishingX - spread, y);
+                textureCtx.lineTo(vanishingX + spread, y);
+                textureCtx.stroke();
+            }
+
+            const floor = textureCtx.createLinearGradient(0, horizon, 0, H);
+            floor.addColorStop(0, '#0c071c');
+            floor.addColorStop(0.52, '#080919');
+            floor.addColorStop(1, '#03050d');
+            textureCtx.fillStyle = floor;
+            textureCtx.fillRect(0, horizon, W, H - horizon);
+
+            const floorRows = 13;
+            const floorColumns = 20;
+            for (let row = 0; row < floorRows; row++) {
+                const p1 = row / floorRows;
+                const p2 = (row + 1) / floorRows;
+                const y1 = horizon + Math.pow(p1, 1.82) * (H - horizon);
+                const y2 = horizon + Math.pow(p2, 1.82) * (H - horizon);
+                for (let column = -floorColumns / 2; column < floorColumns / 2; column++) {
+                    const x11 = vanishingX + column * W / floorColumns * p1;
+                    const x12 = vanishingX + (column + 1) * W / floorColumns * p1;
+                    const x21 = vanishingX + column * W / floorColumns * p2;
+                    const x22 = vanishingX + (column + 1) * W / floorColumns * p2;
+                    textureCtx.fillStyle = (row + column) % 2 === 0
+                        ? 'rgba(42,17,62,0.12)'
+                        : 'rgba(3,38,53,0.08)';
+                    textureCtx.beginPath();
+                    textureCtx.moveTo(x11, y1);
+                    textureCtx.lineTo(x12, y1);
+                    textureCtx.lineTo(x22, y2);
+                    textureCtx.lineTo(x21, y2);
+                    textureCtx.closePath();
+                    textureCtx.fill();
+                }
+            }
+
+            textureCtx.strokeStyle = 'rgba(0,205,255,0.055)';
+            for (let column = -10; column <= 10; column++) {
+                textureCtx.beginPath();
+                textureCtx.moveTo(vanishingX, horizon);
+                textureCtx.lineTo(vanishingX + column * W / 20, H);
+                textureCtx.stroke();
+            }
+            for (let row = 1; row <= floorRows; row++) {
+                const p = row / floorRows;
+                const y = horizon + Math.pow(p, 1.82) * (H - horizon);
+                textureCtx.beginPath();
+                textureCtx.moveTo(0, y);
+                textureCtx.lineTo(W, y);
+                textureCtx.stroke();
+            }
+
+            drawGameCenterPanel(
+                textureCtx, W * 0.055, H * 0.18, W * 0.13, H * 0.05,
+                190, '音ゲー', 'RHYTHM'
+            );
+            drawGameCenterPanel(
+                textureCtx, W * 0.815, H * 0.18, W * 0.13, H * 0.05,
+                320, 'UFO キャッチャー', 'PRIZE'
+            );
+
+            const cabinetLabels = ['音', 'UFO', '対戦', 'RACE', '太鼓', 'GAME', '景品'];
+            const cabinetCount = 5;
+            gameCenterCabinets = [];
+            for (let index = 0; index < cabinetCount; index++) {
+                const p = (index + 1) / cabinetCount;
+                const depth = Math.pow(p, 1.28);
+                const width = Math.min(
+                    W * 0.085,
+                    H * 0.12,
+                    30 + depth * W * 0.045
+                );
+                const height = width * 1.55;
+                const baseY = horizon + depth * (H - horizon) * 0.94;
+                const offset = W * (0.19 + depth * 0.285);
+                for (const side of [-1, 1]) {
+                    gameCenterCabinets.push({
+                        x: vanishingX + side * offset,
+                        baseY,
+                        width,
+                        height,
+                        side,
+                        hue: [190, 315, 28, 48][(index + (side > 0 ? 1 : 0)) % 4],
+                        phase: Math.random() * Math.PI * 2,
+                        label: cabinetLabels[(index + (side > 0 ? 2 : 0)) % cabinetLabels.length],
+                    });
+                }
+            }
+
+            gameCenterLights = Array.from({ length: 9 }, (_, index) => ({
+                x: W * (0.1 + index * 0.1),
+                y: H * (0.075 + Math.abs(index - 4) * 0.012),
+                radius: Math.max(3, Math.min(W, H) * 0.006),
+                hue: [28, 190, 315][index % 3],
+                phase: Math.random() * Math.PI * 2,
+            }));
         }
 
         function initMatrix() {
@@ -2160,19 +2459,372 @@
                 const pulse = 0.72 + Math.sin(t * star.speed + star.phase) * 0.28;
                 drawBrightStar(ctx, star, star.alpha * pulse);
             }
+            drawStarfieldSparkles(t);
             ctx.restore();
+        }
+
+        function drawStarfieldSparkles(t) {
+            if (t >= nextStarfieldSparkleAt && starfieldStars.length > 0) {
+                const source = starfieldStars[Math.floor(Math.random() * starfieldStars.length)];
+                starfieldSparkles.push({
+                    x: source.x,
+                    y: source.y,
+                    hue: Math.random() < 0.76 ? source.hue : 315,
+                    radius: source.radius * (1.25 + Math.random() * 0.75),
+                    start: t,
+                    duration: 0.48 + Math.random() * 0.34,
+                });
+                nextStarfieldSparkleAt = t + 0.9 + Math.random() * 2.1;
+            }
+
+            starfieldSparkles = starfieldSparkles.filter(sparkle => {
+                const progress = (t - sparkle.start) / sparkle.duration;
+                if (progress < 0 || progress >= 1) return false;
+                const strength = Math.sin(progress * Math.PI);
+                const length = sparkle.radius * (4 + strength * 5);
+                const alpha = strength * 0.72;
+
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.strokeStyle = `hsla(${sparkle.hue},100%,92%,${alpha})`;
+                ctx.fillStyle = `hsla(${sparkle.hue},100%,94%,${alpha})`;
+                ctx.shadowColor = `hsla(${sparkle.hue},100%,72%,${alpha})`;
+                ctx.shadowBlur = 8 + strength * 10;
+                ctx.lineWidth = 0.65 + strength * 0.75;
+                ctx.beginPath();
+                ctx.moveTo(sparkle.x - length, sparkle.y);
+                ctx.lineTo(sparkle.x + length, sparkle.y);
+                ctx.moveTo(sparkle.x, sparkle.y - length * 0.72);
+                ctx.lineTo(sparkle.x, sparkle.y + length * 0.72);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(sparkle.x, sparkle.y, sparkle.radius * (0.7 + strength), 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+                return true;
+            });
         }
 
         function drawNebula(t) {
             if (theme !== 'nebula') return;
             ctx.save();
-            const driftX = Math.sin(t * 0.009) * 1.8;
-            const driftY = Math.cos(t * 0.008) * 1.4;
-            ctx.drawImage(nebulaTexture, driftX - 2, driftY - 2, W + 4, H + 4);
+            const driftX = Math.sin(t * 0.12) * 8;
+            const driftY = Math.cos(t * 0.09) * 6;
+            const breathe = 1 + Math.sin(t * 0.16) * 0.008;
+            ctx.save();
+            ctx.translate(W / 2, H / 2);
+            ctx.scale(breathe, breathe);
+            ctx.drawImage(
+                nebulaTexture,
+                -W / 2 + driftX - 3,
+                -H / 2 + driftY - 3,
+                W + 6,
+                H + 6
+            );
+            ctx.restore();
+
             ctx.globalCompositeOperation = 'lighter';
+            for (const wisp of nebulaWisps) {
+                const pulse = 0.55 + Math.sin(t * wisp.speed + wisp.phase) * 0.45;
+                const x = wisp.x + Math.sin(t * wisp.speed * 0.72 + wisp.phase) * wisp.driftX;
+                const y = wisp.y + Math.cos(t * wisp.speed * 0.58 + wisp.phase) * wisp.driftY;
+                paintEllipticalGlow(
+                    ctx, x, y,
+                    wisp.radiusX * (0.94 + pulse * 0.1),
+                    wisp.radiusY * (0.94 + pulse * 0.08),
+                    wisp.rotation + Math.sin(t * wisp.speed * 0.4 + wisp.phase) * 0.04,
+                    [
+                        [0, `hsla(${wisp.hue},96%,68%,${wisp.alpha * pulse})`],
+                        [0.46, `hsla(${wisp.hue + 18},92%,48%,${wisp.alpha * pulse * 0.55})`],
+                        [1, `hsla(${wisp.hue},90%,28%,0)`],
+                    ]
+                );
+            }
             for (const star of nebulaStars) {
                 const pulse = 0.68 + Math.sin(t * star.speed + star.phase) * 0.32;
                 drawBrightStar(ctx, star, star.alpha * pulse);
+            }
+            ctx.restore();
+        }
+
+        function drawGameCenterCabinet(machine, t) {
+            const flicker = 0.78 + Math.sin(t * 2.4 + machine.phase) * 0.16
+                + Math.sin(t * 6.7 + machine.phase) * 0.06;
+            const { width, height } = machine;
+
+            ctx.save();
+            ctx.translate(machine.x, machine.baseY);
+            ctx.fillStyle = 'rgba(3,5,13,0.97)';
+            ctx.strokeStyle = `hsla(${machine.hue},100%,58%,0.52)`;
+            ctx.shadowColor = `hsla(${machine.hue},100%,54%,0.38)`;
+            ctx.shadowBlur = Math.max(2, width * 0.04);
+            ctx.lineWidth = Math.max(1, width * 0.018);
+
+            ctx.beginPath();
+            ctx.moveTo(-width * 0.43, -height);
+            ctx.lineTo(width * 0.43, -height);
+            ctx.lineTo(width * 0.5, 0);
+            ctx.lineTo(-width * 0.5, 0);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = `hsla(${machine.hue},85%,22%,0.95)`;
+            ctx.fillRect(-width * 0.4, -height * 0.94, width * 0.8, height * 0.15);
+            ctx.fillStyle = `hsla(${machine.hue},100%,76%,${0.72 * flicker})`;
+            ctx.font = `700 ${Math.max(6, width * 0.15)}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(machine.label, 0, -height * 0.865);
+
+            const screenX = -width * 0.32;
+            const screenY = -height * 0.72;
+            const screenW = width * 0.64;
+            const screenH = height * 0.3;
+            const screen = ctx.createLinearGradient(
+                screenX, screenY, screenX + screenW, screenY + screenH
+            );
+            screen.addColorStop(0, `hsla(${machine.hue},100%,62%,${0.16 * flicker})`);
+            screen.addColorStop(0.5, `hsla(${machine.hue + 75},100%,55%,${0.42 * flicker})`);
+            screen.addColorStop(1, 'rgba(2,8,18,0.95)');
+            ctx.fillStyle = screen;
+            ctx.fillRect(screenX, screenY, screenW, screenH);
+            ctx.strokeRect(screenX, screenY, screenW, screenH);
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(screenX, screenY, screenW, screenH);
+            ctx.clip();
+            ctx.strokeStyle = `hsla(${machine.hue + 55},100%,78%,${0.24 * flicker})`;
+            ctx.lineWidth = Math.max(0.6, width * 0.008);
+            for (let stripe = -2; stripe < 5; stripe++) {
+                const offset = ((t * 18 + stripe * screenW * 0.28) % (screenW * 1.4)) - screenW * 0.2;
+                ctx.beginPath();
+                ctx.moveTo(screenX + offset, screenY + screenH);
+                ctx.lineTo(screenX + offset + screenW * 0.4, screenY);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            ctx.fillStyle = 'rgba(20,18,32,0.98)';
+            ctx.beginPath();
+            ctx.moveTo(-width * 0.36, -height * 0.36);
+            ctx.lineTo(width * 0.36, -height * 0.36);
+            ctx.lineTo(width * 0.46, -height * 0.24);
+            ctx.lineTo(-width * 0.46, -height * 0.24);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = `hsla(${machine.hue},100%,66%,0.62)`;
+            ctx.beginPath();
+            ctx.arc(-width * 0.16, -height * 0.3, Math.max(1.5, width * 0.035), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(255,80,145,0.65)';
+            ctx.beginPath();
+            ctx.arc(width * 0.12, -height * 0.3, Math.max(1.2, width * 0.028), 0, Math.PI * 2);
+            ctx.arc(width * 0.21, -height * 0.3, Math.max(1.2, width * 0.028), 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(15,18,26,0.96)';
+            ctx.fillRect(-width * 0.32, -height * 0.18, width * 0.64, height * 0.12);
+            ctx.fillStyle = `hsla(${machine.hue},100%,62%,0.34)`;
+            ctx.fillRect(-width * 0.08, -height * 0.14, width * 0.16, height * 0.025);
+            ctx.restore();
+        }
+
+        function drawGameCenter(t) {
+            if (theme !== 'gamecenter') return;
+            const horizon = H * 0.53;
+            const vanishingX = W / 2;
+            ctx.save();
+            ctx.drawImage(gameCenterTexture, 0, 0, W, H);
+
+            ctx.globalCompositeOperation = 'lighter';
+            for (const light of gameCenterLights) {
+                const pulse = 0.72 + Math.sin(t * 1.3 + light.phase) * 0.2;
+                const glow = ctx.createRadialGradient(
+                    light.x, light.y, 0,
+                    light.x, light.y, light.radius * 8
+                );
+                glow.addColorStop(0, `hsla(${light.hue},100%,78%,${0.38 * pulse})`);
+                glow.addColorStop(0.2, `hsla(${light.hue},100%,60%,${0.12 * pulse})`);
+                glow.addColorStop(1, `hsla(${light.hue},100%,50%,0)`);
+                ctx.fillStyle = glow;
+                ctx.beginPath();
+                ctx.arc(light.x, light.y, light.radius * 8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = `hsla(${light.hue},100%,82%,${0.58 * pulse})`;
+                ctx.fillRect(
+                    light.x - light.radius * 1.8,
+                    light.y - light.radius * 0.65,
+                    light.radius * 3.6,
+                    light.radius * 1.3
+                );
+            }
+
+            for (const machine of gameCenterCabinets) {
+                const reflection = ctx.createLinearGradient(
+                    machine.x, machine.baseY,
+                    machine.x, Math.min(H, machine.baseY + machine.height * 0.72)
+                );
+                reflection.addColorStop(0, `hsla(${machine.hue},100%,58%,0.055)`);
+                reflection.addColorStop(1, `hsla(${machine.hue},100%,45%,0)`);
+                ctx.fillStyle = reflection;
+                ctx.beginPath();
+                ctx.moveTo(machine.x - machine.width * 0.34, machine.baseY);
+                ctx.lineTo(machine.x + machine.width * 0.34, machine.baseY);
+                ctx.lineTo(machine.x + machine.width * 0.18, H);
+                ctx.lineTo(machine.x - machine.width * 0.18, H);
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.globalCompositeOperation = 'source-over';
+
+            gameCenterCabinets.forEach(machine => drawGameCenterCabinet(machine, t));
+
+            const focusShade = ctx.createRadialGradient(
+                vanishingX, H * 0.35, 0,
+                vanishingX, H * 0.35, Math.min(W, H) * 0.42
+            );
+            focusShade.addColorStop(0, 'rgba(1,3,10,0.34)');
+            focusShade.addColorStop(0.56, 'rgba(1,3,10,0.12)');
+            focusShade.addColorStop(1, 'rgba(1,3,10,0)');
+            ctx.fillStyle = focusShade;
+            ctx.fillRect(0, 0, W, H);
+
+            ctx.globalCompositeOperation = 'lighter';
+            for (let index = 0; index < 8; index++) {
+                const progress = ((index / 8) + t * 0.12) % 1;
+                const y = horizon + Math.pow(progress, 1.85) * (H - horizon);
+                const spread = W * (0.025 + progress * 0.18);
+                const alpha = 0.1 + progress * 0.22;
+                for (const side of [-1, 1]) {
+                    ctx.fillStyle = `rgba(255,92,42,${alpha})`;
+                    ctx.shadowColor = '#ff5c2a';
+                    ctx.shadowBlur = 4;
+                    ctx.beginPath();
+                    ctx.arc(vanishingX + side * spread, y, 0.8 + progress * 1.2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            ctx.restore();
+        }
+
+        function drawGridSun(t, horizon) {
+            const sunX = W * 0.5 + Math.sin(t * 0.16) * 4;
+            const sunR = Math.min(W, H) * 0.145;
+            const sunY = horizon - sunR * 0.34;
+            const glow = ctx.createRadialGradient(sunX, sunY, sunR * 0.15, sunX, sunY, sunR * 1.7);
+            glow.addColorStop(0, 'rgba(255,210,105,0.32)');
+            glow.addColorStop(0.42, 'rgba(255,65,165,0.18)');
+            glow.addColorStop(1, 'rgba(255,0,185,0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(sunX, sunY, sunR * 1.7, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
+            ctx.clip();
+
+            const sun = ctx.createLinearGradient(0, sunY - sunR, 0, sunY + sunR);
+            sun.addColorStop(0, '#ffd47a');
+            sun.addColorStop(0.46, '#ff6e8f');
+            sun.addColorStop(1, '#ff149f');
+            ctx.fillStyle = sun;
+            ctx.fillRect(sunX - sunR, sunY - sunR, sunR * 2, sunR * 2);
+
+            ctx.fillStyle = 'rgba(16,3,38,0.74)';
+            for (let stripe = 0; stripe < 10; stripe++) {
+                const y = sunY - sunR * 0.34 + stripe * sunR * 0.145;
+                ctx.fillRect(sunX - sunR, y, sunR * 2, 2.5 + stripe * 0.85);
+            }
+            ctx.restore();
+        }
+
+        function drawGridMountain(layer) {
+            ctx.save();
+            ctx.fillStyle = layer.fill;
+            ctx.strokeStyle = layer.color;
+            ctx.lineJoin = 'round';
+            ctx.shadowColor = layer.color;
+            ctx.shadowBlur = 9;
+            ctx.lineWidth = 1.35;
+
+            ctx.beginPath();
+            ctx.moveTo(layer.points[0].x, layer.baseY);
+            layer.points.forEach(point => ctx.lineTo(point.x, point.y));
+            ctx.lineTo(layer.points[layer.points.length - 1].x, layer.baseY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.shadowBlur = 0;
+            ctx.lineWidth = 0.65;
+            ctx.globalAlpha = 0.58;
+            for (const point of layer.points) {
+                ctx.beginPath();
+                ctx.moveTo(point.x, point.y);
+                ctx.lineTo(point.x, layer.baseY);
+                ctx.stroke();
+            }
+            for (const depth of [0.28, 0.52, 0.74]) {
+                ctx.beginPath();
+                layer.points.forEach((point, index) => {
+                    const y = point.y + (layer.baseY - point.y) * depth;
+                    if (index === 0) ctx.moveTo(point.x, y);
+                    else ctx.lineTo(point.x, y);
+                });
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function drawGridPalm(palm, horizon) {
+            const baseY = horizon + 19;
+            const crownX = palm.x + palm.size * palm.lean;
+            const crownY = baseY - palm.size;
+
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255,0,205,0.24)';
+            ctx.shadowColor = '#ff00c8';
+            ctx.shadowBlur = 8;
+            ctx.lineCap = 'round';
+            ctx.lineWidth = palm.size * 0.09;
+            ctx.beginPath();
+            ctx.moveTo(palm.x, baseY);
+            ctx.quadraticCurveTo(
+                palm.x + palm.size * palm.lean * 0.34,
+                baseY - palm.size * 0.52,
+                crownX,
+                crownY
+            );
+            ctx.stroke();
+
+            ctx.strokeStyle = 'rgba(2,2,16,0.98)';
+            ctx.shadowBlur = 0;
+            ctx.lineWidth = palm.size * 0.065;
+            ctx.stroke();
+
+            const frondLength = palm.size * 0.48;
+            for (let index = 0; index < 9; index++) {
+                const angle = Math.PI * (1.03 + index * 0.115);
+                const endX = crownX + Math.cos(angle) * frondLength;
+                const endY = crownY + Math.sin(angle) * frondLength * 0.72;
+                const bend = index < 4 ? -1 : 1;
+                ctx.lineWidth = palm.size * 0.035;
+                ctx.beginPath();
+                ctx.moveTo(crownX, crownY);
+                ctx.quadraticCurveTo(
+                    crownX + Math.cos(angle) * frondLength * 0.58,
+                    crownY + Math.sin(angle) * frondLength * 0.36 - bend * palm.size * 0.05,
+                    endX,
+                    endY + palm.size * 0.06
+                );
+                ctx.stroke();
             }
             ctx.restore();
         }
@@ -2181,55 +2833,42 @@
             if (theme !== 'grid') return;
             const horizon = H * 0.56;
             ctx.save();
-            const sky = ctx.createLinearGradient(0, 0, 0, horizon + 80);
-            sky.addColorStop(0, 'rgba(12,10,42,0.72)');
-            sky.addColorStop(0.55, 'rgba(82,24,88,0.44)');
-            sky.addColorStop(1, 'rgba(255,112,72,0.18)');
-            ctx.fillStyle = sky;
-            ctx.fillRect(0, 0, W, horizon + 90);
+            ctx.drawImage(gridTexture, 0, 0, W, H);
 
-            const sunX = W / 2 + Math.sin(t * 0.08) * 18;
-            const sunY = horizon + 8;
-            const sunR = Math.min(W, H) * 0.17;
-            const sun = ctx.createRadialGradient(sunX, sunY - sunR * 0.3, 0, sunX, sunY, sunR);
-            sun.addColorStop(0, 'rgba(255,245,130,0.78)');
-            sun.addColorStop(0.55, 'rgba(255,105,96,0.46)');
-            sun.addColorStop(1, 'rgba(255,0,170,0)');
-            ctx.fillStyle = sun;
-            ctx.beginPath();
-            ctx.arc(sunX, sunY, sunR, Math.PI, 0);
-            ctx.lineTo(sunX + sunR, sunY);
-            ctx.arc(sunX, sunY, sunR, 0, Math.PI, true);
-            ctx.fill();
+            ctx.globalCompositeOperation = 'lighter';
+            for (const star of gridStars) {
+                const pulse = 0.62 + Math.sin(t * star.speed + star.phase) * 0.38;
+                drawBrightStar(ctx, star, star.alpha * pulse);
+            }
+            ctx.globalCompositeOperation = 'source-over';
+
+            drawGridSun(t, horizon);
+            gridMountainLayers.forEach(drawGridMountain);
+            gridPalms.forEach(palm => drawGridPalm(palm, horizon));
+
+            const floor = ctx.createLinearGradient(0, horizon, 0, H);
+            floor.addColorStop(0, 'rgba(24,2,46,0.97)');
+            floor.addColorStop(0.42, 'rgba(7,3,26,0.98)');
+            floor.addColorStop(1, 'rgba(2,3,16,1)');
+            ctx.fillStyle = floor;
+            ctx.fillRect(0, horizon, W, H - horizon);
+
+            const horizonBloom = ctx.createLinearGradient(0, horizon - 10, 0, horizon + 42);
+            horizonBloom.addColorStop(0, 'rgba(255,0,200,0)');
+            horizonBloom.addColorStop(0.42, 'rgba(255,35,190,0.34)');
+            horizonBloom.addColorStop(1, 'rgba(80,0,150,0)');
+            ctx.fillStyle = horizonBloom;
+            ctx.fillRect(0, horizon - 10, W, 52);
 
             ctx.save();
-            ctx.beginPath();
-            ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
-            ctx.clip();
-            ctx.fillStyle = 'rgba(2,4,16,0.52)';
-            for (let stripe = 0; stripe < 9; stripe++) {
-                const y = sunY - sunR * 0.72 + stripe * sunR * 0.19;
-                ctx.fillRect(sunX - sunR, y, sunR * 2, 4 + stripe * 1.2);
-            }
-            ctx.restore();
-
-            ctx.fillStyle = 'rgba(6,8,23,0.72)';
-            ctx.beginPath();
-            ctx.moveTo(0, horizon + 22);
-            for (let x = 0; x <= W; x += 56) {
-                const y = horizon + 12 - Math.abs(Math.sin(x * 0.018 + 0.4)) * 54;
-                ctx.lineTo(x, y);
-            }
-            ctx.lineTo(W, H);
-            ctx.lineTo(0, H);
-            ctx.closePath();
-            ctx.fill();
-
-            ctx.strokeStyle = 'rgba(0,255,204,0.30)';
+            ctx.strokeStyle = 'rgba(255,0,215,0.5)';
+            ctx.shadowColor = '#ff00d4';
+            ctx.shadowBlur = 7;
             ctx.lineWidth = 1;
-            for (let i = 0; i < 22; i++) {
-                const p = i / 21;
-                const y = horizon + Math.pow(p, 2.35) * (H - horizon);
+            const travel = (t * 1.4) % 1;
+            for (let index = 0; index < 25; index++) {
+                const progress = (index + travel) / 25;
+                const y = horizon + Math.pow(progress, 2.2) * (H - horizon);
                 ctx.beginPath();
                 ctx.moveTo(0, y);
                 ctx.lineTo(W, y);
@@ -2237,19 +2876,31 @@
             }
 
             const vanishingX = W / 2;
-            for (let i = -14; i <= 14; i++) {
-                const x = W / 2 + i * W * 0.085;
+            for (let index = -16; index <= 16; index++) {
+                const x = W / 2 + index * W * 0.078;
+                ctx.strokeStyle = index % 2 === 0
+                    ? 'rgba(0,220,255,0.40)'
+                    : 'rgba(255,0,215,0.32)';
+                ctx.shadowColor = index % 2 === 0 ? '#00d8ff' : '#ff00d4';
                 ctx.beginPath();
                 ctx.moveTo(vanishingX, horizon);
                 ctx.lineTo(x, H);
                 ctx.stroke();
             }
+            ctx.restore();
 
-            const floorGlow = ctx.createLinearGradient(0, horizon, 0, H);
-            floorGlow.addColorStop(0, 'rgba(255,0,160,0.10)');
-            floorGlow.addColorStop(1, 'rgba(0,255,204,0.08)');
-            ctx.fillStyle = floorGlow;
-            ctx.fillRect(0, horizon, W, H - horizon);
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255,145,52,0.84)';
+            ctx.shadowColor = '#ff6b1a';
+            ctx.shadowBlur = 10;
+            ctx.lineWidth = 2;
+            for (const side of [-1, 1]) {
+                ctx.beginPath();
+                ctx.moveTo(vanishingX + side * 4, horizon);
+                ctx.lineTo(vanishingX + side * W * 0.105, H);
+                ctx.stroke();
+            }
+            ctx.restore();
             ctx.restore();
         }
 
@@ -2315,6 +2966,7 @@
             drawStarfield(t);
             drawNebula(t);
             drawGrid(t);
+            drawGameCenter(t);
             drawMatrix(t);
             if (hasShootingStars(theme) && Math.random() < 0.0025) triggerShootingStar();
             drawShootingStars();
@@ -2325,12 +2977,16 @@
             resize();
             if (theme === 'starfield') initStarfield();
             if (theme === 'nebula') initNebula();
+            if (theme === 'grid') initGrid();
+            if (theme === 'gamecenter') initGameCenter();
             if (theme === 'matrix') initMatrix();
         };
         window.addEventListener('resize', starResizeHandler);
         resize();
         if (theme === 'starfield') initStarfield();
         if (theme === 'nebula') initNebula();
+        if (theme === 'grid') initGrid();
+        if (theme === 'gamecenter') initGameCenter();
         if (theme === 'matrix') initMatrix();
         tick();
     }

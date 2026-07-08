@@ -6,7 +6,7 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ### Added
 
-- Bumped the userscript version to `3.1.2` so managers detect this update.
+- Bumped the userscript version to `3.3.1` so managers detect this update.
 - Renamed the userscript to `MaruMori Even More Gamified - Updated`.
 - Added a first-answer timer grace period:
   - The initial review item starts with the timer paused.
@@ -53,6 +53,7 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
   - `STARFIELD`.
   - `NEBULA`.
   - `GRID`.
+  - `GAME CENTER`.
   - `MATRIX`.
   - `VOID`.
 - Added pinned background defaults:
@@ -81,6 +82,19 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 - Rebuilt `STARFIELD` as a dense galactic star field and removed the foreground planets.
 - Rebuilt `NEBULA` with localized emission clouds, fine filaments, embedded star
   clusters, and irregular dust pockets.
+- Added subtle breathing motion and independently drifting light wisps to `NEBULA`.
+- Added sparse, short-lived sparkle flares to random bright stars in `STARFIELD`.
+- Added a procedural Japanese `GAME CENTER` theme with perspective arcade
+  cabinets, animated screens, Japanese neon signs, ceiling lights, floor
+  reflections, and moving aisle lights.
+- Reduced `GAME CENTER` visual intensity by removing the central marquee,
+  shrinking and reducing the cabinet rows, quieting the room geometry and
+  reflections, and darkening the focus area behind review content.
+- Rebuilt `GRID` as a fuller 80s synthwave scene with a striped sunset,
+  twinkling stars, layered neon wireframe mountains, palm silhouettes, an
+  animated perspective floor, and glowing runway rails.
+- Increased `NEBULA` motion amplitude and wisp visibility so its animation
+  remains perceptible behind the review interface.
 - Cached detailed space textures so each animation frame only composites the scene
   and updates a small number of twinkling stars.
 - Settings are now normalized on load to avoid bad persisted values.

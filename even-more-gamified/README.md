@@ -34,9 +34,14 @@ or `USE PINNED BACKGROUND` to return to it immediately.
 `DEFAULT` keeps MaruMori's normal background without a generated canvas backdrop.
 
 - `DEFAULT`
-- `STARFIELD` - a dense deep-space field with a subtle galactic band and sparse twinkling stars.
-- `NEBULA` - layered emission clouds, luminous filaments, dark dust pockets, and embedded clusters.
-- `GRID` - a retro synthwave horizon and perspective grid.
+- `STARFIELD` - a dense deep-space field with a subtle galactic band,
+  twinkling stars, and occasional sparkle flares.
+- `NEBULA` - layered emission clouds, luminous filaments, drifting wisps,
+  dark dust pockets, and embedded clusters.
+- `GRID` - an animated 80s synthwave scene with a striped sunset, neon
+  wireframe mountains, palm silhouettes, stars, and a perspective runway.
+- `GAME CENTER` - a subdued Japanese arcade interior with side-framed animated
+  cabinets, restrained neon signs, hanging lights, and a perspective floor.
 - `MATRIX` - falling Japanese glyphs and digital rain.
 - `VOID`
 
