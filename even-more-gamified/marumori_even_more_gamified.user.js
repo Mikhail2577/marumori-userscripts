@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         MaruMori Even More Gamified - Updated
 // @namespace    marumori-gamify
-// @version      3.6.1
+// @version      3.6.2
 // @description  Gamifies MaruMori review sessions with arcade combo audio, score multipliers, screen shake, floating damage numbers, and more
 // @match        https://marumori.io/*
 // @author       matskye
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_getResourceURL
-// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.6.1
+// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.6.2
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=marumori.io
 // @license      WTFPL
 // @downloadURL https://update.greasyfork.org/scripts/566950/MaruMori%20Even%20More%20Gamified.user.js
@@ -19,13 +19,14 @@
     'use strict';
 
     const DEFAULTS = {
+        settingsVersion: 2,
         sfxEnabled:     true,
         visualsEnabled: true,
         hudEnabled:     true,
         shakeEnabled:   true,
         floatEnabled:   true,
         flashEnabled:   true,
-        failureFlashEnabled: false,
+        failureFlashEnabled: true,
         crtEnabled:     true,
         timerEnabled:   true,
         timerSeconds:   15,
@@ -92,7 +93,7 @@
     };
     const SHRINE_IMAGE_URL =
         'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/'
-        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.6.1';
+        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.6.2';
     const RESOLVED_BACKDROP_OPACITY = 0.5;
 
     const BOOL_SETTINGS = [
@@ -139,9 +140,12 @@
 
     function normalizeSettings(raw = {}) {
         const next = { ...DEFAULTS };
+        const settingsVersion = Math.max(0, Math.floor(Number(raw.settingsVersion) || 0));
         for (const key of BOOL_SETTINGS) {
             if (typeof raw[key] === 'boolean') next[key] = raw[key];
         }
+        if (settingsVersion < 2) next.failureFlashEnabled = true;
+        next.settingsVersion = DEFAULTS.settingsVersion;
         if (typeof raw.crtEnabled !== 'boolean' && typeof raw.arcadeEnabled === 'boolean') {
             next.crtEnabled = raw.arcadeEnabled;
         }
@@ -282,6 +286,7 @@
     function resetState() {
         if (state.comboTimer) { clearTimeout(state.comboTimer); }
         Object.assign(state, STATE_INIT, { sessionActive: true, sessionStart: Date.now() });
+        firstAnswerTimerStarted = false;
     }
 
     function recordKeyToTime(key) {
@@ -349,6 +354,9 @@
     let timeoutAutoFailing  = false;
     let timeoutFallbackTimer = null;
     let timeoutInjectedInput = null;
+    let firstAnswerTimerStarted = false;
+    let firstAnswerInputEl = null;
+    let firstAnswerInputHandler = null;
     let previousFontChallengeText = null;
     let documentClickHandler = null;
     let documentKeyHandler   = null;
@@ -359,6 +367,7 @@
     let lastLiteFloatAt       = 0;
     let summaryTimer          = null;
     let sessionEndSoundTimer  = null;
+    let failureFlashTimer     = null;
     let els = {};
 
     const timerState = {
@@ -1781,7 +1790,7 @@
                 TIMER_SECONDS_PRESETS[(current + 1) % TIMER_SECONDS_PRESETS.length];
             e.currentTarget.textContent = `${settings.timerSeconds} SEC`;
             saveSettings();
-            resetComboTimer(true);
+            refreshAnswerTimerForCurrentQuestion(true);
             updateHUD();
         });
 
@@ -1895,7 +1904,7 @@
         }
 
         if (key === 'timerEnabled') {
-            resetComboTimer(true);
+            refreshAnswerTimerForCurrentQuestion(true);
         }
 
         if (key === 'timedXpBonusEnabled' || key === 'timeoutFailureEnabled'
@@ -2038,8 +2047,59 @@
         syncXpBonusDisplay();
     }
 
-    function refreshAnswerTimerForCurrentQuestion() {
-        resetComboTimer();
+    function removeFirstAnswerInputGate() {
+        if (firstAnswerInputEl && firstAnswerInputHandler) {
+            firstAnswerInputEl.removeEventListener('input', firstAnswerInputHandler, true);
+        }
+        firstAnswerInputEl = null;
+        firstAnswerInputHandler = null;
+    }
+
+    function pauseFirstAnswerTimer() {
+        if (state.comboTimer) clearTimeout(state.comboTimer);
+        state.comboTimer = null;
+        timerState.running = false;
+        timerState.expired = false;
+        timerState.remainingPct = 1;
+        stopComboBar();
+        setTimerBarPresentation(1);
+        syncXpBonusDisplay();
+    }
+
+    function armFirstAnswerTimer() {
+        if (!settings.timerEnabled) {
+            removeFirstAnswerInputGate();
+            resetComboTimer(true);
+            return;
+        }
+        if (firstAnswerTimerStarted || isAnswerResolved()) {
+            resetComboTimer();
+            return;
+        }
+
+        const input = getAnswerInput();
+        if (!input) return;
+        if (firstAnswerInputEl === input && firstAnswerInputHandler) return;
+
+        pauseFirstAnswerTimer();
+        removeFirstAnswerInputGate();
+        firstAnswerInputHandler = event => {
+            const value = event.target?.value ?? '';
+            if (!value.length || firstAnswerTimerStarted || isAnswerResolved()) return;
+            firstAnswerTimerStarted = true;
+            removeFirstAnswerInputGate();
+            resetComboTimer(true);
+        };
+        firstAnswerInputEl = input;
+        input.addEventListener('input', firstAnswerInputHandler, true);
+    }
+
+    function refreshAnswerTimerForCurrentQuestion(force = false) {
+        if (!firstAnswerTimerStarted) {
+            armFirstAnswerTimer();
+            return;
+        }
+        resetComboTimer(force);
     }
 
     function resetComboTimer(force = false) {
@@ -2232,14 +2292,21 @@
     }
 
     function flashScreen(correct) {
-        if (isLiteMode() || !settings.flashEnabled
-            || !settings.visualsEnabled || prefersReducedMotion()) return;
-        if (!correct && !settings.failureFlashEnabled) return;
+        if (isLiteMode() || !settings.visualsEnabled || prefersReducedMotion()) return;
+        if (correct ? !settings.flashEnabled : !settings.failureFlashEnabled) return;
         const f = els.flash;
         if (!f) return;
         f.className = '';
         void f.offsetWidth;
         f.classList.add(correct ? 'correct-flash' : 'wrong-flash');
+    }
+
+    function scheduleFailureFlash() {
+        if (failureFlashTimer) clearTimeout(failureFlashTimer);
+        failureFlashTimer = setTimeout(() => {
+            failureFlashTimer = null;
+            flashScreen(false);
+        }, 70);
     }
 
     function spawnFloat(text, cssClass, anchorEl) {
@@ -4156,6 +4223,8 @@
             clearTimeout(timeoutFallbackTimer);
             timeoutFallbackTimer = null;
         }
+        firstAnswerTimerStarted = true;
+        removeFirstAnswerInputGate();
         timeoutInjectedInput = null;
         setRewindSnapshot(makeRewindSnapshot('correct'));
         const timedXp = getTimedXpAward();
@@ -4207,6 +4276,8 @@
             clearTimeout(timeoutFallbackTimer);
             timeoutFallbackTimer = null;
         }
+        firstAnswerTimerStarted = true;
+        removeFirstAnswerInputGate();
         timeoutInjectedInput = null;
         setRewindSnapshot(makeRewindSnapshot('incorrect'));
         state.sessionIncorrect++;
@@ -4221,7 +4292,7 @@
         updateHUD();
         if (lostStreak > 0) showHudMicro('COMBO RESET', 'fail');
         playFailSound();
-        flashScreen(false);
+        scheduleFailureFlash();
         shakeScreen(lostStreak > 4);
 
         const anchor = getInputWrapper();
@@ -4438,10 +4509,15 @@
             clearTimeout(sessionEndSoundTimer);
             sessionEndSoundTimer = null;
         }
+        if (failureFlashTimer) {
+            clearTimeout(failureFlashTimer);
+            failureFlashTimer = null;
+        }
         hudMicroEl?.remove();
         hudMicroEl = null;
         document.querySelectorAll('.mm-float, .mm-celebrate').forEach(node => node.remove());
         stopAnswerTimer();
+        removeFirstAnswerInputGate();
         clearFontChallenge();
         flushRecordsSave();
         flushSettingsSave();
@@ -4450,6 +4526,7 @@
         pendingRewindRestore = false;
         timeoutAutoFailing = false;
         timeoutInjectedInput = null;
+        firstAnswerTimerStarted = false;
         inputWrapperCache = null;
         counterCache = null;
         fontTargetCache = null;
@@ -4484,6 +4561,9 @@
         if (has && initialized) {
             observeCorrectness();
             observeCounter();
+            if (!firstAnswerTimerStarted && !firstAnswerInputEl?.isConnected) {
+                armFirstAnswerTimer();
+            }
             if (settings.fontChallengeEnabled) applyFontChallenge();
         }
         if (!has && initialized && !isReviewPage()) { cleanup(); gamifyActive = false; }

@@ -74,15 +74,17 @@ scoring, timers, rewind, difficulty bonuses, or core HUD feedback.
   blur, shadows, challenge webfont loading, and CRT overlays.
 
 Incorrect answers keep their shake, sound, input tint, floating feedback, and
-HUD warning. The optional `Failure Flash` is disabled by default and matches
-the success flash's opacity and duration when enabled.
+HUD warning. `Failure Flash` independently controls a short red overlay that
+matches the success flash's opacity and duration.
 
 ## Timed XP
 
-The answer timer defaults to 15 seconds and starts as soon as each prompt
-appears. Its five visible segments represent equal 20% portions of the selected
-duration. Correct answers progress from `Lightning` through `Barely` bonuses as
-the bar drains; incorrect or expired answers receive no timed bonus.
+The answer timer defaults to 15 seconds. The first prompt waits for the first
+typed character; after that, every prompt starts immediately regardless of
+whether the first attempt succeeded or failed. Its five visible segments
+represent equal 20% portions of the selected duration. Correct answers progress
+from `Lightning` through `Barely` bonuses as the bar drains; incorrect or
+expired answers receive no timed bonus.
 
 Timer presets are 10, 15, 30, 45, 60, and 90 seconds. Short timers preserve
 more of each speed-tier reward, while longer timers reduce it. Timed XP stacks

@@ -2,6 +2,22 @@
 
 All notable changes to `MaruMori Even More Gamified - Updated` are documented here.
 
+## 2026-07-09 - v3.6.2
+
+### Changed
+
+- Restored first-item timer grace: the first review prompt waits for the first
+  typed character, then every later prompt starts immediately whether the first
+  attempt succeeded or failed.
+- Kept timed XP inactive during that initial grace period so waiting before the
+  first keystroke cannot consume or award timer time.
+- Made `Screen Flash` control success feedback and `Failure Flash` control
+  failure feedback independently.
+- Enabled `Failure Flash` during the v3.6.2 settings migration and delayed its
+  success-strength red overlay slightly so it remains visible as a secondary
+  response after MaruMori marks an answer incorrect. It can still be disabled
+  afterward.
+
 ## 2026-07-09 - v3.6.1
 
 ### Changed
