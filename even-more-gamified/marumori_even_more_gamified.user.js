@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MaruMori Even More Gamified - Updated
 // @namespace    marumori-gamify
-// @version      3.8.0
+// @version      3.9.0
 // @description  Gamifies MaruMori review sessions with arcade combo audio, score multipliers, screen shake, floating damage numbers, and more
 // @match        https://marumori.io/*
 // @author       matskye & Mikhail2577
@@ -9,6 +9,7 @@
 // @grant        GM_getValue
 // @grant        GM_getResourceURL
 // @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.8.0
+// @resource     mmNightview https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/nightview.png?v=3.9.0
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=marumori.io
 // @license      WTFPL
 // @downloadURL https://update.greasyfork.org/scripts/566950/MaruMori%20Even%20More%20Gamified.user.js
@@ -273,6 +274,44 @@
             motion: { shakeScale: 0.35, effectIntensity: 0.68, allowIdle: true },
             background: { renderer: 'shrine', allowCanvasEffects: true, shootingStars: false },
         },
+        nightview: {
+            id: 'nightview',
+            label: 'Night View',
+            identity: 'Moonlit shrine valley',
+            mood: 'Quiet, luminous, watchful',
+            colors: {
+                accent: '#f8d27a',
+                secondary: '#9cc8ff',
+                success: '#bfe8ff',
+                failure: '#e46f75',
+                hudGlow: '#9cc8ff',
+                flash: 'rgba(156,200,255,0.18)',
+                failureFlash: 'rgba(228,111,117,0.12)',
+                notification: '#f8d27a',
+                timerFast: '#f8f2c8',
+                timerMedium: '#9cc8ff',
+                timerLow: '#f0b35d',
+                timerCritical: '#e46f75',
+                floatingText: '#dcecff',
+                floatingShadow: '0 0 13px rgba(156,200,255,0.72)',
+                progress: 'linear-gradient(90deg, #274a7a, #9cc8ff, #f8d27a)',
+                button: '#f8d27a',
+                buttonSoft: 'rgba(248,210,122,0.11)',
+                banner: '#f8f2c8',
+                bannerGlow: '#8bbcff',
+            },
+            presets: {
+                sound: 'nightview',
+                floatingText: 'moonlitSilver',
+                particles: 'fireflyWisps',
+                combo: 'moonlitGate',
+                celebration: 'nightviewGlow',
+                music: 'nightviewAmbient',
+            },
+            intensity: { particles: 0.64, flash: 0.58, shake: 0.34, sound: 0.72, celebration: 0.62 },
+            motion: { shakeScale: 0.28, effectIntensity: 0.7, allowIdle: true },
+            background: { renderer: 'nightview', allowCanvasEffects: true, shootingStars: true },
+        },
         matrix: {
             id: 'matrix',
             label: 'Matrix',
@@ -446,6 +485,22 @@
             floatLabelBg: 'rgba(246,211,107,0.14)',
             floatLabelColor: '#fff7d6',
         },
+        nightview: {
+            panelBg: 'rgba(3,9,20,0.74)',
+            panelBorder: 'rgba(156,200,255,0.34)',
+            panelMuted: 'rgba(220,235,255,0.52)',
+            panelShadow: '0 0 0 1px rgba(156,200,255,0.08), 0 12px 32px rgba(2,7,18,0.38)',
+            controlBg: 'rgba(248,210,122,0.08)',
+            controlBorder: 'rgba(156,200,255,0.28)',
+            fieldBg: 'rgba(3,8,18,0.72)',
+            fieldBorder: 'rgba(156,200,255,0.48)',
+            fieldGlow: 'rgba(129,181,255,0.2)',
+            counterShadow: '0 0 10px rgba(248,210,122,0.48)',
+            scanlineOpacity: '0.38',
+            scanlineColor: 'rgba(3,12,30,0.2)',
+            floatLabelBg: 'rgba(156,200,255,0.13)',
+            floatLabelColor: '#f8f2c8',
+        },
         matrix: {
             panelBg: 'rgba(0,9,5,0.84)',
             panelBorder: 'rgba(0,255,136,0.38)',
@@ -502,6 +557,7 @@
         gridPulse: 'PULSE',
         gameCenterChiptune: 'CHIPTUNE',
         shrineBells: 'BELLS',
+        nightviewAmbient: 'MOON',
         matrixPulse: 'PULSE',
         voidSilence: 'FOCUS',
     };
@@ -539,6 +595,9 @@
     const SHRINE_IMAGE_URL =
         'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/'
         + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.8.0';
+    const NIGHTVIEW_IMAGE_URL =
+        'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/'
+        + 'main/even-more-gamified/assets/nightview.png?v=3.9.0';
     const RESOLVED_BACKDROP_OPACITY = 0.5;
 
     const SOUND_PRESETS = {
@@ -777,6 +836,40 @@
                 { freq: 659, duration: 0.28, volume: 0.09, type: 'triangle', delay: 0.22 },
             ],
         },
+        nightview: {
+            correct: [
+                { freq: 698, streakScale: 6, maxFreq: 980, duration: 0.14,
+                  volume: 0.11, type: 'sine', detune: -5 },
+                { freq: 1047, streakScale: 7, maxFreq: 1480, duration: 0.22,
+                  volume: 0.07, type: 'triangle', delay: 0.11, detune: 4, skipLite: true },
+            ],
+            incorrect: [
+                { freq: 196, duration: 0.16, volume: 0.11, type: 'triangle',
+                  endFreqScale: 0.86 },
+                { freq: 147, duration: 0.22, volume: 0.075, type: 'sine',
+                  delay: 0.12, skipLite: true },
+            ],
+            wordComplete: [
+                { freq: 523, wordScale: 3, duration: 0.18, volume: 0.1, type: 'sine' },
+                { freq: 784, wordScale: 3, duration: 0.24, volume: 0.08,
+                  type: 'triangle', delay: 0.16, skipLite: true },
+                { freq: 1175, wordScale: 2, duration: 0.32, volume: 0.048,
+                  type: 'sine', delay: 0.36, skipLite: true },
+            ],
+            multiplierUp: [
+                { freqByMultiplier: [392, 523, 659, 784, 988],
+                  duration: 0.16, volume: 0.1, type: 'sine' },
+                { freqByMultiplier: [784, 1047, 1318, 1568, 1976],
+                  duration: 0.2, volume: 0.065, type: 'triangle', delay: 0.13, skipLite: true },
+            ],
+            comboBreak: [{ freq: 174, duration: 0.22, volume: 0.08, type: 'triangle' }],
+            timeout: [{ freq: 164, duration: 0.24, volume: 0.075, type: 'sine' }],
+            sessionComplete: [
+                { freq: 523, duration: 0.22, volume: 0.09, type: 'sine' },
+                { freq: 784, duration: 0.26, volume: 0.075, type: 'triangle', delay: 0.2 },
+                { freq: 1047, duration: 0.34, volume: 0.055, type: 'sine', delay: 0.44 },
+            ],
+        },
         matrix: {
             correct: [
                 { freq: 880, streakScale: 12, maxFreq: 1480, duration: 0.055,
@@ -909,6 +1002,20 @@
                 milestone: { color: '#fff7d6', fontSize: '19px', label: '成就' },
             },
         },
+        moonlitSilver: {
+            base: {
+                color: '#dcecff',
+                shadow: '0 0 13px rgba(156,200,255,0.72)',
+                motion: 'drift',
+            },
+            events: {
+                correct: { label: 'MOON' },
+                incorrect: { color: '#e46f75', label: 'SHADOW' },
+                wordComplete: { color: '#bfe8ff', fontSize: '16px', label: 'CLEAR' },
+                multiplierUp: { color: '#f8d27a', label: 'LANTERN' },
+                milestone: { color: '#f8f2c8', fontSize: '19px', label: 'GUIDED' },
+            },
+        },
         terminalGreen: {
             base: {
                 color: '#00ff88',
@@ -989,6 +1096,19 @@
                 milestone: { count: 10, spread: 105 },
             },
         },
+        fireflyWisps: {
+            shape: 'dot', motion: 'drift', color: '#f8d27a',
+            count: 6, liteCount: 1, lifetimeMs: 1200, spread: 82, size: 4,
+            events: {
+                correct: { count: 5 },
+                wordComplete: { color: '#dcecff', count: 8, spread: 96 },
+                multiplierUp: { color: '#f8d27a', count: 8 },
+                milestone: { color: '#f8f2c8', count: 12, spread: 120, size: 5 },
+                incorrect: { color: '#e46f75', count: 3, lifetimeMs: 850 },
+                timeout: { color: '#e46f75', count: 3, lifetimeMs: 820 },
+                comboBreak: { color: '#e46f75', count: 3 },
+            },
+        },
         matrixCode: {
             shape: 'glyph', motion: 'glitch', color: '#00ff88',
             glyphs: '01日月火水木金土',
@@ -1041,6 +1161,12 @@
             color: '#fff7d6',
             shadow: '0 0 18px rgba(246,211,107,0.75), 0 0 34px rgba(183,121,31,0.35)',
             celebrations: ['✦', '◇', '◆', '花'],
+        },
+        moonlitGate: {
+            style: 'calm',
+            color: '#f8f2c8',
+            shadow: '0 0 20px rgba(156,200,255,0.78), 0 0 38px rgba(248,210,122,0.38)',
+            celebrations: ['✦', '◇', '◆', '月', '灯'],
         },
         glitch: {
             style: 'glitch',
@@ -1109,6 +1235,15 @@
             spread: 58,
             size: 43,
             durationMs: 1280,
+            answerAccent: 'shimmer',
+        },
+        nightviewGlow: {
+            effects: ['calm', 'drift', 'orbit'],
+            count: 2,
+            liteCount: 1,
+            spread: 74,
+            size: 44,
+            durationMs: 1180,
             answerAccent: 'shimmer',
         },
         matrixGlitch: {
@@ -1180,6 +1315,16 @@
             cutoff: 1450,
             pattern: [0, null, null, 2, null, 4, null, null, 7, null, 5, null, null, 4, null, null],
         },
+        nightviewAmbient: {
+            scheduler: 'ambient',
+            bpm: 52,
+            root: 196,
+            volumeScale: 0.56,
+            type: 'sine',
+            cutoff: 1050,
+            chords: [[-12, 0, 4], [-10, 2, 5], [-9, 0, 7], [-14, -2, 5]],
+            melody: [null, 7, null, 5, null, null, 4, null],
+        },
         matrixPulse: {
             scheduler: 'pulse',
             bpm: 94,
@@ -1248,6 +1393,10 @@
         'fontChallengeEnabled', 'musicEnabled', 'hudCollapsed',
     ];
 
+    const TEMP_EFFECT_SELECTOR =
+        '.mm-float, .mm-celebrate, .mm-theme-particle, .mm-answer-accent';
+    const AUDIO_WARN_THROTTLE_MS = 5000;
+
     const THEME_PRESET_REGISTRY = {
         sound: SOUND_PRESETS,
         floatingText: FLOATING_TEXT_PRESETS,
@@ -1276,6 +1425,23 @@
             timer = null;
         };
         return debounced;
+    }
+
+    function safeJsonParse(value, fallback = {}) {
+        try { return JSON.parse(value); }
+        catch { return fallback; }
+    }
+
+    function removeElementSafe(node) {
+        node?.remove?.();
+    }
+
+    function scheduleElementRemoval(node, delay) {
+        return setTimeout(() => removeElementSafe(node), delay);
+    }
+
+    function removeTemporaryEffects() {
+        document.querySelectorAll(TEMP_EFFECT_SELECTOR).forEach(removeElementSafe);
     }
 
     function setTextIfChanged(node, value) {
@@ -1601,8 +1767,8 @@
     }
 
     function loadSettings() {
-        try { return normalizeSettings(JSON.parse(GM_getValue('mmSettings', '{}'))); }
-        catch { return { ...DEFAULTS }; }
+        try { return normalizeSettings(safeJsonParse(GM_getValue('mmSettings', '{}'), {})); }
+        catch { return normalizeSettings({}); }
     }
     let settingsSaveTimer = null;
 
@@ -1662,8 +1828,16 @@
         return next;
     }
 
+    function getRecordsSignature(source = records) {
+        const normalized = normalizeRecords(source);
+        return Object.keys(normalized.days).sort().map(key => {
+            const day = normalized.days[key];
+            return `${key}:${day.score}/${day.combo}/${day.multiplier}`;
+        }).join('|');
+    }
+
     function loadRecords() {
-        try { return normalizeRecords(JSON.parse(GM_getValue('mmRecords', '{}'))); }
+        try { return normalizeRecords(safeJsonParse(GM_getValue('mmRecords', '{}'), {})); }
         catch { return { days: {} }; }
     }
 
@@ -1805,6 +1979,7 @@
     let musicGain = null;
     let musicTimer = null;
     let musicRestartTimer = null;
+    let lastAudioWarnAt = 0;
     let musicPatternIndex = 0;
     let musicPresetId = null;
     let musicGestureHandler = null;
@@ -1838,6 +2013,13 @@
                 try { audioCtx.suspend().catch(() => {}); } catch { /* no-op */ }
             }
         }, delay);
+    }
+
+    function warnAudioError(error) {
+        const now = Date.now();
+        if (now - lastAudioWarnAt < AUDIO_WARN_THROTTLE_MS) return;
+        lastAudioWarnAt = now;
+        console.warn('[MMGamify] Audio error:', error);
     }
 
     function playTone(
@@ -1874,7 +2056,7 @@
             if (!musicGain) {
                 scheduleAudioSuspend(Math.max(2000, (delay + duration + 0.2) * 1000));
             }
-        } catch (e) { console.warn('[MMGamify] Audio error:', e); }
+        } catch (e) { warnAudioError(e); }
     }
 
     const MUSIC_PROGRESSIONS = [
@@ -2176,11 +2358,19 @@
         musicTimer = setTimeout(scheduleNextMusicPattern, Math.max(100, (duration - 0.12) * 1000));
     }
 
+    function clearMusicRestartTimer() {
+        if (musicRestartTimer) {
+            clearTimeout(musicRestartTimer);
+            musicRestartTimer = null;
+        }
+    }
+
     function stopMusic(fadeSeconds = 0.35) {
         if (musicTimer) {
             clearTimeout(musicTimer);
             musicTimer = null;
         }
+        clearMusicRestartTimer();
         if (!musicGain || !audioCtx || audioCtx.state === 'closed') {
             musicGain = null;
             musicPresetId = null;
@@ -2218,7 +2408,7 @@
     function restartMusic() {
         stopMusic(0.15);
         musicPatternIndex = 0;
-        if (musicRestartTimer) clearTimeout(musicRestartTimer);
+        clearMusicRestartTimer();
         musicRestartTimer = setTimeout(() => {
             musicRestartTimer = null;
             startMusic();
@@ -2254,10 +2444,7 @@
     function uninstallMusicLifecycle() {
         stopMusic();
         scheduleAudioSuspend();
-        if (musicRestartTimer) {
-            clearTimeout(musicRestartTimer);
-            musicRestartTimer = null;
-        }
+        clearMusicRestartTimer();
         if (musicGestureHandler) {
             document.removeEventListener('pointerdown', musicGestureHandler, true);
             document.removeEventListener('keydown', musicGestureHandler, true);
@@ -3526,7 +3713,7 @@
     function makeRewindSnapshot(kind) {
         const snapshot = {
             kind,
-            records: normalizeRecords(JSON.parse(JSON.stringify(records))),
+            records: normalizeRecords(records),
         };
         for (const key of REWIND_KEYS) {
             snapshot[key] = state[key];
@@ -3661,7 +3848,7 @@
             || prefersReducedMotion() || !els.hud) return;
 
         if (hudMicroTimer) clearTimeout(hudMicroTimer);
-        hudMicroEl?.remove();
+        removeElementSafe(hudMicroEl);
 
         const node = document.createElement('div');
         node.className = `mm-hud-micro ${tone}`;
@@ -3685,7 +3872,7 @@
             : Math.max(8, hudRect.top - node.offsetHeight - gap)}px`;
 
         hudMicroTimer = setTimeout(() => {
-            node.remove();
+            removeElementSafe(node);
             if (hudMicroEl === node) hudMicroEl = null;
             hudMicroTimer = null;
         }, 900);
@@ -3947,8 +4134,7 @@
             if (!settings.visualsEnabled) {
                 arcadeOff();
                 document.body.classList.remove('mm-shake-light', 'mm-shake-hard');
-                document.querySelectorAll('.mm-float, .mm-celebrate, .mm-theme-particle, .mm-answer-accent')
-                    .forEach(node => node.remove());
+                removeTemporaryEffects();
             } else {
                 syncArcadePresentation();
             }
@@ -4434,7 +4620,7 @@
         node.style.top  = `${point.y}px`;
         node.style.setProperty('--mm-float-drift-x', `${Math.round((Math.random() - 0.5) * 42)}px`);
         document.body.appendChild(node);
-        setTimeout(() => node.remove(), 1350);
+        scheduleElementRemoval(node, 1350);
     }
 
     function showBanner(id, text) {
@@ -4471,7 +4657,7 @@
         node.style.setProperty('--mm-celebrate-y', `${Math.round(-48 - Math.random() * spread)}px`);
         node.style.setProperty('--mm-celebrate-rot', `${Math.round((Math.random() - 0.5) * 90)}deg`);
         document.body.appendChild(node);
-        setTimeout(() => node.remove(), (Number(preset.durationMs) || 900) + 160);
+        scheduleElementRemoval(node, (Number(preset.durationMs) || 900) + 160);
     }
 
     function getRandomCelebration(eventType = 'wordComplete') {
@@ -4533,7 +4719,7 @@
         node.style.height = `${rect.height + 10}px`;
         node.style.setProperty('--mm-answer-accent-opacity', budget.flashScale);
         document.body.appendChild(node);
-        setTimeout(() => node.remove(), 980);
+        scheduleElementRemoval(node, 980);
     }
 
     function getPreviewAnchor() {
@@ -4543,7 +4729,7 @@
     function getPreviewStateInvariant() {
         return {
             state: Object.fromEntries(PREVIEW_STATE_KEYS.map(key => [key, state[key]])),
-            records: JSON.stringify(records),
+            records: getRecordsSignature(),
             rewindAvailable: Boolean(rewindSnapshot),
             timer: {
                 running: timerState.running,
@@ -4718,7 +4904,7 @@
             node.style.setProperty('--mm-particle-y', `${Math.sin(angle) * distance + fallBias}px`);
             node.style.setProperty('--mm-particle-rot', `${Math.round((Math.random() - 0.5) * 220)}deg`);
             document.body.appendChild(node);
-            setTimeout(() => node.remove(), lifetime + 120);
+            scheduleElementRemoval(node, lifetime + 120);
         }
     }
 
@@ -4844,7 +5030,8 @@
         body.mm-arcade.mm-crt-enabled {
             animation: mmCrtFlicker 8s infinite;
         }
-        body.mm-arcade.mm-crt-enabled[data-mm-bg="shrine"] {
+        body.mm-arcade.mm-crt-enabled[data-mm-bg="shrine"],
+        body.mm-arcade.mm-crt-enabled[data-mm-bg="nightview"] {
             animation: none;
         }
         body.mm-performance-mode.mm-arcade {
@@ -5014,8 +5201,10 @@
     }
 
     function buildStarfield() {
+        const currentRenderer = ThemeManager.getActiveTheme().background.renderer;
+        const isStaticImageTheme = currentRenderer === 'shrine' || currentRenderer === 'nightview';
         if (!hasCanvasBackdrop()
-            || (prefersReducedMotion() && ThemeManager.getThemeId() !== 'shrine')) return;
+            || (prefersReducedMotion() && !isStaticImageTheme)) return;
         document.getElementById('mm-starfield')?.remove();
         const canvas = document.createElement('canvas');
         canvas.id = 'mm-starfield';
@@ -5034,12 +5223,14 @@
         let gridTexture, gridStars, gridMountainLayers, gridPalms, matrixDrops;
         let gameCenterTexture, gameCenterCabinets, gameCenterLights;
         let shrineImage, shrineImageReady = false, shrineDirectFallbackTried = false;
+        let nightviewImage, nightviewImageReady = false, nightviewDirectFallbackTried = false;
         let shrinePetals;
+        let nightviewFireflies;
         let lastRenderAt = 0;
         let nextFrameDue = 0;
         let frameScale = 1;
 
-        const theme = ThemeManager.getActiveTheme().background.renderer;
+        const theme = currentRenderer;
         // Canvas cost scales with both pixels and frames; Lite Mode reduces both.
         const frameInterval = isLiteMode() ? 1000 / 12 : 1000 / 60;
         const renderScale = isLiteMode() ? 0.7 : 1;
@@ -5681,6 +5872,61 @@
             }
         }
 
+        function resetNightviewFirefly(firefly = {}, randomY = false) {
+            firefly.x = Math.random() * W;
+            firefly.y = randomY
+                ? H * (0.52 + Math.random() * 0.43)
+                : H + 8 + Math.random() * H * 0.16;
+            firefly.size = 1.1 + Math.random() * 1.8;
+            firefly.speed = 0.08 + Math.random() * 0.18;
+            firefly.drift = 0.18 + Math.random() * 0.38;
+            firefly.alpha = 0.14 + Math.random() * 0.24;
+            firefly.phase = Math.random() * Math.PI * 2;
+            firefly.hue = Math.random() < 0.72 ? 48 : 205;
+            return firefly;
+        }
+
+        function initNightview() {
+            const fireflyCount = isLiteMode()
+                ? 0
+                : Math.max(10, Math.min(24, Math.floor(W / 95)));
+            nightviewFireflies = Array.from(
+                { length: fireflyCount },
+                () => resetNightviewFirefly({}, true)
+            );
+            if (nightviewImage) return;
+
+            nightviewImage = document.createElement('img');
+            nightviewImage.decoding = 'async';
+            nightviewImage.onload = () => {
+                nightviewImageReady = true;
+                if (prefersReducedMotion() || isLiteMode()) {
+                    tick();
+                }
+            };
+            const loadNightviewDirectly = () => {
+                if (nightviewDirectFallbackTried) {
+                    nightviewImageReady = false;
+                    console.warn('[MMGamify] Night View background resource failed to load.');
+                    return;
+                }
+                nightviewDirectFallbackTried = true;
+                nightviewImage.crossOrigin = 'anonymous';
+                nightviewImage.src = NIGHTVIEW_IMAGE_URL;
+            };
+            nightviewImage.onerror = loadNightviewDirectly;
+            try {
+                Promise.resolve(GM_getResourceURL('mmNightview'))
+                    .then(resourceUrl => {
+                        if (!resourceUrl) throw new Error('Empty nightview resource URL');
+                        nightviewImage.src = resourceUrl;
+                    })
+                    .catch(loadNightviewDirectly);
+            } catch {
+                loadNightviewDirectly();
+            }
+        }
+
         function initMatrix() {
             const columns = Math.ceil(W / MATRIX_FONT_SIZE);
             matrixDrops = Array.from({ length: columns }, () => -Math.random() * 18);
@@ -6038,6 +6284,138 @@
             ctx.restore();
         }
 
+        function drawNightviewImage(t) {
+            if (!nightviewImageReady) {
+                const fallback = ctx.createLinearGradient(0, 0, 0, H);
+                fallback.addColorStop(0, '#071326');
+                fallback.addColorStop(0.55, '#050b18');
+                fallback.addColorStop(1, '#02050a');
+                ctx.fillStyle = fallback;
+                ctx.fillRect(0, 0, W, H);
+                return;
+            }
+
+            const imageRatio = nightviewImage.naturalWidth / nightviewImage.naturalHeight;
+            const viewportRatio = W / H;
+            const animated = !isLiteMode() && !prefersReducedMotion();
+            const scale = 1.01 + (animated ? Math.sin(t * 0.06) * 0.002 : 0);
+            let drawWidth;
+            let drawHeight;
+
+            if (imageRatio > viewportRatio) {
+                drawHeight = H * scale;
+                drawWidth = drawHeight * imageRatio;
+            } else {
+                drawWidth = W * scale;
+                drawHeight = drawWidth / imageRatio;
+            }
+
+            const driftX = animated ? Math.sin(t * 0.03) * 2.1 : 0;
+            const driftY = animated ? Math.cos(t * 0.026) * 1.2 : 0;
+            ctx.drawImage(
+                nightviewImage,
+                (W - drawWidth) / 2 + driftX,
+                (H - drawHeight) / 2 + driftY,
+                drawWidth,
+                drawHeight
+            );
+        }
+
+        function drawNightviewMoonGlow(t) {
+            const pulse = prefersReducedMotion() ? 1 : 0.88 + Math.sin(t * 0.52) * 0.12;
+            const moonX = W * 0.305;
+            const moonY = H * 0.16;
+            const radius = Math.min(W, H) * 0.13;
+            const glow = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, radius);
+            glow.addColorStop(0, `rgba(235,244,255,${0.16 * pulse})`);
+            glow.addColorStop(0.34, `rgba(140,186,255,${0.055 * pulse})`);
+            glow.addColorStop(1, 'rgba(80,130,220,0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(moonX, moonY, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawNightviewLanternGlow(t) {
+            const pulse = prefersReducedMotion() ? 1 : 0.82 + Math.sin(t * 1.08) * 0.14;
+            const radius = Math.min(W, H) * 0.075;
+            const lanterns = [
+                { x: W * 0.077, y: H * 0.69, r: 0.95 },
+                { x: W * 0.67, y: H * 0.88, r: 0.72 },
+                { x: W * 0.744, y: H * 0.585, r: 0.52 },
+                { x: W * 0.402, y: H * 0.59, r: 0.42 },
+            ];
+            for (const lantern of lanterns) {
+                const glow = ctx.createRadialGradient(
+                    lantern.x, lantern.y, 0,
+                    lantern.x, lantern.y, radius * lantern.r
+                );
+                glow.addColorStop(0, `rgba(255,202,102,${0.12 * pulse})`);
+                glow.addColorStop(0.34, `rgba(255,156,58,${0.045 * pulse})`);
+                glow.addColorStop(1, 'rgba(255,120,35,0)');
+                ctx.fillStyle = glow;
+                ctx.beginPath();
+                ctx.arc(lantern.x, lantern.y, radius * lantern.r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawNightviewMist(t) {
+            if (isLiteMode()) return;
+            ctx.save();
+            ctx.globalAlpha = 0.16;
+            ctx.strokeStyle = 'rgba(150,190,255,0.22)';
+            ctx.lineWidth = Math.max(8, H * 0.012);
+            ctx.lineCap = 'round';
+            for (let index = 0; index < 6; index++) {
+                const y = H * (0.42 + index * 0.052)
+                    + Math.sin(t * 0.08 + index) * H * 0.008;
+                const offset = Math.sin(t * 0.055 + index * 1.7) * W * 0.045;
+                ctx.beginPath();
+                ctx.moveTo(W * 0.16 + offset, y);
+                ctx.bezierCurveTo(
+                    W * 0.36 + offset * 0.35, y - H * 0.025,
+                    W * 0.58 - offset * 0.28, y + H * 0.018,
+                    W * 0.86 - offset, y - H * 0.012
+                );
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function drawNightviewFireflies(t) {
+            if (isLiteMode() || prefersReducedMotion()) return;
+            for (const firefly of nightviewFireflies) {
+                firefly.y -= firefly.speed * frameScale;
+                firefly.x += Math.sin(t * 0.75 + firefly.phase) * firefly.drift * frameScale;
+                if (firefly.y < H * 0.48 || firefly.x < -12 || firefly.x > W + 12) {
+                    resetNightviewFirefly(firefly);
+                }
+
+                const pulse = 0.58 + Math.sin(t * 1.8 + firefly.phase) * 0.42;
+                ctx.save();
+                ctx.fillStyle = `hsla(${firefly.hue},95%,72%,${firefly.alpha * pulse})`;
+                ctx.shadowColor = `hsla(${firefly.hue},95%,68%,${0.42 * pulse})`;
+                ctx.shadowBlur = 8 + firefly.size * 4;
+                ctx.beginPath();
+                ctx.arc(firefly.x, firefly.y, firefly.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function drawNightview(t) {
+            if (theme !== 'nightview') return;
+            ctx.save();
+            drawNightviewImage(t);
+            ctx.globalCompositeOperation = 'lighter';
+            drawNightviewMist(t);
+            drawNightviewMoonGlow(t);
+            drawNightviewLanternGlow(t);
+            drawNightviewFireflies(t);
+            ctx.restore();
+        }
+
         function drawGridSun(t, horizon) {
             const sunX = W * 0.5 + Math.sin(t * 0.16) * 4;
             const sunR = Math.min(W, H) * 0.145;
@@ -6288,7 +6666,7 @@
         }
 
         function scheduleNextFrame() {
-            if (prefersReducedMotion() || (isLiteMode() && theme === 'shrine')
+            if (prefersReducedMotion() || (isLiteMode() && isStaticImageTheme)
                 || document.hidden) return;
             if (isLiteMode()) {
                 if (starFrameTimer) return;
@@ -6325,6 +6703,7 @@
             drawGrid(t);
             drawGameCenter(t);
             drawShrine(t);
+            drawNightview(t);
             drawMatrix(t);
             if (hasShootingStars(theme) && Math.random() < 0.0025 * frameScale) {
                 triggerShootingStar();
@@ -6340,8 +6719,9 @@
             if (theme === 'grid') initGrid();
             if (theme === 'gamecenter') initGameCenter();
             if (theme === 'shrine') initShrine();
+            if (theme === 'nightview') initNightview();
             if (theme === 'matrix') initMatrix();
-            if (prefersReducedMotion() || (isLiteMode() && theme === 'shrine')) {
+            if (prefersReducedMotion() || (isLiteMode() && isStaticImageTheme)) {
                 tick();
             }
         }, 180);
@@ -6365,6 +6745,7 @@
         if (theme === 'grid') initGrid();
         if (theme === 'gamecenter') initGameCenter();
         if (theme === 'shrine') initShrine();
+        if (theme === 'nightview') initNightview();
         if (theme === 'matrix') initMatrix();
         tick();
     }
@@ -6902,10 +7283,9 @@
             clearTimeout(previewAllTimer);
             previewAllTimer = null;
         }
-        hudMicroEl?.remove();
+        removeElementSafe(hudMicroEl);
         hudMicroEl = null;
-        document.querySelectorAll('.mm-float, .mm-celebrate, .mm-theme-particle, .mm-answer-accent')
-            .forEach(node => node.remove());
+        removeTemporaryEffects();
         stopAnswerTimer();
         removeFirstAnswerInputGate();
         clearFontChallenge();

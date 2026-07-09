@@ -2,6 +2,24 @@
 
 All notable changes to `MaruMori Even More Gamified - Updated` are documented here.
 
+## 2026-07-10 - v3.9.0
+
+### Added
+
+- Added the `NIGHT VIEW` image-backed theme using
+  [`assets/nightview.png`](./assets/nightview.png), with moonlit valley
+  colors, silver-blue HUD surfaces, lantern-gold accents, firefly particles,
+  moon/lantern glow overlays, drifting mist, and shooting stars.
+- Added Night View-specific sound, floating text, particle, combo,
+  celebration, and ambient music presets.
+
+### Changed
+
+- Bumped the userscript version to `3.9.0`.
+- Extended the image-backed background path so both `SHRINE` and `NIGHT VIEW`
+  can still render as static artwork when reduced motion or Lite profile
+  disables animation.
+
 ## 2026-07-09 - v3.8.0
 
 ### Added
@@ -29,6 +47,11 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 - Renamed the Settings music row to `Music Mode`; Default still cycles
   `LO-FI`/`RETRO`, while theme-specific music displays its active mode.
 - Bumped the Shrine backdrop resource cache key to `v3.8.0`.
+- Tightened in-place audit quality paths: stored settings/records now share
+  safe JSON parsing, preview checks use compact record signatures, rewind
+  snapshots avoid stringify/parse cloning, temporary visual effect cleanup is
+  centralized, queued music restarts are cleared on stop, and repeated audio
+  errors are console-throttled.
 
 ## 2026-07-09 - v3.7.0
 

@@ -47,6 +47,8 @@ or `USE PINNED BACKGROUND` to return to it immediately.
   cabinets, restrained neon signs, hanging lights, and a perspective floor.
 - `SHRINE` - a golden-hour mountain shrine framed by a torii, rope bridge,
   Mount Fuji, waterfalls, and a sea of clouds.
+- `NIGHT VIEW` - a moonlit shrine overlook with Mount Fuji, village lights,
+  Milky Way sky, lantern glow, drifting mist, fireflies, and shooting stars.
 - `MATRIX` - falling Japanese glyphs and digital rain.
 - `VOID`
 
@@ -60,6 +62,11 @@ The `SHRINE` artwork is packaged as a userscript resource from
 [`assets/shrine-garden.jpg`](./assets/shrine-garden.jpg). It adds subtle camera
 drift, shrine-lantern breathing, and sparse falling golden leaves, and remains
 static when reduced motion is enabled.
+
+The `NIGHT VIEW` artwork is packaged as a userscript resource from
+[`assets/nightview.png`](./assets/nightview.png). It adds subtle camera drift,
+moon and lantern bloom, soft valley mist, fireflies, and shooting stars, and
+remains static when reduced motion is enabled.
 
 ## Visual Profiles
 
