@@ -6,7 +6,23 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ### Changed
 
-- Bumped the userscript version to `3.4.5`.
+- Bumped the userscript version to `3.5.1`.
+- Added persistent `MAX`, `BALANCED`, and `LITE` visual profiles:
+  - `MAX` synchronizes canvas and timer animation with the display refresh rate.
+  - `BALANCED`, the default, preserves the original effect density while capping
+    canvas rendering at 60 FPS and the timer at 30 FPS.
+  - `LITE` uses 70% canvas resolution, 12 FPS backgrounds, and a 5 FPS timer
+    while reducing particles, popup frequency, full-page effects, procedural
+    music, blur, shadows, and challenge webfonts.
+- Migrated the previous Performance Mode setting to `LITE`.
+- Paused canvas rendering completely while the tab is hidden.
+- Narrowed correctness and counter observers to their review elements and
+  batched the remaining SPA-wide mutation reconciliation.
+- Debounced canvas/HUD resize work, throttled record persistence, debounced
+  volume persistence, and removed layout thrashing while dragging the HUD.
+- Stops already-scheduled music oscillators when music is paused or torn down.
+- Suspends the shared Web Audio context after idle feedback and while review
+  audio is inactive.
 - Added a persistent collapse control to the draggable HUD.
 - Added a compact glass HUD showing score, combo, multiplier, word streak, and
   XP bonus, with a two-row narrow-screen layout.

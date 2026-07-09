@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         MaruMori Even More Gamified - Updated
 // @namespace    marumori-gamify
-// @version      3.4.5
+// @version      3.5.1
 // @description  Gamifies MaruMori review sessions with arcade combo audio, score multipliers, screen shake, floating damage numbers, and more
 // @match        https://marumori.io/*
 // @author       matskye
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_getResourceURL
-// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.5
+// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.5.1
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=marumori.io
 // @license      WTFPL
 // @downloadURL https://update.greasyfork.org/scripts/566950/MaruMori%20Even%20More%20Gamified.user.js
@@ -28,6 +28,7 @@
         arcadeEnabled:  true,
         autoFailTimeout: false,
         fontChallengeEnabled: false,
+        performanceProfile: 'balanced',
         musicEnabled:   false,
         musicStyle:     'lofi',
         musicVolume:    0.16,
@@ -48,6 +49,12 @@
     const SHOOTING_STAR_THEMES = ['starfield'];
     const MUSIC_STYLES = ['lofi', 'retro'];
     const MUSIC_STYLE_LABELS = { lofi: 'LO-FI', retro: 'RETRO' };
+    const PERFORMANCE_PROFILES = ['max', 'balanced', 'lite'];
+    const PERFORMANCE_PROFILE_LABELS = {
+        max: 'MAX',
+        balanced: 'BALANCED',
+        lite: 'LITE',
+    };
     const BACKGROUND_THEME_LABELS = {
         default: 'DEFAULT',
         starfield: 'STARFIELD',
@@ -66,7 +73,7 @@
     };
     const SHRINE_IMAGE_URL =
         'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/'
-        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.5';
+        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.5.1';
     const RESOLVED_BACKDROP_OPACITY = 0.5;
 
     const BOOL_SETTINGS = [
@@ -78,6 +85,28 @@
     function clamp(num, min, max, fallback) {
         const parsed = Number(num);
         return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+    }
+
+    function debounce(fn, wait = 120) {
+        let timer = null;
+        const debounced = function (...args) {
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(() => {
+                timer = null;
+                fn.apply(this, args);
+            }, wait);
+        };
+        debounced.cancel = () => {
+            if (timer) clearTimeout(timer);
+            timer = null;
+        };
+        return debounced;
+    }
+
+    function setTextIfChanged(node, value) {
+        if (!node) return;
+        const text = String(value);
+        if (node.textContent !== text) node.textContent = text;
     }
 
     function normalizeBackgroundTheme(theme, fallback = DEFAULTS.backgroundTheme) {
@@ -97,6 +126,11 @@
         next.musicVolume = clamp(raw.musicVolume, 0, 0.5, DEFAULTS.musicVolume);
         next.comboTimeout = clamp(raw.comboTimeout, 3000, 60000, DEFAULTS.comboTimeout);
         if (MUSIC_STYLES.includes(raw.musicStyle)) next.musicStyle = raw.musicStyle;
+        if (PERFORMANCE_PROFILES.includes(raw.performanceProfile)) {
+            next.performanceProfile = raw.performanceProfile;
+        } else if (raw.performanceMode === true) {
+            next.performanceProfile = 'lite';
+        }
         const hasPinnedBackgroundTheme = typeof raw.pinnedBackgroundTheme === 'string';
         next.backgroundTheme = normalizeBackgroundTheme(raw.backgroundTheme);
         next.pinnedBackgroundTheme = normalizeBackgroundTheme(
@@ -118,11 +152,34 @@
         try { return normalizeSettings(JSON.parse(GM_getValue('mmSettings', '{}'))); }
         catch { return { ...DEFAULTS }; }
     }
+    let settingsSaveTimer = null;
+
     function saveSettings() {
+        if (settingsSaveTimer) {
+            clearTimeout(settingsSaveTimer);
+            settingsSaveTimer = null;
+        }
         try { GM_setValue('mmSettings', JSON.stringify(settings)); } catch { /* no-op */ }
     }
 
     let settings = loadSettings();
+
+    function isLiteMode() {
+        return settings.performanceProfile === 'lite';
+    }
+
+    function isMaxMode() {
+        return settings.performanceProfile === 'max';
+    }
+
+    function scheduleSettingsSave() {
+        if (settingsSaveTimer) clearTimeout(settingsSaveTimer);
+        settingsSaveTimer = setTimeout(saveSettings, 180);
+    }
+
+    function flushSettingsSave() {
+        if (settingsSaveTimer) saveSettings();
+    }
 
     const RECORD_WINDOW_DAYS = 7;
 
@@ -157,8 +214,27 @@
         catch { return { days: {} }; }
     }
 
+    let recordsSaveTimer = null;
+    let lastRecordsSaveAt = 0;
+
     function saveRecords() {
+        if (recordsSaveTimer) {
+            clearTimeout(recordsSaveTimer);
+            recordsSaveTimer = null;
+        }
         try { GM_setValue('mmRecords', JSON.stringify(records)); } catch { /* no-op */ }
+        lastRecordsSaveAt = Date.now();
+    }
+
+    function scheduleRecordsSave() {
+        if (recordsSaveTimer) return;
+        // Score records can change on every answer; cap extension writes at one per second.
+        const delay = Math.max(0, 1000 - (Date.now() - lastRecordsSaveAt));
+        recordsSaveTimer = setTimeout(saveRecords, delay);
+    }
+
+    function flushRecordsSave() {
+        if (recordsSaveTimer) saveRecords();
     }
 
     let records = loadRecords();
@@ -217,7 +293,7 @@
             || next.multiplier !== day.multiplier;
         if (changed) {
             records.days[key] = next;
-            saveRecords();
+            scheduleRecordsSave();
         }
     }
 
@@ -226,16 +302,22 @@
     let lastUrl             = location.href;
     let lastAnswerState     = null;
     let correctnessObserver = null;
+    let correctnessTarget   = null;
     let counterObserver     = null;
+    let counterTarget       = null;
+    let comboBarTimer       = null;
     let comboBarRaf         = null;
     let comboBarStart       = null;
     let hudResizeHandler    = null;
     let hudDrag             = null;
+    let hudDragRaf          = null;
     let hudCollapseTimer    = null;
     let hudMicroTimer       = null;
+    let hudMicroEl          = null;
     let rewindSnapshot      = null;
     let pendingRewindRestore = false;
     let timeoutAutoFailing  = false;
+    let timeoutFallbackTimer = null;
     let timeoutInjectedInput = null;
     let firstAnswerTimerStarted = false;
     let firstAnswerInputEl = null;
@@ -243,14 +325,24 @@
     let previousFontChallengeText = null;
     let documentClickHandler = null;
     let documentKeyHandler   = null;
+    let domSyncRaf            = null;
+    let inputWrapperCache     = null;
+    let counterCache          = null;
+    let fontTargetCache       = null;
+    let lastLiteFloatAt       = 0;
+    let summaryTimer          = null;
+    let sessionEndSoundTimer  = null;
     let els = {};
 
     let audioCtx = null;
+    let audioSuspendTimer = null;
     let musicGain = null;
     let musicTimer = null;
+    let musicRestartTimer = null;
     let musicPatternIndex = 0;
     let musicGestureHandler = null;
     let musicVisibilityHandler = null;
+    const musicOscillators = new Set();
     const reduceMotionMedia = window.matchMedia?.('(prefers-reduced-motion: reduce)');
 
     function prefersReducedMotion() {
@@ -259,12 +351,26 @@
 
     function getAudioCtx() {
         try {
+            if (audioSuspendTimer) {
+                clearTimeout(audioSuspendTimer);
+                audioSuspendTimer = null;
+            }
             if (!audioCtx || audioCtx.state === 'closed') {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
             if (audioCtx.state === 'suspended') audioCtx.resume();
             return audioCtx;
         } catch { return null; }
+    }
+
+    function scheduleAudioSuspend(delay = 450) {
+        if (audioSuspendTimer) clearTimeout(audioSuspendTimer);
+        audioSuspendTimer = setTimeout(() => {
+            audioSuspendTimer = null;
+            if (audioCtx?.state === 'running') {
+                try { audioCtx.suspend().catch(() => {}); } catch { /* no-op */ }
+            }
+        }, delay);
     }
 
     function playTone(freq, duration = 0.12, volume = 0.2, type = 'square', delay = 0) {
@@ -284,6 +390,9 @@
             gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
             osc.start(now);
             osc.stop(now + duration + 0.01);
+            if (!musicGain) {
+                scheduleAudioSuspend(Math.max(2000, (delay + duration + 0.2) * 1000));
+            }
         } catch (e) { console.warn('[MMGamify] Audio error:', e); }
     }
 
@@ -316,6 +425,8 @@
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         const filter = ctx.createBiquadFilter();
+        musicOscillators.add(osc);
+        osc.addEventListener('ended', () => musicOscillators.delete(osc), { once: true });
         osc.type = options.type || 'triangle';
         osc.frequency.setValueAtTime(frequency, start);
         if (options.detune) osc.detune.setValueAtTime(options.detune, start);
@@ -393,7 +504,8 @@
     }
 
     function scheduleNextMusicPattern() {
-        if (!musicGain || !settings.musicEnabled || !state.sessionActive || document.hidden) return;
+        if (!musicGain || !settings.musicEnabled || isLiteMode()
+            || !state.sessionActive || document.hidden) return;
         const ctx = getAudioCtx();
         if (!ctx) return;
         const start = ctx.currentTime + 0.08;
@@ -412,19 +524,26 @@
         }
         if (!musicGain || !audioCtx || audioCtx.state === 'closed') {
             musicGain = null;
+            musicOscillators.clear();
             return;
         }
         const gain = musicGain;
         musicGain = null;
         const now = audioCtx.currentTime;
+        for (const osc of musicOscillators) {
+            try { osc.stop(now + Math.max(0.02, fadeSeconds)); } catch { /* already stopped */ }
+        }
+        musicOscillators.clear();
         gain.gain.cancelScheduledValues(now);
         gain.gain.setValueAtTime(gain.gain.value, now);
         gain.gain.linearRampToValueAtTime(0, now + fadeSeconds);
         setTimeout(() => gain.disconnect(), (fadeSeconds + 0.1) * 1000);
+        scheduleAudioSuspend((fadeSeconds + 0.15) * 1000);
     }
 
     function startMusic() {
-        if (!settings.musicEnabled || !state.sessionActive || document.hidden || musicGain) return;
+        if (!settings.musicEnabled || isLiteMode()
+            || !state.sessionActive || document.hidden || musicGain) return;
         const ctx = getAudioCtx();
         if (!ctx) return;
         musicGain = ctx.createGain();
@@ -437,14 +556,18 @@
     function restartMusic() {
         stopMusic(0.15);
         musicPatternIndex = 0;
-        setTimeout(startMusic, 180);
+        if (musicRestartTimer) clearTimeout(musicRestartTimer);
+        musicRestartTimer = setTimeout(() => {
+            musicRestartTimer = null;
+            startMusic();
+        }, 180);
     }
 
     function installMusicLifecycle() {
         if (!musicGestureHandler) {
             musicGestureHandler = () => {
                 if (settings.musicEnabled) startMusic();
-                if (musicGain || !settings.musicEnabled) {
+                if (musicGain || !settings.musicEnabled || isLiteMode()) {
                     document.removeEventListener('pointerdown', musicGestureHandler, true);
                     document.removeEventListener('keydown', musicGestureHandler, true);
                     musicGestureHandler = null;
@@ -455,8 +578,12 @@
         }
         if (!musicVisibilityHandler) {
             musicVisibilityHandler = () => {
-                if (document.hidden) stopMusic(0.2);
-                else startMusic();
+                if (document.hidden) {
+                    stopMusic(0.2);
+                    scheduleAudioSuspend(260);
+                } else {
+                    startMusic();
+                }
             };
             document.addEventListener('visibilitychange', musicVisibilityHandler);
         }
@@ -464,6 +591,11 @@
 
     function uninstallMusicLifecycle() {
         stopMusic();
+        scheduleAudioSuspend();
+        if (musicRestartTimer) {
+            clearTimeout(musicRestartTimer);
+            musicRestartTimer = null;
+        }
         if (musicGestureHandler) {
             document.removeEventListener('pointerdown', musicGestureHandler, true);
             document.removeEventListener('keydown', musicGestureHandler, true);
@@ -479,6 +611,7 @@
         const freq = Math.min(440 + state.answerStreak * 20, 1200);
         const vol  = Math.min(0.22, 0.12 + state.answerStreak * 0.003);
         playTone(freq, 0.09, vol);
+        if (isLiteMode()) return;
         if (state.answerStreak % 5  === 0) playTone(freq * 1.5, 0.12, 0.15, 'square',   0.04);
         if (state.answerStreak % 10 === 0) playTone(freq * 2,   0.15, 0.12, 'triangle', 0.08);
         if (state.answerStreak % 20 === 0) {
@@ -489,28 +622,47 @@
 
     function playFailSound() {
         playTone(300,   0.15, 0.25, 'sawtooth');
+        if (isLiteMode()) return;
         playTone(180,   0.20, 0.20, 'sawtooth', 0.12);
     }
 
     function playWordCompleteSound() {
         const extra = Math.min(state.wordStreak * 6, 120);
+        if (isLiteMode()) {
+            playTone(659 + extra, 0.14, 0.16, 'triangle');
+            return;
+        }
         [523, 659, 784].forEach((n, i) => playTone(n + extra, 0.18, 0.22, 'triangle', i * 0.12));
     }
 
     function playMultiplierUpSound(mult) {
         const f = [330, 440, 550, 660, 880][Math.min(mult - 1, 4)];
         playTone(f,       0.10, 0.20, 'square');
+        if (isLiteMode()) return;
         playTone(f * 1.5, 0.14, 0.18, 'square',   0.06);
         playTone(f * 2,   0.18, 0.14, 'triangle', 0.12);
     }
 
     function playComboBreakSound() {
+        if (isLiteMode()) {
+            playTone(240, 0.16, 0.18, 'sawtooth');
+            return;
+        }
         [400, 300, 200].forEach((f, i) => playTone(f, 0.18, 0.22, 'sawtooth', i * 0.08));
     }
 
     function playSessionEndSound() {
+        if (sessionEndSoundTimer) clearTimeout(sessionEndSoundTimer);
+        if (isLiteMode()) {
+            playTone(659, 0.18, 0.16, 'triangle');
+            playTone(784, 0.22, 0.16, 'triangle', 0.1);
+            return;
+        }
         [523, 659, 784, 1047].forEach((f, i) => playTone(f, 0.22, 0.20, 'triangle', i * 0.14));
-        setTimeout(() => playTone(1047, 0.4, 0.25, 'sine'), 650);
+        sessionEndSoundTimer = setTimeout(() => {
+            sessionEndSoundTimer = null;
+            playTone(1047, 0.4, 0.25, 'sine');
+        }, 650);
     }
 
     function getDifficultyXpMultiplier() {
@@ -703,6 +855,16 @@
         #mm-hud.mm-panel-collapsed #mm-hud-controls {
             max-height: 0; opacity: 0; transform: translateY(-5px);
             pointer-events: none;
+        }
+
+        body.mm-performance-mode #mm-hud.mm-panel-collapsed {
+            background: rgba(3,7,18,0.9);
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+        }
+        body.mm-performance-mode #mm-hud,
+        body.mm-performance-mode #mm-combo-bar {
+            transition: none;
         }
 
         .mm-hud-micro {
@@ -1090,10 +1252,10 @@
         return node;
     }
 
-    function clampHudPosition(pos, hud = els.hud) {
+    function clampHudPosition(pos, hud = els.hud, dimensions = null) {
         const margin = 20;
-        const width = hud?.offsetWidth || 220;
-        const height = hud?.offsetHeight || 330;
+        const width = dimensions?.width || hud?.offsetWidth || 220;
+        const height = dimensions?.height || hud?.offsetHeight || 330;
         const maxX = Math.max(margin, window.innerWidth - width - margin);
         const maxY = Math.max(margin, window.innerHeight - height - margin);
         return {
@@ -1112,14 +1274,14 @@
         };
     }
 
-    function applyHudPosition(pos) {
+    function applyHudPosition(pos, dimensions = null) {
         if (!els.hud) return null;
-        const next = clampHudPosition(pos || getDefaultHudPosition());
+        const next = clampHudPosition(pos || getDefaultHudPosition(), els.hud, dimensions);
         els.hud.style.left = `${next.x}px`;
         els.hud.style.top = `${next.y}px`;
         els.hud.style.right = 'auto';
         els.hud.style.bottom = 'auto';
-        positionSettingsPanel();
+        if (els.settings?.classList.contains('open')) positionSettingsPanel();
         return next;
     }
 
@@ -1144,13 +1306,13 @@
     function installHudDrag() {
         if (!els.hud) return;
 
-        hudResizeHandler = () => {
+        hudResizeHandler = debounce(() => {
             const next = applyHudPosition(settings.hudPosition);
             if (settings.hudPosition && next) {
                 settings.hudPosition = next;
                 saveSettings();
             }
-        };
+        }, 140);
         window.addEventListener('resize', hudResizeHandler);
 
         els.hud.addEventListener('pointerdown', event => {
@@ -1160,6 +1322,9 @@
                 pointerId: event.pointerId,
                 offsetX: event.clientX - rect.left,
                 offsetY: event.clientY - rect.top,
+                width: rect.width,
+                height: rect.height,
+                pendingPosition: null,
             };
             els.hud.classList.add('dragging');
             els.hud.setPointerCapture?.(event.pointerId);
@@ -1168,15 +1333,30 @@
 
         els.hud.addEventListener('pointermove', event => {
             if (!hudDrag || hudDrag.pointerId !== event.pointerId) return;
-            const next = applyHudPosition({
+            hudDrag.pendingPosition = {
                 x: event.clientX - hudDrag.offsetX,
                 y: event.clientY - hudDrag.offsetY,
+            };
+            if (hudDragRaf) return;
+            hudDragRaf = requestAnimationFrame(() => {
+                hudDragRaf = null;
+                if (!hudDrag?.pendingPosition) return;
+                const next = applyHudPosition(hudDrag.pendingPosition, hudDrag);
+                hudDrag.pendingPosition = null;
+                if (next) settings.hudPosition = next;
             });
-            if (next) settings.hudPosition = next;
         });
 
         const stopDrag = event => {
             if (!hudDrag || hudDrag.pointerId !== event.pointerId) return;
+            if (hudDragRaf) {
+                cancelAnimationFrame(hudDragRaf);
+                hudDragRaf = null;
+            }
+            if (hudDrag.pendingPosition) {
+                const next = applyHudPosition(hudDrag.pendingPosition, hudDrag);
+                if (next) settings.hudPosition = next;
+            }
             els.hud.releasePointerCapture?.(event.pointerId);
             els.hud.classList.remove('dragging');
             hudDrag = null;
@@ -1307,15 +1487,19 @@
         updateRollingRecords();
         const rollingRecords = getRollingRecords();
         const total = state.sessionCorrect + state.sessionIncorrect;
-        els.score.textContent  = state.score.toLocaleString();
-        els.combo.textContent  = `x${state.answerStreak}`;
-        els.mult.textContent   = `x${state.multiplier}`;
-        els.streak.textContent = state.wordStreak;
-        els.acc.textContent    = total > 0
-            ? `${Math.round(state.sessionCorrect / total * 100)}%` : '—';
-        els.bonus.textContent = `x${getDifficultyXpMultiplier().toFixed(2)}`;
-        els.record.innerHTML = `S <span>${rollingRecords.score.toLocaleString()}</span> / `
+        setTextIfChanged(els.score, state.score.toLocaleString());
+        setTextIfChanged(els.combo, `x${state.answerStreak}`);
+        setTextIfChanged(els.mult, `x${state.multiplier}`);
+        setTextIfChanged(els.streak, state.wordStreak);
+        setTextIfChanged(els.acc, total > 0
+            ? `${Math.round(state.sessionCorrect / total * 100)}%` : '—');
+        setTextIfChanged(els.bonus, `x${getDifficultyXpMultiplier().toFixed(2)}`);
+        const recordMarkup = `S <span>${rollingRecords.score.toLocaleString()}</span> / `
             + `C <span>x${rollingRecords.combo}</span> / M <span>x${rollingRecords.multiplier}</span>`;
+        if (els.record._mmMarkup !== recordMarkup) {
+            els.record.innerHTML = recordMarkup;
+            els.record._mmMarkup = recordMarkup;
+        }
 
         els.hud.classList.toggle('glow',   state.answerStreak >= 10);
         els.hud.classList.toggle('danger', state.answerStreak === 0 && state.sessionIncorrect > 0);
@@ -1323,16 +1507,17 @@
     }
 
     function showHudMicro(text, tone = 'score') {
-        if (!settings.hudCollapsed || !settings.visualsEnabled
+        if (isLiteMode() || !settings.hudCollapsed || !settings.visualsEnabled
             || prefersReducedMotion() || !els.hud) return;
 
         if (hudMicroTimer) clearTimeout(hudMicroTimer);
-        document.querySelector('.mm-hud-micro')?.remove();
+        hudMicroEl?.remove();
 
         const node = document.createElement('div');
         node.className = `mm-hud-micro ${tone}`;
         node.textContent = text;
         document.body.appendChild(node);
+        hudMicroEl = node;
 
         const hudRect = els.hud.getBoundingClientRect();
         const gap = 7;
@@ -1351,6 +1536,7 @@
 
         hudMicroTimer = setTimeout(() => {
             node.remove();
+            if (hudMicroEl === node) hudMicroEl = null;
             hudMicroTimer = null;
         }, 900);
     }
@@ -1379,6 +1565,12 @@
         return el('div', 'mm-settings', `
             <h3>⚙ SETTINGS</h3>
             ${rows}
+            <div class="mm-setting-row">
+                <label>Visual Profile</label>
+                <button class="mm-cycle-btn" id="mm-performance-profile" type="button">
+                    ${PERFORMANCE_PROFILE_LABELS[settings.performanceProfile]}
+                </button>
+            </div>
             <div class="mm-setting-row">
                 <label>SFX Volume</label>
                 <input id="mm-vol-slider" type="range" min="0" max="1" step="0.05" value="${settings.volume}">
@@ -1430,7 +1622,17 @@
 
         panel.querySelector('#mm-vol-slider').addEventListener('input', e => {
             settings.volume = clamp(e.target.value, 0, 1, DEFAULTS.volume);
+            scheduleSettingsSave();
+        });
+
+        panel.querySelector('#mm-performance-profile').addEventListener('click', e => {
+            const current = PERFORMANCE_PROFILES.indexOf(settings.performanceProfile);
+            settings.performanceProfile =
+                PERFORMANCE_PROFILES[(current + 1) % PERFORMANCE_PROFILES.length];
+            e.currentTarget.textContent =
+                PERFORMANCE_PROFILE_LABELS[settings.performanceProfile];
             saveSettings();
+            applyPerformanceProfileSideEffects();
         });
 
         panel.querySelector('#mm-music-style').addEventListener('click', e => {
@@ -1448,7 +1650,7 @@
                     settings.musicVolume, audioCtx.currentTime, 0.05
                 );
             }
-            saveSettings();
+            scheduleSettingsSave();
         });
 
         const updateBackgroundButtons = () => {
@@ -1503,6 +1705,21 @@
 
         panel.querySelector('#mm-settings-close').addEventListener('click',
             () => panel.classList.remove('open'));
+    }
+
+    function syncPerformanceProfilePresentation() {
+        document.body.classList.toggle('mm-performance-mode', isLiteMode());
+        document.body.classList.toggle('mm-max-mode', isMaxMode());
+    }
+
+    function applyPerformanceProfileSideEffects() {
+        syncPerformanceProfilePresentation();
+        isLiteMode() ? stopMusic(0.12) : startMusic();
+        if (settings.fontChallengeEnabled) {
+            clearFontChallenge();
+            applyFontChallenge();
+        }
+        restartArcadeBackdrop();
     }
 
     function applySettingSideEffects(key) {
@@ -1561,17 +1778,34 @@
         if (!bar) return;
         bar.style.width = '100%';
         bar.classList.remove('low');
+        const scheduleNextPaint = tick => {
+            if (isMaxMode()) {
+                comboBarRaf = requestAnimationFrame(tick);
+            } else {
+                comboBarTimer = setTimeout(tick, isLiteMode() ? 200 : 1000 / 30);
+            }
+        };
         const tick = now => {
-            const pct = Math.max(0, 1 - (now - comboBarStart) / settings.comboTimeout);
+            comboBarRaf = null;
+            comboBarTimer = null;
+            const paintTime = Number.isFinite(now) ? now : performance.now();
+            const pct = Math.max(0, 1 - (paintTime - comboBarStart) / settings.comboTimeout);
             bar.style.width = (pct * 100) + '%';
             bar.classList.toggle('low', pct < 0.25);
-            if (pct > 0) comboBarRaf = requestAnimationFrame(tick);
+            if (pct > 0) scheduleNextPaint(tick);
         };
-        comboBarRaf = requestAnimationFrame(tick);
+        scheduleNextPaint(tick);
     }
 
     function stopComboBar() {
-        if (comboBarRaf) { cancelAnimationFrame(comboBarRaf); comboBarRaf = null; }
+        if (comboBarTimer) {
+            clearTimeout(comboBarTimer);
+            comboBarTimer = null;
+        }
+        if (comboBarRaf) {
+            cancelAnimationFrame(comboBarRaf);
+            comboBarRaf = null;
+        }
         if (els.bar) { els.bar.style.width = '0%'; els.bar.classList.remove('low'); }
     }
 
@@ -1661,7 +1895,9 @@
         if (settings.autoFailTimeout) {
             timeoutAutoFailing = attemptTimeoutAutoFail();
             if (timeoutAutoFailing) {
-                setTimeout(() => {
+                if (timeoutFallbackTimer) clearTimeout(timeoutFallbackTimer);
+                timeoutFallbackTimer = setTimeout(() => {
+                    timeoutFallbackTimer = null;
                     if (timeoutAutoFailing && !isAnswerResolved()) {
                         timeoutAutoFailing = false;
                         restoreTimeoutInjectedInput();
@@ -1790,7 +2026,8 @@
     }
 
     function shakeScreen(hard = false) {
-        if (!settings.shakeEnabled || !settings.visualsEnabled || prefersReducedMotion()) return;
+        if (isLiteMode() || !settings.shakeEnabled
+            || !settings.visualsEnabled || prefersReducedMotion()) return;
         const cls = hard ? 'mm-shake-hard' : 'mm-shake-light';
         document.body.classList.remove('mm-shake-light', 'mm-shake-hard');
         void document.body.offsetWidth;
@@ -1799,7 +2036,8 @@
     }
 
     function flashScreen(correct) {
-        if (!settings.flashEnabled || !settings.visualsEnabled || prefersReducedMotion()) return;
+        if (isLiteMode() || !settings.flashEnabled
+            || !settings.visualsEnabled || prefersReducedMotion()) return;
         const f = els.flash;
         if (!f) return;
         f.className = '';
@@ -1809,6 +2047,11 @@
 
     function spawnFloat(text, cssClass, anchorEl) {
         if (!settings.floatEnabled || !settings.visualsEnabled || prefersReducedMotion()) return;
+        if (isLiteMode()) {
+            const now = performance.now();
+            if (now - lastLiteFloatAt < 450) return;
+            lastLiteFloatAt = now;
+        }
         const node = document.createElement('div');
         node.className   = `mm-float ${cssClass}`;
         node.textContent = text;
@@ -1820,7 +2063,7 @@
     }
 
     function showBanner(id, text) {
-        if (!settings.visualsEnabled || prefersReducedMotion()) return;
+        if (isLiteMode() || !settings.visualsEnabled || prefersReducedMotion()) return;
         const b = document.getElementById(id);
         if (!b) return;
         b.textContent = text;
@@ -1830,7 +2073,7 @@
     }
 
     function spawnCelebrate(celebration, x, y) {
-        if (!settings.visualsEnabled || prefersReducedMotion()) return;
+        if (isLiteMode() || !settings.visualsEnabled || prefersReducedMotion()) return;
         const node = document.createElement('div');
         node.className   = `mm-celebrate ${celebration.effect}`;
         node.textContent = celebration.icon;
@@ -1843,19 +2086,23 @@
     }
 
     function pulseElement(el) {
-        if (!el || !settings.visualsEnabled || prefersReducedMotion()) return;
+        if (isLiteMode() || !el
+            || !settings.visualsEnabled || prefersReducedMotion()) return;
         el.classList.add('mm-pulse');
         setTimeout(() => el.classList.remove('mm-pulse'), 350);
     }
 
     function animateClass(el, cls, duration) {
-        if (!el || prefersReducedMotion()) return;
+        if (isLiteMode() || !el || prefersReducedMotion()) return;
         el.classList.add(cls);
         setTimeout(() => el.classList.remove(cls), duration);
     }
 
     let starRaf = null;
+    let starFrameTimer = null;
     let starResizeHandler = null;
+    let starVisibilityHandler = null;
+    let starGeneration = 0;
     let shootingStars = [];
 
     const ARCADE_CSS = `
@@ -1938,7 +2185,8 @@
 
         /* Arcade backdrop sits behind page content */
         #mm-starfield {
-            position: fixed; inset: 0; pointer-events: none; z-index: -1;
+            position: fixed; inset: 0; width: 100vw; height: 100vh;
+            pointer-events: none; z-index: -1;
         }
 
         /* CRT curvature flicker — very subtle brightness pulse */
@@ -1957,6 +2205,9 @@
         body.mm-arcade[data-mm-bg="shrine"] {
             animation: none;
         }
+        body.mm-performance-mode.mm-arcade {
+            animation: none;
+        }
 
         /* ── PHOSPHOR GLOW on the main card area ── */
         body.mm-arcade .input-wrapper,
@@ -1964,6 +2215,12 @@
         body.mm-arcade [class*="card"],
         body.mm-arcade [class*="review"] {
             box-shadow: 0 0 24px rgba(0,220,255,0.12), 0 0 2px rgba(0,220,255,0.08) !important;
+        }
+        body.mm-performance-mode.mm-arcade .input-wrapper,
+        body.mm-performance-mode.mm-arcade [class*="question"],
+        body.mm-performance-mode.mm-arcade [class*="card"],
+        body.mm-performance-mode.mm-arcade [class*="review"] {
+            box-shadow: none !important;
         }
 
         /* Glow on text inputs */
@@ -1978,6 +2235,10 @@
         body.mm-arcade input[type="text"]::placeholder,
         body.mm-arcade input:not([type])::placeholder {
             color: rgba(0,200,255,0.35) !important;
+        }
+        body.mm-performance-mode.mm-arcade input[type="text"],
+        body.mm-performance-mode.mm-arcade input:not([type]) {
+            text-shadow: none !important;
         }
 
         /* ── CORNER BRACKETS on the main card ── */
@@ -2013,6 +2274,7 @@
             100%{ filter: none; }
         }
         body.mm-arcade.mm-chromatic { animation: mmChromatic 0.5s ease forwards; }
+        body.mm-performance-mode.mm-arcade.mm-chromatic { animation: none; }
 
         /* ── PROGRESS BAR — phosphor green ── */
         body.mm-arcade [role="progressbar"] > *,
@@ -2037,6 +2299,16 @@
         body.mm-arcade .input-wrapper.incorrect {
             box-shadow: 0 0 32px rgba(255,40,80,0.4), 0 0 4px rgba(255,40,80,0.2) !important;
         }
+        body.mm-performance-mode.mm-arcade .input-wrapper.correct,
+        body.mm-performance-mode.mm-arcade .input-wrapper.incorrect,
+        body.mm-performance-mode.mm-arcade [role="progressbar"] > *,
+        body.mm-performance-mode.mm-arcade .progress-bar,
+        body.mm-performance-mode.mm-arcade .progress > * {
+            box-shadow: none !important;
+        }
+        body.mm-performance-mode.mm-arcade .top_middle {
+            text-shadow: none !important;
+        }
     `;
 
     function injectArcadeStyles() {
@@ -2048,10 +2320,20 @@
     }
 
     function stopArcadeBackdrop() {
+        starGeneration++;
         if (starRaf) { cancelAnimationFrame(starRaf); starRaf = null; }
+        if (starFrameTimer) {
+            clearTimeout(starFrameTimer);
+            starFrameTimer = null;
+        }
         if (starResizeHandler) {
             window.removeEventListener('resize', starResizeHandler);
+            starResizeHandler.cancel?.();
             starResizeHandler = null;
+        }
+        if (starVisibilityHandler) {
+            document.removeEventListener('visibilitychange', starVisibilityHandler);
+            starVisibilityHandler = null;
         }
         shootingStars = [];
         document.getElementById('mm-starfield')?.remove();
@@ -2073,7 +2355,7 @@
     }
 
     function triggerShootingStar() {
-        if (!settings.arcadeEnabled || !settings.visualsEnabled
+        if (isLiteMode() || !settings.arcadeEnabled || !settings.visualsEnabled
             || prefersReducedMotion() || isAnswerResolved()) return;
         if (!hasShootingStars()) return;
         shootingStars.push({
@@ -2102,20 +2384,27 @@
         }
 
         let W, H;
+        const generation = ++starGeneration;
         let starfieldTexture, starfieldStars, starfieldSparkles, nextStarfieldSparkleAt;
         let nebulaTexture, nebulaStars, nebulaWisps;
         let gridTexture, gridStars, gridMountainLayers, gridPalms, matrixDrops;
         let gameCenterTexture, gameCenterCabinets, gameCenterLights;
         let shrineImage, shrineImageReady = false, shrineDirectFallbackTried = false;
         let shrinePetals;
+        let lastRenderAt = 0;
+        let nextFrameDue = 0;
+        let frameScale = 1;
 
         const theme = settings.backgroundTheme;
+        // Canvas cost scales with both pixels and frames; Lite Mode reduces both.
+        const frameInterval = isLiteMode() ? 1000 / 12 : 1000 / 60;
+        const renderScale = isLiteMode() ? 0.7 : 1;
         const MATRIX_FONT_SIZE = 18;
         const MATRIX_GLYPHS = '日月火水木金土山川人大小日本語学習01';
 
         function resize() {
-            W = canvas.width  = window.innerWidth;
-            H = canvas.height = window.innerHeight;
+            W = canvas.width  = Math.max(1, Math.floor(window.innerWidth * renderScale));
+            H = canvas.height = Math.max(1, Math.floor(window.innerHeight * renderScale));
         }
 
         function createBackdropTexture() {
@@ -2207,7 +2496,11 @@
             }
 
             const area = W * H;
-            const starCount = Math.max(850, Math.min(2100, Math.floor(area / 720)));
+            const densityDivisor = isLiteMode() ? 1500 : 720;
+            const starCount = Math.max(
+                isLiteMode() ? 420 : 850,
+                Math.min(isLiteMode() ? 1000 : 2100, Math.floor(area / densityDivisor))
+            );
             for (let i = 0; i < starCount; i++) {
                 const inBand = Math.random() < 0.58;
                 const x = Math.random() * W;
@@ -2240,7 +2533,7 @@
                 textureCtx.fill();
             }
 
-            starfieldStars = Array.from({ length: 22 }, () => {
+            starfieldStars = Array.from({ length: isLiteMode() ? 10 : 22 }, () => {
                 const x = Math.random() * W;
                 const nearBand = Math.random() < 0.66;
                 return {
@@ -2288,7 +2581,7 @@
             textureCtx.fillRect(0, 0, W, H);
 
             textureCtx.globalCompositeOperation = 'lighter';
-            for (let i = 0; i < 260; i++) {
+            for (let i = 0; i < (isLiteMode() ? 110 : 260); i++) {
                 const p = Math.random();
                 const spine = getNebulaSpine(p);
                 const spread = H * (0.035 + 0.16 * Math.sin(p * Math.PI));
@@ -2311,7 +2604,7 @@
 
             textureCtx.filter = 'blur(1.4px)';
             textureCtx.lineCap = 'round';
-            for (let filament = 0; filament < 34; filament++) {
+            for (let filament = 0; filament < (isLiteMode() ? 14 : 34); filament++) {
                 const offset = randomBell() * H * 0.08;
                 const hue = getNebulaHue(Math.random());
                 textureCtx.strokeStyle = `hsla(${hue},96%,72%,${0.025 + Math.random() * 0.05})`;
@@ -2333,7 +2626,7 @@
 
             textureCtx.globalCompositeOperation = 'source-over';
             textureCtx.filter = 'blur(5px)';
-            for (let i = 0; i < 105; i++) {
+            for (let i = 0; i < (isLiteMode() ? 42 : 105); i++) {
                 const p = Math.random();
                 const spine = getNebulaSpine(p);
                 const spread = H * (0.025 + Math.sin(p * Math.PI) * 0.09);
@@ -2368,7 +2661,9 @@
                 );
             }
 
-            const baseStarCount = Math.max(420, Math.min(1100, Math.floor(W * H / 1300)));
+            const baseStarCount = isLiteMode()
+                ? Math.max(200, Math.min(520, Math.floor(W * H / 2800)))
+                : Math.max(420, Math.min(1100, Math.floor(W * H / 1300)));
             for (let i = 0; i < baseStarCount; i++) {
                 const star = {
                     x: Math.random() * W,
@@ -2380,7 +2675,7 @@
                 drawStarPoint(textureCtx, star);
             }
 
-            nebulaStars = Array.from({ length: 30 }, (_, index) => {
+            nebulaStars = Array.from({ length: isLiteMode() ? 14 : 30 }, (_, index) => {
                 const cluster = clusterCenters[index % clusterCenters.length];
                 return {
                     x: cluster.x * W + randomBell() * Math.min(W, H) * 0.10,
@@ -2393,8 +2688,9 @@
                 };
             });
 
-            nebulaWisps = Array.from({ length: 11 }, (_, index) => {
-                const p = (index + 0.5 + Math.random() * 0.45) / 11;
+            const wispCount = isLiteMode() ? 5 : 11;
+            nebulaWisps = Array.from({ length: wispCount }, (_, index) => {
+                const p = (index + 0.5 + Math.random() * 0.45) / wispCount;
                 const spine = getNebulaSpine(p);
                 const radius = Math.min(W, H) * (0.045 + Math.random() * 0.055);
                 return {
@@ -2447,7 +2743,9 @@
             textureCtx.fillStyle = horizonGlow;
             textureCtx.fillRect(0, 0, W, horizon + 1);
 
-            const starCount = Math.max(100, Math.min(280, Math.floor(W * H / 6200)));
+            const starCount = isLiteMode()
+                ? Math.max(55, Math.min(130, Math.floor(W * H / 12000)))
+                : Math.max(100, Math.min(280, Math.floor(W * H / 6200)));
             for (let index = 0; index < starCount; index++) {
                 const star = {
                     x: Math.random() * W,
@@ -2459,7 +2757,7 @@
                 drawStarPoint(textureCtx, star);
             }
 
-            gridStars = Array.from({ length: 26 }, () => ({
+            gridStars = Array.from({ length: isLiteMode() ? 12 : 26 }, () => ({
                 x: W * (0.04 + Math.random() * 0.92),
                 y: horizon * (0.08 + Math.random() * 0.72),
                 radius: 0.65 + Math.random() * 0.85,
@@ -2699,7 +2997,9 @@
         }
 
         function initShrine() {
-            const petalCount = Math.max(8, Math.min(18, Math.floor(W / 130)));
+            const petalCount = isLiteMode()
+                ? 0
+                : Math.max(8, Math.min(18, Math.floor(W / 130)));
             shrinePetals = Array.from(
                 { length: petalCount },
                 () => resetShrinePetal({}, true)
@@ -2710,7 +3010,9 @@
             shrineImage.decoding = 'async';
             shrineImage.onload = () => {
                 shrineImageReady = true;
-                if (prefersReducedMotion()) tick();
+                if (prefersReducedMotion() || isLiteMode()) {
+                    tick();
+                }
             };
             const loadShrineDirectly = () => {
                 if (shrineDirectFallbackTried) {
@@ -2756,6 +3058,7 @@
         }
 
         function drawStarfieldSparkles(t) {
+            if (isLiteMode()) return;
             if (t >= nextStarfieldSparkleAt && starfieldStars.length > 0) {
                 const source = starfieldStars[Math.floor(Math.random() * starfieldStars.length)];
                 starfieldSparkles.push({
@@ -3016,7 +3319,7 @@
 
             const imageRatio = shrineImage.naturalWidth / shrineImage.naturalHeight;
             const viewportRatio = W / H;
-            const animated = !prefersReducedMotion();
+            const animated = !isLiteMode() && !prefersReducedMotion();
             const scale = 1.012 + (animated ? Math.sin(t * 0.08) * 0.002 : 0);
             let drawWidth;
             let drawHeight;
@@ -3062,10 +3365,10 @@
         }
 
         function drawShrinePetals(t) {
-            if (prefersReducedMotion()) return;
+            if (isLiteMode() || prefersReducedMotion()) return;
             for (const petal of shrinePetals) {
-                petal.y += petal.speed;
-                petal.x += Math.sin(t * petal.spin + petal.phase) * petal.drift;
+                petal.y += petal.speed * frameScale;
+                petal.x += Math.sin(t * petal.spin + petal.phase) * petal.drift * frameScale;
                 if (petal.y > H + 12 || petal.x < -12 || petal.x > W + 12) {
                     resetShrinePetal(petal);
                 }
@@ -3293,7 +3596,8 @@
             matrixDrops.forEach((drop, column) => {
                 const x = column * MATRIX_FONT_SIZE + MATRIX_FONT_SIZE / 2;
                 const headY = drop * MATRIX_FONT_SIZE;
-                for (let trail = 0; trail < 12; trail++) {
+                const trailLength = isLiteMode() ? 6 : 12;
+                for (let trail = 0; trail < trailLength; trail++) {
                     const y = headY - trail * MATRIX_FONT_SIZE;
                     if (y < -MATRIX_FONT_SIZE || y > H + MATRIX_FONT_SIZE) continue;
                     const alpha = Math.max(0, 0.28 - trail * 0.022);
@@ -3304,7 +3608,7 @@
                     ctx.fillText(MATRIX_GLYPHS[charIndex], x, y);
                 }
 
-                matrixDrops[column] += 0.32 + (column % 5) * 0.045;
+                matrixDrops[column] += (0.32 + (column % 5) * 0.045) * frameScale;
                 if (headY > H + MATRIX_FONT_SIZE * 12 && Math.random() < 0.04) {
                     matrixDrops[column] = -Math.random() * 16;
                 }
@@ -3333,27 +3637,59 @@
                 ctx.arc(star.x, star.y, 2.2, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.restore();
-                star.x += star.vx;
-                star.y += star.vy;
-                star.life -= 0.018;
+                star.x += star.vx * frameScale;
+                star.y += star.vy * frameScale;
+                star.life -= 0.018 * frameScale;
             }
         }
 
-        function tick() {
+        function scheduleNextFrame() {
+            if (prefersReducedMotion() || (isLiteMode() && theme === 'shrine')
+                || document.hidden) return;
+            if (isLiteMode()) {
+                if (starFrameTimer) return;
+                const delay = Math.max(0, frameInterval - (performance.now() - lastRenderAt));
+                starFrameTimer = setTimeout(() => {
+                    starFrameTimer = null;
+                    if (!starRaf) starRaf = requestAnimationFrame(tick);
+                }, delay);
+            } else if (!starRaf) {
+                starRaf = requestAnimationFrame(tick);
+            }
+        }
+
+        function tick(now = performance.now(), force = false) {
+            starRaf = null;
+            if (generation !== starGeneration) return;
+            if (document.hidden && !force) return;
+            if (!force && !isLiteMode() && !isMaxMode()) {
+                if (nextFrameDue && now + 0.5 < nextFrameDue) {
+                    scheduleNextFrame();
+                    return;
+                }
+                if (!nextFrameDue) nextFrameDue = now + frameInterval;
+                while (nextFrameDue <= now) nextFrameDue += frameInterval;
+            }
+
+            const elapsed = lastRenderAt ? Math.min(100, now - lastRenderAt) : 1000 / 60;
+            frameScale = elapsed / (1000 / 60);
+            lastRenderAt = now;
             ctx.clearRect(0, 0, W, H);
-            const t = performance.now() / 1000;
+            const t = now / 1000;
             drawStarfield(t);
             drawNebula(t);
             drawGrid(t);
             drawGameCenter(t);
             drawShrine(t);
             drawMatrix(t);
-            if (hasShootingStars(theme) && Math.random() < 0.0025) triggerShootingStar();
+            if (hasShootingStars(theme) && Math.random() < 0.0025 * frameScale) {
+                triggerShootingStar();
+            }
             drawShootingStars();
-            if (!prefersReducedMotion()) starRaf = requestAnimationFrame(tick);
+            scheduleNextFrame();
         }
 
-        starResizeHandler = () => {
+        starResizeHandler = debounce(() => {
             resize();
             if (theme === 'starfield') initStarfield();
             if (theme === 'nebula') initNebula();
@@ -3361,9 +3697,24 @@
             if (theme === 'gamecenter') initGameCenter();
             if (theme === 'shrine') initShrine();
             if (theme === 'matrix') initMatrix();
-            if (prefersReducedMotion()) tick();
+            if (prefersReducedMotion() || (isLiteMode() && theme === 'shrine')) {
+                tick();
+            }
+        }, 180);
+        starVisibilityHandler = () => {
+            if (document.hidden) {
+                if (starRaf) cancelAnimationFrame(starRaf);
+                starRaf = null;
+                if (starFrameTimer) clearTimeout(starFrameTimer);
+                starFrameTimer = null;
+                return;
+            }
+            lastRenderAt = 0;
+            nextFrameDue = 0;
+            if (!starRaf) tick();
         };
         window.addEventListener('resize', starResizeHandler);
+        document.addEventListener('visibilitychange', starVisibilityHandler);
         resize();
         if (theme === 'starfield') initStarfield();
         if (theme === 'nebula') initNebula();
@@ -3424,7 +3775,7 @@
     }
 
     function arcadeChromatic() {
-        if (!settings.arcadeEnabled || !settings.visualsEnabled) return;
+        if (isLiteMode() || !settings.arcadeEnabled || !settings.visualsEnabled) return;
         document.body.classList.remove('mm-chromatic');
         void document.body.offsetWidth;
         document.body.classList.add('mm-chromatic');
@@ -3485,10 +3836,25 @@
 
     const FONT_CHALLENGE_FONTS = [...FONT_CHALLENGE_LOCAL_FONTS, ...FONT_CHALLENGE_WEB_FONTS];
 
-    function getInputWrapper() { return document.querySelector('.input-wrapper'); }
+    function getInputWrapper() {
+        if (!inputWrapperCache?.isConnected) {
+            inputWrapperCache = document.querySelector('.input-wrapper');
+        }
+        return inputWrapperCache;
+    }
+
+    function getCounterElement() {
+        if (!counterCache?.isConnected) {
+            counterCache = document.querySelector('.top_middle');
+        }
+        return counterCache;
+    }
 
     function getFontChallengeTarget() {
-        return document.querySelector('#main .main_form, #main > span');
+        if (!fontTargetCache?.isConnected) {
+            fontTargetCache = document.querySelector('#main .main_form, #main > span');
+        }
+        return fontTargetCache;
     }
 
     function getLockedFont() {
@@ -3501,7 +3867,10 @@
     }
 
     function getRandomChallengeFont() {
-        return FONT_CHALLENGE_FONTS[Math.floor(Math.random() * FONT_CHALLENGE_FONTS.length)];
+        const fonts = isLiteMode()
+            ? FONT_CHALLENGE_LOCAL_FONTS
+            : FONT_CHALLENGE_FONTS;
+        return fonts[Math.floor(Math.random() * fonts.length)];
     }
 
     function addChallengeWebFont(fontName) {
@@ -3560,7 +3929,12 @@
         clearFontChallengeTarget(target);
         target._mmFontChallengeActive = true;
         target._mmOriginalFont = window.getComputedStyle(target).fontFamily;
-        setChallengeFont(target, getLockedFont() || getRandomChallengeFont());
+        const lockedFont = getLockedFont();
+        const initialFont = isLiteMode()
+            && FONT_CHALLENGE_WEB_FONTS.includes(lockedFont)
+            ? getRandomChallengeFont()
+            : lockedFont || getRandomChallengeFont();
+        setChallengeFont(target, initialFont);
 
         target._mmFontEnter = () => {
             target.style.setProperty('font-family', target._mmOriginalFont, 'important');
@@ -3591,6 +3965,10 @@
     }
 
     function handleCorrect() {
+        if (timeoutFallbackTimer) {
+            clearTimeout(timeoutFallbackTimer);
+            timeoutFallbackTimer = null;
+        }
         timeoutInjectedInput = null;
         setRewindSnapshot(makeRewindSnapshot('correct'));
         state.sessionCorrect++;
@@ -3630,6 +4008,10 @@
     }
 
     function handleIncorrect() {
+        if (timeoutFallbackTimer) {
+            clearTimeout(timeoutFallbackTimer);
+            timeoutFallbackTimer = null;
+        }
         timeoutInjectedInput = null;
         setRewindSnapshot(makeRewindSnapshot('incorrect'));
         state.sessionIncorrect++;
@@ -3653,7 +4035,7 @@
         if (lostStreak >= 5) spawnFloat(`-${lostStreak} COMBO LOST`, 'incorrect', anchor);
         if (penalty > 0)     spawnFloat(`-${penalty}`, 'incorrect', anchor);
 
-        if (settings.visualsEnabled && !prefersReducedMotion()) {
+        if (!isLiteMode() && settings.visualsEnabled && !prefersReducedMotion()) {
             document.body.classList.add('mm-wrong-dim');
             setTimeout(() => { document.body.classList.remove('mm-wrong-dim'); }, 600);
         }
@@ -3666,7 +4048,7 @@
         showHudMicro(`STREAK ${state.wordStreak}`, 'streak');
         playWordCompleteSound();
 
-        const counter  = document.querySelector('.top_middle');
+        const counter  = getCounterElement();
         const progress = document.querySelector('[role="progressbar"], .progress, .progress-bar');
         if (counter)  animateClass(counter,  'mm-bounce',        600);
         if (progress) animateClass(progress, 'mm-progress-glow', 600);
@@ -3705,6 +4087,7 @@
             `<div class="mm-summary-cell">${label}<span class="mm-summary-val ${cls}">${val}</span></div>`;
 
         const overlay = document.getElementById('mm-summary');
+        if (!overlay) return;
         overlay.innerHTML = `
             <div id="mm-summary-inner">
                 <h2>SESSION COMPLETE</h2>
@@ -3727,71 +4110,86 @@
     }
 
     function observeCorrectness() {
+        const wrapper = getInputWrapper();
+        if (!wrapper || (correctnessObserver && correctnessTarget === wrapper)) return;
+        const targetChanged = correctnessTarget && correctnessTarget !== wrapper;
         correctnessObserver?.disconnect();
-        correctnessObserver = new MutationObserver(mutations => {
-            for (const { type, attributeName, target: el } of mutations) {
-                if (type !== 'attributes' || attributeName !== 'class') continue;
-                if (!el.classList?.contains('input-wrapper')) continue;
-                const correct   = el.classList.contains('correct');
-                const incorrect = el.classList.contains('incorrect');
-                if (!correct && !incorrect) {
-                    if (pendingRewindRestore) {
-                        restoreRewindSnapshot('native');
-                    } else if (lastAnswerState) {
-                        setRewindSnapshot(null);
-                        timeoutAutoFailing = false;
-                        applyFontChallenge();
-                        refreshAnswerTimerForCurrentQuestion();
-                    }
-                    lastAnswerState = null;
-                    syncArcadePresentation();
-                    continue;
+        correctnessTarget = wrapper;
+        if (targetChanged && !isAnswerResolved()) {
+            setRewindSnapshot(null);
+            timeoutAutoFailing = false;
+            lastAnswerState = null;
+        }
+        correctnessObserver = new MutationObserver(() => {
+            const correct   = wrapper.classList.contains('correct');
+            const incorrect = wrapper.classList.contains('incorrect');
+            if (!correct && !incorrect) {
+                if (pendingRewindRestore) {
+                    restoreRewindSnapshot('native');
+                } else if (lastAnswerState) {
+                    setRewindSnapshot(null);
+                    timeoutAutoFailing = false;
+                    applyFontChallenge();
+                    refreshAnswerTimerForCurrentQuestion();
                 }
-                if (correct   && lastAnswerState !== 'correct')   { lastAnswerState = 'correct';   handleCorrect();   }
-                if (incorrect && lastAnswerState !== 'incorrect')  {
-                    lastAnswerState = 'incorrect';
-                    handleIncorrect();
-                    if (timeoutAutoFailing) setTimeout(clickNextAfterTimeoutFail, 150);
-                }
+                lastAnswerState = null;
                 syncArcadePresentation();
+                return;
             }
+            if (correct && lastAnswerState !== 'correct') {
+                lastAnswerState = 'correct';
+                handleCorrect();
+            }
+            if (incorrect && lastAnswerState !== 'incorrect') {
+                lastAnswerState = 'incorrect';
+                handleIncorrect();
+                if (timeoutAutoFailing) setTimeout(clickNextAfterTimeoutFail, 150);
+            }
+            syncArcadePresentation();
         });
-        correctnessObserver.observe(document.body,
-            { subtree: true, attributes: true, attributeFilter: ['class'] });
+        correctnessObserver.observe(wrapper, { attributes: true, attributeFilter: ['class'] });
+    }
+
+    function processCounterChange(counter) {
+        const [rawCur, rawMax] = counter.textContent.split('/');
+        const current = parseInt(rawCur, 10), max = parseInt(rawMax, 10);
+        if (isNaN(current) || isNaN(max)) return;
+        if (current > state.lastCompleted) {
+            state.lastCompleted = current;
+            handleWordComplete();
+            applyFontChallenge();
+            refreshAnswerTimerForCurrentQuestion();
+        }
+        const summary = document.getElementById('mm-summary');
+        if (current === max && max > 0 && state.sessionActive
+            && summary && !summary.classList.contains('open')) {
+            state.sessionActive = false;
+            if (summaryTimer) clearTimeout(summaryTimer);
+            summaryTimer = setTimeout(() => {
+                summaryTimer = null;
+                if (initialized) showSummary();
+            }, 800);
+        }
     }
 
     function observeCounter() {
+        const counter = getCounterElement();
+        if (!counter || (counterObserver && counterTarget === counter)) return;
         counterObserver?.disconnect();
-        counterObserver = new MutationObserver(() => {
-            const counter = document.querySelector('.top_middle');
-            if (!counter) return;
-            const [rawCur, rawMax] = counter.textContent.split('/');
-            const current = parseInt(rawCur, 10), max = parseInt(rawMax, 10);
-            if (isNaN(current) || isNaN(max)) return;
-            if (current > state.lastCompleted) {
-                state.lastCompleted = current;
-                handleWordComplete();
-                applyFontChallenge();
-                refreshAnswerTimerForCurrentQuestion();
-            }
-            if (current === max && max > 0 && state.sessionActive
-                && !document.getElementById('mm-summary').classList.contains('open')) {
-                state.sessionActive = false;
-                setTimeout(showSummary, 800);
-            }
-        });
-        counterObserver.observe(document.body,
-            { childList: true, subtree: true, characterData: true });
+        counterTarget = counter;
+        counterObserver = new MutationObserver(() => processCounterChange(counter));
+        counterObserver.observe(counter, { childList: true, subtree: true, characterData: true });
     }
 
     function init() {
-        if (initialized || !document.querySelector('.input-wrapper')) return;
+        if (initialized || !getInputWrapper()) return;
         settings.backgroundTheme = settings.pinnedBackgroundTheme;
         resetState();
+        syncPerformanceProfilePresentation();
         injectStyles();
         injectUI();
 
-        const counter = document.querySelector('.top_middle');
+        const counter = getCounterElement();
         if (counter?.textContent.includes('/')) {
             state.lastCompleted = parseInt(counter.textContent, 10) || 0;
         }
@@ -3813,12 +4211,19 @@
 
     function cleanup() {
         correctnessObserver?.disconnect();  correctnessObserver = null;
+        correctnessTarget = null;
         counterObserver?.disconnect();      counterObserver = null;
+        counterTarget = null;
         uninstallNativeRewindDetection();
         uninstallMusicLifecycle();
         if (hudResizeHandler) {
             window.removeEventListener('resize', hudResizeHandler);
+            hudResizeHandler.cancel?.();
             hudResizeHandler = null;
+        }
+        if (hudDragRaf) {
+            cancelAnimationFrame(hudDragRaf);
+            hudDragRaf = null;
         }
         if (hudCollapseTimer) {
             clearTimeout(hudCollapseTimer);
@@ -3828,16 +4233,35 @@
             clearTimeout(hudMicroTimer);
             hudMicroTimer = null;
         }
-        document.querySelector('.mm-hud-micro')?.remove();
+        if (timeoutFallbackTimer) {
+            clearTimeout(timeoutFallbackTimer);
+            timeoutFallbackTimer = null;
+        }
+        if (summaryTimer) {
+            clearTimeout(summaryTimer);
+            summaryTimer = null;
+        }
+        if (sessionEndSoundTimer) {
+            clearTimeout(sessionEndSoundTimer);
+            sessionEndSoundTimer = null;
+        }
+        hudMicroEl?.remove();
+        hudMicroEl = null;
+        document.querySelectorAll('.mm-float, .mm-celebrate').forEach(node => node.remove());
         stopAnswerTimer();
         removeFirstAnswerInputGate();
         clearFontChallenge();
+        flushRecordsSave();
+        flushSettingsSave();
         hudDrag = null;
         rewindSnapshot = null;
         pendingRewindRestore = false;
         timeoutAutoFailing = false;
         timeoutInjectedInput = null;
         firstAnswerTimerStarted = false;
+        inputWrapperCache = null;
+        counterCache = null;
+        fontTargetCache = null;
         els = {};
         initialized     = false;
         lastAnswerState = null;
@@ -3847,7 +4271,10 @@
             document.getElementById(id)?.remove()
         );
         arcadeOff();
-        document.body.classList.remove('mm-shake-light', 'mm-shake-hard', 'mm-wrong-dim');
+        document.body.classList.remove(
+            'mm-performance-mode', 'mm-max-mode',
+            'mm-shake-light', 'mm-shake-hard', 'mm-wrong-dim'
+        );
     }
 
     function isReviewPage() { return location.href.includes('/study-lists/reviews'); }
@@ -3858,28 +4285,60 @@
         if (!onReview && gamifyActive)  { gamifyActive = false; cleanup(); }
     }
 
-    new MutationObserver(() => {
+    function syncGamifyDom() {
+        domSyncRaf = null;
         if (!gamifyActive) return;
-        const has = !!document.querySelector('.input-wrapper');
+        const has = Boolean(getInputWrapper());
         if (has && !initialized)  init();
-        if (has && initialized) applyFontChallenge();
+        if (has && initialized) {
+            observeCorrectness();
+            observeCounter();
+            if (settings.fontChallengeEnabled) applyFontChallenge();
+        }
         if (!has && initialized && !isReviewPage()) { cleanup(); gamifyActive = false; }
-    }).observe(document.body, { childList: true, subtree: true });
+    }
+
+    function scheduleGamifyDomSync() {
+        if (!gamifyActive || domSyncRaf || document.hidden) return;
+        // Coalesce broad SPA mutations into one review-element reconciliation per frame.
+        domSyncRaf = requestAnimationFrame(syncGamifyDom);
+    }
+
+    const appObserver = new MutationObserver(scheduleGamifyDomSync);
+    appObserver.observe(document.body, { childList: true, subtree: true });
+
+    function handleRouteChange() {
+        lastUrl = location.href;
+        tryInitGamify();
+        scheduleGamifyDomSync();
+    }
 
     ['pushState', 'replaceState'].forEach(method => {
         const orig = history[method];
         history[method] = function (...args) {
             const r = orig.apply(this, args);
-            tryInitGamify();
+            handleRouteChange();
             return r;
         };
     });
-    window.addEventListener('popstate', tryInitGamify);
+    window.addEventListener('popstate', handleRouteChange);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            handleRouteChange();
+        } else {
+            flushRecordsSave();
+            flushSettingsSave();
+        }
+    });
+    window.addEventListener('pagehide', () => {
+        flushRecordsSave();
+        flushSettingsSave();
+    });
 
     setInterval(() => {
-        if (location.href !== lastUrl) { lastUrl = location.href; tryInitGamify(); }
-    }, 300);
+        if (!document.hidden && location.href !== lastUrl) handleRouteChange();
+    }, 1500);
 
-    tryInitGamify();
+    handleRouteChange();
 
 })();

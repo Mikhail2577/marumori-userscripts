@@ -21,6 +21,7 @@ This is intended to be shared back with the original script author as an experim
 - Difficulty XP multipliers.
 - CRT theme with scanlines, multiple procedural backgrounds, void mode, and shooting stars.
 - Optional procedural `LO-FI` and `RETRO` music with independent volume.
+- Persistent `MAX`, `BALANCED`, and `LITE` visual profiles.
 - Expanded word-clear celebration variants.
 - Reduced-motion support.
 - Local/system arcade font fallback.
@@ -57,6 +58,18 @@ The `SHRINE` artwork is packaged as a userscript resource from
 [`assets/shrine-garden.jpg`](./assets/shrine-garden.jpg). It adds subtle camera
 drift, shrine-lantern breathing, and sparse falling golden leaves, and remains
 static when reduced motion is enabled.
+
+## Visual Profiles
+
+The settings panel includes three persistent profiles. They never change
+scoring, timers, rewind, difficulty bonuses, or core HUD feedback.
+
+- `MAX` uses the display's native refresh rate and the original effect density.
+- `BALANCED` is the default. It keeps the original effect density while capping
+  canvas rendering at 60 FPS and the timer bar at 30 FPS.
+- `LITE` uses 70% canvas resolution, 12 FPS backgrounds, and a 5 FPS timer while
+  reducing particles, full-page effects, popup frequency, procedural music,
+  blur, shadows, and challenge webfont loading.
 
 ## Changelog
 
