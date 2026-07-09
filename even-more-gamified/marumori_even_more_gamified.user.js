@@ -310,7 +310,7 @@
             },
             intensity: { particles: 0.64, flash: 0.58, shake: 0.34, sound: 0.72, celebration: 0.62 },
             motion: { shakeScale: 0.28, effectIntensity: 0.7, allowIdle: true },
-            background: { renderer: 'nightview', allowCanvasEffects: true, shootingStars: true },
+            background: { renderer: 'nightview', allowCanvasEffects: true, shootingStars: false },
         },
         matrix: {
             id: 'matrix',
@@ -5225,7 +5225,7 @@
         let shrineImage, shrineImageReady = false, shrineDirectFallbackTried = false;
         let nightviewImage, nightviewImageReady = false, nightviewDirectFallbackTried = false;
         let shrinePetals;
-        let nightviewFireflies;
+        let nightviewFireflies, nightviewStars;
         let lastRenderAt = 0;
         let nextFrameDue = 0;
         let frameScale = 1;
@@ -5894,6 +5894,18 @@
                 { length: fireflyCount },
                 () => resetNightviewFirefly({}, true)
             );
+            const starCount = isLiteMode()
+                ? 0
+                : Math.max(12, Math.min(34, Math.floor(W / 72)));
+            nightviewStars = Array.from({ length: starCount }, () => ({
+                x: W * (0.08 + Math.random() * 0.84),
+                y: H * (0.055 + Math.random() * 0.28),
+                radius: 0.55 + Math.random() * 1.25,
+                alpha: 0.1 + Math.random() * 0.22,
+                phase: Math.random() * Math.PI * 2,
+                speed: 0.55 + Math.random() * 1.25,
+                hue: Math.random() < 0.7 ? 212 : 46,
+            }));
             if (nightviewImage) return;
 
             nightviewImage = document.createElement('img');
@@ -6337,15 +6349,19 @@
         }
 
         function drawNightviewLanternGlow(t) {
-            const pulse = prefersReducedMotion() ? 1 : 0.82 + Math.sin(t * 1.08) * 0.14;
             const radius = Math.min(W, H) * 0.075;
             const lanterns = [
-                { x: W * 0.077, y: H * 0.69, r: 0.95 },
-                { x: W * 0.67, y: H * 0.88, r: 0.72 },
-                { x: W * 0.744, y: H * 0.585, r: 0.52 },
-                { x: W * 0.402, y: H * 0.59, r: 0.42 },
+                { x: W * 0.077, y: H * 0.69, r: 0.95, phase: 0.4 },
+                { x: W * 0.67, y: H * 0.88, r: 0.72, phase: 1.7 },
+                { x: W * 0.744, y: H * 0.585, r: 0.52, phase: 2.8 },
+                { x: W * 0.402, y: H * 0.59, r: 0.42, phase: 3.6 },
             ];
             for (const lantern of lanterns) {
+                const pulse = prefersReducedMotion()
+                    ? 1
+                    : 0.82
+                        + Math.sin(t * 1.08 + lantern.phase) * 0.11
+                        + Math.sin(t * 5.1 + lantern.phase) * 0.035;
                 const glow = ctx.createRadialGradient(
                     lantern.x, lantern.y, 0,
                     lantern.x, lantern.y, radius * lantern.r
@@ -6360,27 +6376,21 @@
             }
         }
 
-        function drawNightviewMist(t) {
-            if (isLiteMode()) return;
-            ctx.save();
-            ctx.globalAlpha = 0.16;
-            ctx.strokeStyle = 'rgba(150,190,255,0.22)';
-            ctx.lineWidth = Math.max(8, H * 0.012);
-            ctx.lineCap = 'round';
-            for (let index = 0; index < 6; index++) {
-                const y = H * (0.42 + index * 0.052)
-                    + Math.sin(t * 0.08 + index) * H * 0.008;
-                const offset = Math.sin(t * 0.055 + index * 1.7) * W * 0.045;
+        function drawNightviewStarFlickers(t) {
+            if (isLiteMode() || prefersReducedMotion()) return;
+            for (const star of nightviewStars) {
+                const pulse = 0.52 + Math.sin(t * star.speed + star.phase) * 0.34
+                    + Math.sin(t * star.speed * 2.7 + star.phase) * 0.14;
+                const alpha = Math.max(0, star.alpha * pulse);
+                ctx.save();
+                ctx.fillStyle = `hsla(${star.hue},90%,88%,${alpha})`;
+                ctx.shadowColor = `hsla(${star.hue},95%,78%,${alpha * 0.72})`;
+                ctx.shadowBlur = 5 + star.radius * 4;
                 ctx.beginPath();
-                ctx.moveTo(W * 0.16 + offset, y);
-                ctx.bezierCurveTo(
-                    W * 0.36 + offset * 0.35, y - H * 0.025,
-                    W * 0.58 - offset * 0.28, y + H * 0.018,
-                    W * 0.86 - offset, y - H * 0.012
-                );
-                ctx.stroke();
+                ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
             }
-            ctx.restore();
         }
 
         function drawNightviewFireflies(t) {
@@ -6409,7 +6419,7 @@
             ctx.save();
             drawNightviewImage(t);
             ctx.globalCompositeOperation = 'lighter';
-            drawNightviewMist(t);
+            drawNightviewStarFlickers(t);
             drawNightviewMoonGlow(t);
             drawNightviewLanternGlow(t);
             drawNightviewFireflies(t);
