@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         MaruMori Even More Gamified - Updated
 // @namespace    marumori-gamify
-// @version      3.6.2
+// @version      3.7.0
 // @description  Gamifies MaruMori review sessions with arcade combo audio, score multipliers, screen shake, floating damage numbers, and more
 // @match        https://marumori.io/*
 // @author       matskye
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_getResourceURL
-// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.6.2
+// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.7.0
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=marumori.io
 // @license      WTFPL
 // @downloadURL https://update.greasyfork.org/scripts/566950/MaruMori%20Even%20More%20Gamified.user.js
@@ -44,13 +44,439 @@
         hudCollapsed:   false,
     };
 
-    const BACKGROUND_THEMES = [
-        'default', 'starfield', 'nebula', 'grid', 'gamecenter', 'shrine', 'matrix', 'void',
-    ];
-    const CANVAS_BACKGROUND_THEMES = [
-        'starfield', 'nebula', 'grid', 'gamecenter', 'shrine', 'matrix',
-    ];
-    const SHOOTING_STAR_THEMES = ['starfield'];
+    const THEME_DEFINITIONS = {
+        default: {
+            id: 'default',
+            label: 'Default',
+            identity: 'Modern arcade',
+            mood: 'Fast, energetic, satisfying',
+            colors: {
+                accent: '#ff9900',
+                secondary: '#77ccff',
+                success: '#77ff77',
+                failure: '#ff5555',
+                hudGlow: '#ff9900',
+                flash: 'rgba(100,255,150,0.18)',
+                failureFlash: 'rgba(255,70,90,0.18)',
+                notification: '#ffe066',
+                timerFast: '#ffe066',
+                timerMedium: '#62d7ff',
+                timerLow: '#ff9b42',
+                timerCritical: '#ff5252',
+                floatingText: '#ffe066',
+                floatingShadow: '0 2px 6px rgba(0,0,0,0.8)',
+                progress: 'linear-gradient(90deg, #00cc88, #00ffcc)',
+                button: '#ff9900',
+                buttonSoft: 'rgba(255,153,0,0.1)',
+                banner: '#ffffff',
+                bannerGlow: '#ff9900',
+            },
+            presets: {
+                sound: 'arcade',
+                floatingText: 'arcadeClassic',
+                particles: 'arcadeBurst',
+                combo: 'arcadePop',
+                celebration: 'arcade',
+            },
+            motion: { shakeScale: 1, effectIntensity: 1, allowIdle: true },
+            background: { renderer: 'default', allowCanvasEffects: false, shootingStars: false },
+        },
+        starfield: {
+            id: 'starfield',
+            label: 'Starfield',
+            identity: 'Space exploration',
+            mood: 'Calm, futuristic, floating',
+            colors: {
+                accent: '#7dd3fc',
+                secondary: '#e0f2fe',
+                success: '#86efac',
+                failure: '#fb7185',
+                hudGlow: '#7dd3fc',
+                flash: 'rgba(125,211,252,0.2)',
+                failureFlash: 'rgba(251,113,133,0.14)',
+                notification: '#dbeafe',
+                timerFast: '#f8fafc',
+                timerMedium: '#7dd3fc',
+                timerLow: '#38bdf8',
+                timerCritical: '#fb7185',
+                floatingText: '#dbeafe',
+                floatingShadow: '0 0 12px rgba(125,211,252,0.75)',
+                progress: 'linear-gradient(90deg, #38bdf8, #e0f2fe)',
+                button: '#7dd3fc',
+                buttonSoft: 'rgba(125,211,252,0.12)',
+                banner: '#f8fafc',
+                bannerGlow: '#38bdf8',
+            },
+            presets: {
+                sound: 'starfield',
+                floatingText: 'softBlue',
+                particles: 'starSparkles',
+                combo: 'constellation',
+                celebration: 'stellar',
+            },
+            motion: { shakeScale: 0.35, effectIntensity: 0.78, allowIdle: true },
+            background: { renderer: 'starfield', allowCanvasEffects: true, shootingStars: true },
+        },
+        nebula: {
+            id: 'nebula',
+            label: 'Nebula',
+            identity: 'Cosmic magic',
+            mood: 'Mystical, celestial, beautiful',
+            colors: {
+                accent: '#f0abfc',
+                secondary: '#93c5fd',
+                success: '#c4b5fd',
+                failure: '#fb7185',
+                hudGlow: '#d946ef',
+                flash: 'rgba(216,180,254,0.2)',
+                failureFlash: 'rgba(251,113,133,0.14)',
+                notification: '#f5d0fe',
+                timerFast: '#f0abfc',
+                timerMedium: '#93c5fd',
+                timerLow: '#f59e0b',
+                timerCritical: '#fb7185',
+                floatingText: '#f5d0fe',
+                floatingShadow: '0 0 14px rgba(217,70,239,0.72)',
+                progress: 'linear-gradient(90deg, #a78bfa, #f0abfc, #93c5fd)',
+                button: '#d946ef',
+                buttonSoft: 'rgba(217,70,239,0.12)',
+                banner: '#f5d0fe',
+                bannerGlow: '#a855f7',
+            },
+            presets: {
+                sound: 'nebula',
+                floatingText: 'cosmicGlow',
+                particles: 'cosmicDust',
+                combo: 'nebulaWave',
+                celebration: 'celestial',
+            },
+            motion: { shakeScale: 0.55, effectIntensity: 0.95, allowIdle: true },
+            background: { renderer: 'nebula', allowCanvasEffects: true, shootingStars: false },
+        },
+        grid: {
+            id: 'grid',
+            label: 'Grid',
+            identity: 'Cyberpunk / Tron',
+            mood: 'Fast digital combat',
+            colors: {
+                accent: '#00e5ff',
+                secondary: '#38bdf8',
+                success: '#22d3ee',
+                failure: '#ff477e',
+                hudGlow: '#00e5ff',
+                flash: 'rgba(0,229,255,0.2)',
+                failureFlash: 'rgba(255,71,126,0.16)',
+                notification: '#67e8f9',
+                timerFast: '#00e5ff',
+                timerMedium: '#2563eb',
+                timerLow: '#f97316',
+                timerCritical: '#ff477e',
+                floatingText: '#67e8f9',
+                floatingShadow: '0 0 12px rgba(0,229,255,0.82)',
+                progress: 'linear-gradient(90deg, #06b6d4, #2563eb)',
+                button: '#00e5ff',
+                buttonSoft: 'rgba(0,229,255,0.11)',
+                banner: '#e0faff',
+                bannerGlow: '#00e5ff',
+            },
+            presets: {
+                sound: 'grid',
+                floatingText: 'electricCyan',
+                particles: 'pixelFragments',
+                combo: 'scanPulse',
+                celebration: 'digital',
+            },
+            motion: { shakeScale: 0.9, effectIntensity: 1.05, allowIdle: true },
+            background: { renderer: 'grid', allowCanvasEffects: true, shootingStars: false },
+        },
+        gamecenter: {
+            id: 'gamecenter',
+            label: 'Game Center',
+            identity: '1980s Japanese arcade',
+            mood: 'Bright, nostalgic, energetic',
+            colors: {
+                accent: '#ff2bd6',
+                secondary: '#00d9ff',
+                success: '#fff05a',
+                failure: '#ff4b4b',
+                hudGlow: '#ff2bd6',
+                flash: 'rgba(255,240,90,0.2)',
+                failureFlash: 'rgba(255,75,75,0.16)',
+                notification: '#fff05a',
+                timerFast: '#fff05a',
+                timerMedium: '#00d9ff',
+                timerLow: '#ff8a00',
+                timerCritical: '#ff4b4b',
+                floatingText: '#fff05a',
+                floatingShadow: '0 0 12px rgba(255,43,214,0.78)',
+                progress: 'linear-gradient(90deg, #ff2bd6, #fff05a, #00d9ff)',
+                button: '#ff2bd6',
+                buttonSoft: 'rgba(255,43,214,0.12)',
+                banner: '#fff05a',
+                bannerGlow: '#ff2bd6',
+            },
+            presets: {
+                sound: 'gamecenter',
+                floatingText: 'pixelScore',
+                particles: 'confettiPixels',
+                combo: 'arcadeMarquee',
+                celebration: 'arcade',
+            },
+            motion: { shakeScale: 1.15, effectIntensity: 1.15, allowIdle: true },
+            background: { renderer: 'gamecenter', allowCanvasEffects: true, shootingStars: false },
+        },
+        shrine: {
+            id: 'shrine',
+            label: 'Shrine',
+            identity: 'Traditional Japan',
+            mood: 'Peaceful, spiritual, elegant',
+            colors: {
+                accent: '#f6d36b',
+                secondary: '#fff7d6',
+                success: '#facc6b',
+                failure: '#dc6b5a',
+                hudGlow: '#f6d36b',
+                flash: 'rgba(246,211,107,0.18)',
+                failureFlash: 'rgba(220,107,90,0.12)',
+                notification: '#fff2b8',
+                timerFast: '#fff2b8',
+                timerMedium: '#f6d36b',
+                timerLow: '#d97706',
+                timerCritical: '#dc6b5a',
+                floatingText: '#fff2b8',
+                floatingShadow: '0 0 10px rgba(246,211,107,0.58)',
+                progress: 'linear-gradient(90deg, #b7791f, #f6d36b, #fff7d6)',
+                button: '#f6d36b',
+                buttonSoft: 'rgba(246,211,107,0.1)',
+                banner: '#fff7d6',
+                bannerGlow: '#f6d36b',
+            },
+            presets: {
+                sound: 'shrine',
+                floatingText: 'goldLeaf',
+                particles: 'sakuraPetals',
+                combo: 'lanternGlow',
+                celebration: 'elegant',
+            },
+            motion: { shakeScale: 0.35, effectIntensity: 0.68, allowIdle: true },
+            background: { renderer: 'shrine', allowCanvasEffects: true, shootingStars: false },
+        },
+        matrix: {
+            id: 'matrix',
+            label: 'Matrix',
+            identity: 'Cyber infiltration',
+            mood: 'Hacking into a system',
+            colors: {
+                accent: '#00ff88',
+                secondary: '#00cc66',
+                success: '#4ade80',
+                failure: '#ef4444',
+                hudGlow: '#00ff88',
+                flash: 'rgba(0,255,136,0.2)',
+                failureFlash: 'rgba(239,68,68,0.13)',
+                notification: '#00ff88',
+                timerFast: '#4ade80',
+                timerMedium: '#22c55e',
+                timerLow: '#a3e635',
+                timerCritical: '#ef4444',
+                floatingText: '#00ff88',
+                floatingShadow: '0 0 12px rgba(0,255,136,0.82)',
+                progress: 'linear-gradient(90deg, #007a3d, #00ff88)',
+                button: '#00ff88',
+                buttonSoft: 'rgba(0,255,136,0.1)',
+                banner: '#bbf7d0',
+                bannerGlow: '#00ff88',
+            },
+            presets: {
+                sound: 'matrix',
+                floatingText: 'terminalGreen',
+                particles: 'matrixCode',
+                combo: 'glitch',
+                celebration: 'dataBurst',
+            },
+            motion: { shakeScale: 0.6, effectIntensity: 0.82, allowIdle: true },
+            background: { renderer: 'matrix', allowCanvasEffects: true, shootingStars: false },
+        },
+        void: {
+            id: 'void',
+            label: 'Void',
+            identity: 'Minimalism',
+            mood: 'Silent focus',
+            colors: {
+                accent: '#e5e7eb',
+                secondary: '#9ca3af',
+                success: '#f9fafb',
+                failure: '#9ca3af',
+                hudGlow: '#e5e7eb',
+                flash: 'rgba(229,231,235,0.08)',
+                failureFlash: 'rgba(156,163,175,0.08)',
+                notification: '#f9fafb',
+                timerFast: '#f9fafb',
+                timerMedium: '#d1d5db',
+                timerLow: '#9ca3af',
+                timerCritical: '#6b7280',
+                floatingText: '#f9fafb',
+                floatingShadow: '0 2px 8px rgba(0,0,0,0.5)',
+                progress: 'linear-gradient(90deg, #6b7280, #f9fafb)',
+                button: '#e5e7eb',
+                buttonSoft: 'rgba(229,231,235,0.08)',
+                banner: '#f9fafb',
+                bannerGlow: '#9ca3af',
+            },
+            presets: {
+                sound: 'void',
+                floatingText: 'voidMinimal',
+                particles: 'voidDust',
+                combo: 'minimal',
+                celebration: 'minimal',
+            },
+            motion: { shakeScale: 0.1, effectIntensity: 0.22, allowIdle: false },
+            background: { renderer: 'void', allowCanvasEffects: false, shootingStars: false },
+        },
+    };
+
+    const THEME_PRESENTATION_STYLES = {
+        default: {
+            panelBg: 'rgba(5,7,16,0.86)',
+            panelBorder: 'rgba(255,153,0,0.34)',
+            panelText: '#f8fafc',
+            panelMuted: 'rgba(226,232,240,0.54)',
+            panelDivider: 'rgba(255,255,255,0.13)',
+            panelShadow: '0 0 0 1px rgba(255,153,0,0.08), 0 10px 28px rgba(0,0,0,0.36)',
+            controlBg: 'rgba(255,153,0,0.08)',
+            controlBorder: 'rgba(255,153,0,0.32)',
+            fieldBg: 'rgba(2,5,14,0.72)',
+            fieldBorder: 'rgba(119,204,255,0.62)',
+            fieldGlow: 'rgba(0,220,255,0.18)',
+            counterShadow: '0 0 8px rgba(255,224,102,0.58)',
+            scanlineOpacity: '1',
+            scanlineColor: 'rgba(0,0,0,0.18)',
+            floatLabelBg: 'rgba(255,153,0,0.14)',
+            floatLabelColor: '#fff6cc',
+        },
+        starfield: {
+            panelBg: 'rgba(3,10,27,0.78)',
+            panelBorder: 'rgba(125,211,252,0.36)',
+            panelMuted: 'rgba(219,234,254,0.52)',
+            panelShadow: '0 0 0 1px rgba(125,211,252,0.08), 0 0 24px rgba(56,189,248,0.14)',
+            controlBg: 'rgba(125,211,252,0.09)',
+            controlBorder: 'rgba(125,211,252,0.34)',
+            fieldBg: 'rgba(1,7,23,0.74)',
+            fieldBorder: 'rgba(224,242,254,0.54)',
+            fieldGlow: 'rgba(125,211,252,0.22)',
+            counterShadow: '0 0 10px rgba(125,211,252,0.62)',
+            scanlineOpacity: '0.55',
+            floatLabelBg: 'rgba(56,189,248,0.16)',
+            floatLabelColor: '#f8fafc',
+        },
+        nebula: {
+            panelBg: 'rgba(16,6,32,0.78)',
+            panelBorder: 'rgba(240,171,252,0.36)',
+            panelMuted: 'rgba(245,208,254,0.5)',
+            panelShadow: '0 0 0 1px rgba(217,70,239,0.09), 0 0 30px rgba(147,51,234,0.16)',
+            controlBg: 'rgba(217,70,239,0.1)',
+            controlBorder: 'rgba(240,171,252,0.32)',
+            fieldBg: 'rgba(10,5,24,0.72)',
+            fieldBorder: 'rgba(147,197,253,0.5)',
+            fieldGlow: 'rgba(217,70,239,0.24)',
+            counterShadow: '0 0 11px rgba(240,171,252,0.58)',
+            scanlineOpacity: '0.6',
+            floatLabelBg: 'rgba(217,70,239,0.16)',
+            floatLabelColor: '#f5d0fe',
+        },
+        grid: {
+            panelBg: 'rgba(0,10,20,0.82)',
+            panelBorder: 'rgba(0,229,255,0.44)',
+            panelMuted: 'rgba(103,232,249,0.54)',
+            panelShadow: '0 0 0 1px rgba(0,229,255,0.1), 0 0 26px rgba(0,229,255,0.18)',
+            controlBg: 'rgba(0,229,255,0.09)',
+            controlBorder: 'rgba(0,229,255,0.38)',
+            fieldBg: 'rgba(0,8,18,0.78)',
+            fieldBorder: 'rgba(0,229,255,0.62)',
+            fieldGlow: 'rgba(0,229,255,0.24)',
+            counterShadow: '0 0 9px rgba(0,229,255,0.65)',
+            scanlineOpacity: '0.78',
+            floatLabelBg: 'rgba(0,229,255,0.14)',
+            floatLabelColor: '#e0faff',
+        },
+        gamecenter: {
+            panelBg: 'rgba(13,7,28,0.8)',
+            panelBorder: 'rgba(255,43,214,0.42)',
+            panelMuted: 'rgba(255,240,90,0.5)',
+            panelShadow: '0 0 0 1px rgba(255,43,214,0.09), 0 0 30px rgba(255,43,214,0.16)',
+            controlBg: 'rgba(255,43,214,0.1)',
+            controlBorder: 'rgba(255,43,214,0.36)',
+            fieldBg: 'rgba(12,5,22,0.76)',
+            fieldBorder: 'rgba(0,217,255,0.58)',
+            fieldGlow: 'rgba(255,43,214,0.24)',
+            counterShadow: '0 0 10px rgba(255,240,90,0.68)',
+            scanlineOpacity: '0.82',
+            floatLabelBg: 'rgba(255,43,214,0.18)',
+            floatLabelColor: '#fff05a',
+        },
+        shrine: {
+            panelBg: 'rgba(28,16,8,0.66)',
+            panelBorder: 'rgba(246,211,107,0.4)',
+            panelMuted: 'rgba(255,247,214,0.54)',
+            panelShadow: '0 0 0 1px rgba(246,211,107,0.08), 0 12px 32px rgba(35,18,4,0.32)',
+            controlBg: 'rgba(246,211,107,0.09)',
+            controlBorder: 'rgba(246,211,107,0.34)',
+            fieldBg: 'rgba(20,12,7,0.62)',
+            fieldBorder: 'rgba(255,247,214,0.5)',
+            fieldGlow: 'rgba(246,211,107,0.2)',
+            counterShadow: '0 0 9px rgba(246,211,107,0.58)',
+            scanlineOpacity: '0.34',
+            scanlineColor: 'rgba(41,20,4,0.16)',
+            floatLabelBg: 'rgba(246,211,107,0.14)',
+            floatLabelColor: '#fff7d6',
+        },
+        matrix: {
+            panelBg: 'rgba(0,9,5,0.84)',
+            panelBorder: 'rgba(0,255,136,0.38)',
+            panelMuted: 'rgba(0,255,136,0.48)',
+            panelShadow: '0 0 0 1px rgba(0,255,136,0.08), 0 0 24px rgba(0,255,136,0.12)',
+            controlBg: 'rgba(0,255,136,0.08)',
+            controlBorder: 'rgba(0,255,136,0.34)',
+            fieldBg: 'rgba(0,6,3,0.78)',
+            fieldBorder: 'rgba(0,255,136,0.54)',
+            fieldGlow: 'rgba(0,255,136,0.18)',
+            counterShadow: '0 0 9px rgba(0,255,136,0.62)',
+            scanlineOpacity: '0.68',
+            scanlineColor: 'rgba(0,20,10,0.22)',
+            floatLabelBg: 'rgba(0,255,136,0.12)',
+            floatLabelColor: '#bbf7d0',
+        },
+        void: {
+            panelBg: 'rgba(4,5,7,0.72)',
+            panelBorder: 'rgba(229,231,235,0.18)',
+            panelMuted: 'rgba(209,213,219,0.42)',
+            panelDivider: 'rgba(229,231,235,0.08)',
+            panelShadow: '0 8px 22px rgba(0,0,0,0.28)',
+            controlBg: 'rgba(229,231,235,0.04)',
+            controlBorder: 'rgba(229,231,235,0.16)',
+            fieldBg: 'rgba(3,4,6,0.68)',
+            fieldBorder: 'rgba(156,163,175,0.22)',
+            fieldGlow: 'rgba(229,231,235,0.06)',
+            counterShadow: '0 0 6px rgba(229,231,235,0.28)',
+            scanlineOpacity: '0.18',
+            scanlineColor: 'rgba(229,231,235,0.08)',
+            floatLabelBg: 'rgba(229,231,235,0.08)',
+            floatLabelColor: '#e5e7eb',
+        },
+    };
+
+    const THEME_ALIASES = {
+        game_center: 'gamecenter',
+        gameCenter: 'gamecenter',
+        game_center_theme: 'gamecenter',
+    };
+    const BACKGROUND_THEMES = Object.freeze(Object.keys(THEME_DEFINITIONS));
+    const CANVAS_BACKGROUND_THEMES = Object.freeze(
+        BACKGROUND_THEMES.filter(theme => THEME_DEFINITIONS[theme].background.allowCanvasEffects)
+    );
+    const SHOOTING_STAR_THEMES = Object.freeze(
+        BACKGROUND_THEMES.filter(theme => THEME_DEFINITIONS[theme].background.shootingStars)
+    );
     const MUSIC_STYLES = ['lofi', 'retro'];
     const MUSIC_STYLE_LABELS = { lofi: 'LO-FI', retro: 'RETRO' };
     const PERFORMANCE_PROFILES = ['max', 'balanced', 'lite'];
@@ -75,16 +501,9 @@
         { minRemainingPct: -1, segment: 0, key: 'expired',
           label: 'Timeout', multiplier: 1.00 },
     ];
-    const BACKGROUND_THEME_LABELS = {
-        default: 'DEFAULT',
-        starfield: 'STARFIELD',
-        nebula: 'NEBULA',
-        grid: 'GRID',
-        gamecenter: 'GAME CENTER',
-        shrine: 'SHRINE',
-        matrix: 'MATRIX',
-        void: 'VOID',
-    };
+    const BACKGROUND_THEME_LABELS = Object.freeze(Object.fromEntries(
+        BACKGROUND_THEMES.map(theme => [theme, THEME_DEFINITIONS[theme].label.toUpperCase()])
+    ));
     const REMOVED_BACKGROUND_THEME_FALLBACKS = {
         aurora: 'starfield',
         rain: 'default',
@@ -93,8 +512,564 @@
     };
     const SHRINE_IMAGE_URL =
         'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/'
-        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.6.2';
+        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.7.0';
     const RESOLVED_BACKDROP_OPACITY = 0.5;
+
+    const SOUND_PRESETS = {
+        arcade: {
+            correct: [
+                { freq: 440, streakScale: 20, maxFreq: 1200, duration: 0.09,
+                  volume: 0.12, volumeStreakScale: 0.003, maxVolume: 0.22,
+                  type: 'square', endFreqScale: 1.04 },
+                { freq: 660, streakScale: 30, maxFreq: 1800, duration: 0.12,
+                  volume: 0.15, type: 'square', delay: 0.04,
+                  endFreqScale: 1.1, every: 5, skipLite: true },
+                { freq: 880, streakScale: 40, maxFreq: 2400, duration: 0.15,
+                  volume: 0.12, type: 'triangle', delay: 0.08, every: 10, skipLite: true },
+                { freq: 1100, streakScale: 50, maxFreq: 2600, duration: 0.2,
+                  volume: 0.28, type: 'sine', delay: 0.03, chance: 0.07, skipLite: true },
+            ],
+            incorrect: [
+                { freq: 300, duration: 0.15, volume: 0.25, type: 'sawtooth',
+                  endFreqScale: 0.7 },
+                { freq: 180, duration: 0.2, volume: 0.2, type: 'sawtooth',
+                  delay: 0.12, skipLite: true },
+            ],
+            wordComplete: [
+                { freq: 523, wordScale: 6, maxFreq: 643, duration: 0.18,
+                  volume: 0.22, type: 'triangle' },
+                { freq: 659, wordScale: 6, maxFreq: 779, duration: 0.18,
+                  volume: 0.22, type: 'triangle', delay: 0.12, skipLite: true },
+                { freq: 784, wordScale: 6, maxFreq: 904, duration: 0.18,
+                  volume: 0.22, type: 'triangle', delay: 0.24, skipLite: true },
+            ],
+            multiplierUp: [
+                { freqByMultiplier: [330, 440, 550, 660, 880],
+                  duration: 0.1, volume: 0.2, type: 'square' },
+                { freqByMultiplier: [495, 660, 825, 990, 1320],
+                  duration: 0.14, volume: 0.18, type: 'square',
+                  delay: 0.06, skipLite: true },
+                { freqByMultiplier: [660, 880, 1100, 1320, 1760],
+                  duration: 0.18, volume: 0.14, type: 'triangle',
+                  delay: 0.12, skipLite: true },
+            ],
+            comboBreak: [
+                { freq: 400, duration: 0.18, volume: 0.22, type: 'sawtooth', skipLite: true },
+                { freq: 300, duration: 0.18, volume: 0.22, type: 'sawtooth', delay: 0.08 },
+                { freq: 200, duration: 0.18, volume: 0.22, type: 'sawtooth',
+                  delay: 0.16, skipLite: true },
+            ],
+            timeout: [
+                { freq: 260, duration: 0.16, volume: 0.18, type: 'sawtooth' },
+                { freq: 180, duration: 0.18, volume: 0.16, type: 'triangle',
+                  delay: 0.1, skipLite: true },
+            ],
+            sessionComplete: [
+                { freq: 523, duration: 0.22, volume: 0.2, type: 'triangle' },
+                { freq: 659, duration: 0.22, volume: 0.2, type: 'triangle', delay: 0.14 },
+                { freq: 784, duration: 0.22, volume: 0.2, type: 'triangle', delay: 0.28 },
+                { freq: 1047, duration: 0.4, volume: 0.25, type: 'sine',
+                  delay: 0.65, skipLite: true },
+            ],
+        },
+        starfield: {
+            correct: [
+                { freq: 740, streakScale: 8, maxFreq: 1120, duration: 0.1,
+                  volume: 0.13, type: 'sine', detune: -5 },
+                { freq: 1110, streakScale: 12, maxFreq: 1660, duration: 0.16,
+                  volume: 0.08, type: 'triangle', delay: 0.08, detune: 7, skipLite: true },
+                { freq: 1480, streakScale: 10, maxFreq: 2200, duration: 0.22,
+                  volume: 0.045, type: 'sine', delay: 0.16, chance: 0.28, skipLite: true },
+            ],
+            incorrect: [
+                { freq: 220, duration: 0.18, volume: 0.13, type: 'triangle' },
+                { freq: 165, duration: 0.2, volume: 0.1, type: 'sine',
+                  delay: 0.12, endFreqScale: 0.82, skipLite: true },
+            ],
+            wordComplete: [
+                { freq: 587, wordScale: 4, duration: 0.18, volume: 0.13,
+                  type: 'sine', detune: -4 },
+                { freq: 880, wordScale: 4, duration: 0.22, volume: 0.1,
+                  type: 'triangle', delay: 0.16, detune: 5, skipLite: true },
+                { freq: 1175, wordScale: 4, duration: 0.28, volume: 0.055,
+                  type: 'sine', delay: 0.34, skipLite: true },
+            ],
+            multiplierUp: [
+                { freqByMultiplier: [440, 554, 659, 880, 1175],
+                  duration: 0.14, volume: 0.13, type: 'sine' },
+                { freqByMultiplier: [880, 1108, 1318, 1760, 2350],
+                  duration: 0.18, volume: 0.08, type: 'triangle', delay: 0.1, skipLite: true },
+            ],
+            comboBreak: [{ freq: 185, duration: 0.24, volume: 0.12, type: 'triangle' }],
+            timeout: [{ freq: 196, duration: 0.22, volume: 0.12, type: 'sine' }],
+            sessionComplete: [
+                { freq: 659, duration: 0.2, volume: 0.12, type: 'sine' },
+                { freq: 988, duration: 0.28, volume: 0.1, type: 'triangle', delay: 0.18 },
+            ],
+        },
+        nebula: {
+            correct: [
+                { freq: 659, streakScale: 10, maxFreq: 1280, duration: 0.12,
+                  volume: 0.13, type: 'sine', detune: -6 },
+                { freq: 987, streakScale: 14, maxFreq: 1920, duration: 0.18,
+                  volume: 0.09, type: 'sine', delay: 0.09, detune: 8, skipLite: true },
+                { freq: 1318, streakScale: 16, maxFreq: 2400, duration: 0.2,
+                  volume: 0.052, type: 'triangle', delay: 0.2, chance: 0.34, skipLite: true },
+            ],
+            incorrect: [
+                { freq: 277, duration: 0.16, volume: 0.15, type: 'triangle',
+                  endFreqScale: 0.88 },
+                { freq: 208, duration: 0.22, volume: 0.1, type: 'sine',
+                  delay: 0.1, detune: -8, skipLite: true },
+            ],
+            wordComplete: [
+                { freq: 523, wordScale: 5, duration: 0.18, volume: 0.13, type: 'sine' },
+                { freq: 784, wordScale: 5, duration: 0.2, volume: 0.11, type: 'sine', delay: 0.14 },
+                { freq: 1175, wordScale: 5, duration: 0.22, volume: 0.08,
+                  type: 'triangle', delay: 0.28, skipLite: true },
+            ],
+            multiplierUp: [
+                { freqByMultiplier: [392, 523, 659, 784, 1047],
+                  duration: 0.16, volume: 0.13, type: 'sine' },
+                { freqByMultiplier: [784, 1047, 1318, 1568, 2093],
+                  duration: 0.2, volume: 0.08, type: 'triangle', delay: 0.12, skipLite: true },
+            ],
+            comboBreak: [{ freq: 247, duration: 0.24, volume: 0.12, type: 'triangle' }],
+            timeout: [{ freq: 220, duration: 0.22, volume: 0.11, type: 'sine' }],
+            sessionComplete: [
+                { freq: 523, duration: 0.2, volume: 0.12, type: 'sine' },
+                { freq: 784, duration: 0.24, volume: 0.11, type: 'sine', delay: 0.18 },
+                { freq: 1175, duration: 0.3, volume: 0.09, type: 'triangle', delay: 0.38 },
+            ],
+        },
+        grid: {
+            correct: [
+                { freq: 660, streakScale: 18, maxFreq: 1500, duration: 0.07,
+                  volume: 0.16, type: 'square', endFreqScale: 1.35 },
+                { freq: 990, streakScale: 24, maxFreq: 2100, duration: 0.08,
+                  volume: 0.12, type: 'triangle', delay: 0.04,
+                  endFreqScale: 1.18, skipLite: true },
+            ],
+            incorrect: [
+                { freq: 220, duration: 0.12, volume: 0.2, type: 'sawtooth',
+                  endFreqScale: 0.48 },
+                { freq: 132, duration: 0.18, volume: 0.16, type: 'square',
+                  delay: 0.08, skipLite: true },
+            ],
+            wordComplete: [
+                { freq: 440, wordScale: 8, duration: 0.1, volume: 0.16, type: 'square' },
+                { freq: 880, wordScale: 8, duration: 0.12, volume: 0.12,
+                  type: 'triangle', delay: 0.08, skipLite: true },
+            ],
+            multiplierUp: [
+                { freqByMultiplier: [392, 523, 659, 784, 1047],
+                  duration: 0.1, volume: 0.16, type: 'square' },
+                { freqByMultiplier: [784, 1047, 1318, 1568, 2093],
+                  duration: 0.12, volume: 0.11, type: 'square', delay: 0.06, skipLite: true },
+            ],
+            comboBreak: [
+                { freq: 330, duration: 0.1, volume: 0.18, type: 'sawtooth' },
+                { freq: 165, duration: 0.16, volume: 0.14, type: 'square',
+                  delay: 0.08, skipLite: true },
+            ],
+            timeout: [{ freq: 185, duration: 0.18, volume: 0.15, type: 'square' }],
+            sessionComplete: [
+                { freq: 523, duration: 0.12, volume: 0.14, type: 'square' },
+                { freq: 784, duration: 0.12, volume: 0.13, type: 'square', delay: 0.1 },
+                { freq: 1047, duration: 0.18, volume: 0.11, type: 'triangle', delay: 0.22 },
+            ],
+        },
+        gamecenter: {
+            correct: [
+                { freq: 784, streakScale: 18, maxFreq: 1600, duration: 0.08,
+                  volume: 0.17, type: 'square', endFreqScale: 1.18 },
+                { freq: 1175, streakScale: 28, maxFreq: 2300, duration: 0.08,
+                  volume: 0.13, type: 'square', delay: 0.05, skipLite: true },
+                { freq: 1568, streakScale: 28, maxFreq: 2700, duration: 0.08,
+                  volume: 0.09, type: 'square', delay: 0.11, every: 3, skipLite: true },
+            ],
+            incorrect: [
+                { freq: 262, duration: 0.13, volume: 0.22, type: 'sawtooth' },
+                { freq: 175, duration: 0.19, volume: 0.17, type: 'sawtooth',
+                  delay: 0.1, skipLite: true },
+            ],
+            wordComplete: [
+                { freq: 659, wordScale: 7, duration: 0.12, volume: 0.18, type: 'square' },
+                { freq: 880, wordScale: 7, duration: 0.12, volume: 0.16, type: 'square', delay: 0.11 },
+                { freq: 1318, wordScale: 7, duration: 0.16, volume: 0.12,
+                  type: 'triangle', delay: 0.22, skipLite: true },
+            ],
+            multiplierUp: [
+                { freqByMultiplier: [523, 659, 784, 988, 1318],
+                  duration: 0.09, volume: 0.18, type: 'square' },
+                { freqByMultiplier: [1047, 1318, 1568, 1976, 2637],
+                  duration: 0.12, volume: 0.12, type: 'square', delay: 0.08, skipLite: true },
+            ],
+            comboBreak: [
+                { freq: 392, duration: 0.14, volume: 0.2, type: 'sawtooth' },
+                { freq: 262, duration: 0.18, volume: 0.16, type: 'sawtooth', delay: 0.09 },
+            ],
+            timeout: [{ freq: 247, duration: 0.18, volume: 0.16, type: 'sawtooth' }],
+            sessionComplete: [
+                { freq: 659, duration: 0.12, volume: 0.17, type: 'square' },
+                { freq: 784, duration: 0.12, volume: 0.16, type: 'square', delay: 0.12 },
+                { freq: 1047, duration: 0.16, volume: 0.14, type: 'square', delay: 0.24 },
+                { freq: 1568, duration: 0.22, volume: 0.12, type: 'triangle',
+                  delay: 0.42, skipLite: true },
+            ],
+        },
+        shrine: {
+            correct: [
+                { freq: 659, streakScale: 5, maxFreq: 880, duration: 0.16,
+                  volume: 0.12, type: 'sine', detune: -7 },
+                { freq: 988, streakScale: 5, maxFreq: 1320, duration: 0.24,
+                  volume: 0.08, type: 'triangle', delay: 0.12, detune: 6, skipLite: true },
+            ],
+            incorrect: [
+                { freq: 196, duration: 0.16, volume: 0.12, type: 'triangle',
+                  endFreqScale: 0.92 },
+                { freq: 147, duration: 0.18, volume: 0.09, type: 'sine',
+                  delay: 0.12, skipLite: true },
+            ],
+            wordComplete: [
+                { freq: 523, wordScale: 3, duration: 0.18, volume: 0.12, type: 'sine' },
+                { freq: 659, wordScale: 3, duration: 0.22, volume: 0.1,
+                  type: 'triangle', delay: 0.18, skipLite: true },
+                { freq: 1047, wordScale: 2, duration: 0.34, volume: 0.055,
+                  type: 'sine', delay: 0.38, skipLite: true },
+            ],
+            multiplierUp: [
+                { freqByMultiplier: [330, 392, 523, 659, 784],
+                  duration: 0.18, volume: 0.12, type: 'sine' },
+                { freqByMultiplier: [660, 784, 1046, 1318, 1568],
+                  duration: 0.22, volume: 0.08, type: 'triangle', delay: 0.16, skipLite: true },
+            ],
+            comboBreak: [{ freq: 174, duration: 0.22, volume: 0.09, type: 'triangle' }],
+            timeout: [{ freq: 164, duration: 0.24, volume: 0.08, type: 'sine' }],
+            sessionComplete: [
+                { freq: 523, duration: 0.24, volume: 0.1, type: 'sine' },
+                { freq: 659, duration: 0.28, volume: 0.09, type: 'triangle', delay: 0.22 },
+            ],
+        },
+        matrix: {
+            correct: [
+                { freq: 880, streakScale: 12, maxFreq: 1480, duration: 0.055,
+                  volume: 0.13, type: 'square', endFreqScale: 0.62 },
+                { freq: 1320, streakScale: 18, maxFreq: 2200, duration: 0.06,
+                  volume: 0.09, type: 'square', delay: 0.045,
+                  endFreqScale: 1.42, skipLite: true },
+            ],
+            incorrect: [
+                { freq: 180, duration: 0.09, volume: 0.16, type: 'sawtooth',
+                  endFreqScale: 0.42 },
+                { freq: 90, duration: 0.12, volume: 0.11, type: 'square',
+                  delay: 0.08, endFreqScale: 1.8, skipLite: true },
+            ],
+            wordComplete: [
+                { freq: 660, wordScale: 6, duration: 0.08, volume: 0.13, type: 'square' },
+                { freq: 990, wordScale: 6, duration: 0.08, volume: 0.1, type: 'square',
+                  delay: 0.06, skipLite: true },
+            ],
+            multiplierUp: [
+                { freqByMultiplier: [440, 660, 880, 990, 1320],
+                  duration: 0.075, volume: 0.13, type: 'square' },
+                { freqByMultiplier: [880, 1320, 1760, 1980, 2640],
+                  duration: 0.08, volume: 0.09, type: 'square', delay: 0.06, skipLite: true },
+            ],
+            comboBreak: [
+                { freq: 220, duration: 0.08, volume: 0.14, type: 'sawtooth' },
+                { freq: 110, duration: 0.12, volume: 0.1, type: 'square', delay: 0.06 },
+            ],
+            timeout: [{ freq: 120, duration: 0.12, volume: 0.12, type: 'square' }],
+            sessionComplete: [
+                { freq: 660, duration: 0.08, volume: 0.11, type: 'square' },
+                { freq: 990, duration: 0.08, volume: 0.1, type: 'square', delay: 0.08 },
+                { freq: 1320, duration: 0.1, volume: 0.08, type: 'square', delay: 0.16 },
+            ],
+        },
+        void: {
+            correct: [{ freq: 620, duration: 0.06, volume: 0.08, type: 'sine', detune: -12 }],
+            incorrect: [{ freq: 155, duration: 0.08, volume: 0.07, type: 'triangle' }],
+            wordComplete: [{ freq: 440, duration: 0.08, volume: 0.07, type: 'sine' }],
+            multiplierUp: [{ freqByMultiplier: [330, 392, 440, 494, 587],
+                duration: 0.08, volume: 0.07, type: 'sine' }],
+            comboBreak: [{ freq: 130, duration: 0.1, volume: 0.06, type: 'triangle' }],
+            timeout: [{ freq: 110, duration: 0.1, volume: 0.06, type: 'triangle' }],
+            sessionComplete: [{ freq: 523, duration: 0.12, volume: 0.07, type: 'sine' }],
+        },
+    };
+
+    const FLOATING_TEXT_PRESETS = {
+        arcadeClassic: {
+            base: { color: 'var(--mm-theme-floating-text)', shadow: 'var(--mm-theme-floating-shadow)' },
+            events: {
+                incorrect: { color: 'var(--mm-theme-failure)', label: 'MISS' },
+                wordComplete: { color: 'var(--mm-theme-success)', fontSize: '16px', label: 'CLEAR' },
+                milestone: { color: 'var(--mm-theme-banner)', fontSize: '20px', label: 'BONUS' },
+                rewind: { color: 'var(--mm-theme-secondary)' },
+            },
+        },
+        softBlue: {
+            base: {
+                color: '#dbeafe',
+                shadow: '0 0 12px rgba(125,211,252,0.78)',
+                motion: 'drift',
+            },
+            events: {
+                correct: { label: 'ORBIT' },
+                incorrect: {
+                    color: '#fb7185',
+                    shadow: '0 0 9px rgba(251,113,133,0.48)',
+                    label: 'DRIFT',
+                },
+                wordComplete: { color: '#f8fafc', fontSize: '16px', label: 'CHARTED' },
+                multiplierUp: { label: 'ALIGN' },
+                milestone: { color: '#f8fafc', fontSize: '20px', label: 'STELLAR' },
+            },
+        },
+        cosmicGlow: {
+            base: {
+                color: '#f5d0fe',
+                shadow: '0 0 14px rgba(217,70,239,0.75)',
+                motion: 'wave',
+            },
+            events: {
+                correct: { label: 'AURA' },
+                incorrect: { color: '#fb7185', label: 'RIFT' },
+                wordComplete: { color: '#c4b5fd', fontSize: '16px', label: 'BLOOM' },
+                multiplierUp: { label: 'NOVA' },
+                milestone: { color: '#f0abfc', fontSize: '20px', label: 'ASCEND' },
+            },
+        },
+        electricCyan: {
+            base: {
+                color: '#67e8f9',
+                shadow: '0 0 12px rgba(0,229,255,0.82)',
+                motion: 'snap',
+            },
+            events: {
+                correct: { label: 'SYNC' },
+                incorrect: { color: '#ff477e', label: 'FAULT' },
+                wordComplete: { color: '#22d3ee', fontSize: '16px', label: 'ROUTE' },
+                multiplierUp: { label: 'BOOST' },
+                milestone: { color: '#e0faff', fontSize: '20px', label: 'OVERCLOCK' },
+            },
+        },
+        pixelScore: {
+            base: {
+                color: '#fff05a',
+                shadow: '0 0 13px rgba(255,43,214,0.75)',
+                motion: 'snap',
+            },
+            events: {
+                correct: { label: 'BONUS' },
+                incorrect: { color: '#ff4b4b', label: 'MISS' },
+                wordComplete: { color: '#00d9ff', fontSize: '16px', label: 'STAGE' },
+                multiplierUp: { label: 'JACKPOT' },
+                milestone: { color: '#fff05a', fontSize: '20px', label: 'HI-SCORE' },
+            },
+        },
+        goldLeaf: {
+            base: {
+                color: '#fff2b8',
+                shadow: '0 0 10px rgba(246,211,107,0.58)',
+                motion: 'drift',
+            },
+            events: {
+                correct: { label: '清明' },
+                incorrect: { color: '#dc6b5a', label: '乱' },
+                wordComplete: { color: '#f6d36b', fontSize: '16px', label: '満開' },
+                multiplierUp: { label: '灯' },
+                milestone: { color: '#fff7d6', fontSize: '19px', label: '成就' },
+            },
+        },
+        terminalGreen: {
+            base: {
+                color: '#00ff88',
+                shadow: '0 0 12px rgba(0,255,136,0.82)',
+                fontFamily: 'Consolas, Monaco, monospace',
+                motion: 'glitch',
+            },
+            events: {
+                correct: { label: 'ACCESS' },
+                incorrect: {
+                    color: '#ef4444',
+                    shadow: '0 0 10px rgba(239,68,68,0.58)',
+                    label: 'TRACE',
+                },
+                wordComplete: { color: '#bbf7d0', fontSize: '16px', label: 'DECRYPT' },
+                multiplierUp: { label: 'ROOT' },
+                milestone: { color: '#bbf7d0', fontSize: '20px', label: 'BREACH' },
+            },
+        },
+        voidMinimal: {
+            base: {
+                color: '#f9fafb',
+                shadow: '0 2px 8px rgba(0,0,0,0.5)',
+                fontSize: '12px',
+                motion: 'minimal',
+            },
+            events: {
+                correct: { label: 'OK' },
+                incorrect: { color: '#9ca3af', label: 'NO' },
+                wordComplete: { color: '#e5e7eb', fontSize: '13px', label: 'DONE' },
+                multiplierUp: { label: '+' },
+                milestone: { color: '#f9fafb', fontSize: '16px', label: 'PEAK' },
+            },
+        },
+    };
+
+    const PARTICLE_PRESETS = {
+        arcadeBurst: {
+            shape: 'dot', motion: 'burst', color: 'var(--mm-theme-notification)',
+            count: 8, liteCount: 2, lifetimeMs: 700, spread: 72, size: 5,
+            events: {
+                incorrect: { color: 'var(--mm-theme-failure)', count: 5, liteCount: 1 },
+                wordComplete: { color: 'var(--mm-theme-success)', count: 10, liteCount: 2 },
+                milestone: { count: 14, liteCount: 3, spread: 110, size: 6 },
+                timeout: { color: 'var(--mm-theme-failure)', count: 4, liteCount: 1 },
+            },
+        },
+        starSparkles: {
+            shape: 'star', motion: 'drift', color: '#dbeafe',
+            count: 7, liteCount: 1, lifetimeMs: 950, spread: 85, size: 6,
+            events: { milestone: { count: 12, spread: 120 }, incorrect: { color: '#fb7185', count: 3 } },
+        },
+        cosmicDust: {
+            shape: 'ring', motion: 'drift', color: '#f0abfc',
+            count: 9, liteCount: 1, lifetimeMs: 1050, spread: 96, size: 7,
+            events: { wordComplete: { color: '#c4b5fd', count: 11 }, incorrect: { color: '#fb7185', count: 4 } },
+        },
+        pixelFragments: {
+            shape: 'pixel', motion: 'burst', color: '#00e5ff',
+            count: 9, liteCount: 2, lifetimeMs: 760, spread: 86, size: 5,
+            events: { incorrect: { color: '#ff477e', count: 6 }, timeout: { color: '#ff477e', count: 4 } },
+        },
+        confettiPixels: {
+            shape: 'pixel', motion: 'burst', color: '#fff05a',
+            count: 12, liteCount: 2, lifetimeMs: 850, spread: 100, size: 5,
+            events: {
+                correct: { count: 9 },
+                multiplierUp: { color: '#ff2bd6', count: 12 },
+                milestone: { count: 16, spread: 128 },
+                incorrect: { color: '#ff4b4b', count: 5 },
+            },
+        },
+        sakuraPetals: {
+            shape: 'petal', motion: 'fall', color: '#f6d36b',
+            count: 6, liteCount: 1, lifetimeMs: 1150, spread: 78, size: 7,
+            events: {
+                incorrect: { color: '#dc6b5a', count: 2, lifetimeMs: 850 },
+                milestone: { count: 10, spread: 105 },
+            },
+        },
+        matrixCode: {
+            shape: 'glyph', motion: 'glitch', color: '#00ff88',
+            glyphs: '01日月火水木金土',
+            count: 7, liteCount: 1, lifetimeMs: 760, spread: 76, size: 12,
+            events: {
+                incorrect: { color: '#ef4444', glyphs: '01', count: 4 },
+                comboBreak: { color: '#ef4444', glyphs: '0101', count: 5 },
+            },
+        },
+        voidDust: {
+            shape: 'dot', motion: 'drift', color: '#e5e7eb',
+            count: 2, liteCount: 0, lifetimeMs: 650, spread: 32, size: 3,
+            events: { milestone: { count: 4, liteCount: 1 }, incorrect: { color: '#9ca3af', count: 1 } },
+        },
+    };
+
+    const COMBO_EFFECT_PRESETS = {
+        arcadePop: {
+            style: 'pop',
+            color: 'var(--mm-theme-banner)',
+            shadow: '0 0 20px var(--mm-theme-banner-glow), 0 0 40px var(--mm-theme-banner-glow)',
+            celebrations: ['🎉', '✨', '⚡', '🔥', '💫', '🎊', '🌟', '💥', '⭐', '💎', '🏆'],
+        },
+        constellation: {
+            style: 'float',
+            color: '#f8fafc',
+            shadow: '0 0 22px rgba(125,211,252,0.95), 0 0 46px rgba(56,189,248,0.55)',
+            celebrations: ['✦', '✧', '⋆', '★'],
+        },
+        nebulaWave: {
+            style: 'wave',
+            color: '#f5d0fe',
+            shadow: '0 0 22px rgba(217,70,239,0.9), 0 0 46px rgba(147,197,253,0.55)',
+            celebrations: ['✦', '✧', '◇', '◆'],
+        },
+        scanPulse: {
+            style: 'scan',
+            color: '#e0faff',
+            shadow: '0 0 20px rgba(0,229,255,0.95), 0 0 42px rgba(37,99,235,0.65)',
+            celebrations: ['▣', '◆', '◇', '✦'],
+        },
+        arcadeMarquee: {
+            style: 'marquee',
+            color: '#fff05a',
+            shadow: '0 0 20px rgba(255,43,214,0.95), 0 0 42px rgba(0,217,255,0.65)',
+            celebrations: ['🎉', '✨', '⚡', '🎊', '🌟', '💥', '⭐', '🏆'],
+        },
+        lanternGlow: {
+            style: 'calm',
+            color: '#fff7d6',
+            shadow: '0 0 18px rgba(246,211,107,0.75), 0 0 34px rgba(183,121,31,0.35)',
+            celebrations: ['✦', '◇', '◆', '花'],
+        },
+        glitch: {
+            style: 'glitch',
+            color: '#bbf7d0',
+            shadow: '0 0 18px rgba(0,255,136,0.9), 0 0 36px rgba(0,204,102,0.55)',
+            celebrations: ['0', '1', '日', '月'],
+        },
+        minimal: {
+            style: 'minimal',
+            color: '#f9fafb',
+            shadow: '0 0 12px rgba(229,231,235,0.38)',
+            celebrations: ['•', '·', '✦'],
+        },
+    };
+
+    const CSS_THEME_VARIABLES = {
+        accent: '--mm-theme-accent',
+        secondary: '--mm-theme-secondary',
+        success: '--mm-theme-success',
+        failure: '--mm-theme-failure',
+        hudGlow: '--mm-theme-hud-glow',
+        flash: '--mm-theme-flash',
+        failureFlash: '--mm-theme-failure-flash',
+        notification: '--mm-theme-notification',
+        timerFast: '--mm-theme-timer-fast',
+        timerMedium: '--mm-theme-timer-medium',
+        timerLow: '--mm-theme-timer-low',
+        timerCritical: '--mm-theme-timer-critical',
+        floatingText: '--mm-theme-floating-text',
+        floatingShadow: '--mm-theme-floating-shadow',
+        progress: '--mm-theme-progress',
+        button: '--mm-theme-button',
+        buttonSoft: '--mm-theme-button-soft',
+        banner: '--mm-theme-banner',
+        bannerGlow: '--mm-theme-banner-glow',
+    };
+
+    const CSS_THEME_PRESENTATION_VARIABLES = {
+        panelBg: '--mm-theme-panel-bg',
+        panelBorder: '--mm-theme-panel-border',
+        panelText: '--mm-theme-panel-text',
+        panelMuted: '--mm-theme-panel-muted',
+        panelDivider: '--mm-theme-panel-divider',
+        panelShadow: '--mm-theme-panel-shadow',
+        controlBg: '--mm-theme-control-bg',
+        controlBorder: '--mm-theme-control-border',
+        fieldBg: '--mm-theme-field-bg',
+        fieldBorder: '--mm-theme-field-border',
+        fieldGlow: '--mm-theme-field-glow',
+        counterShadow: '--mm-theme-counter-shadow',
+        scanlineOpacity: '--mm-theme-scanline-opacity',
+        scanlineColor: '--mm-theme-scanline-color',
+        floatLabelBg: '--mm-theme-float-label-bg',
+        floatLabelColor: '--mm-theme-float-label-color',
+    };
 
     const BOOL_SETTINGS = [
         'sfxEnabled', 'visualsEnabled', 'hudEnabled', 'shakeEnabled',
@@ -130,12 +1105,188 @@
         if (node.textContent !== text) node.textContent = text;
     }
 
-    function normalizeBackgroundTheme(theme, fallback = DEFAULTS.backgroundTheme) {
-        if (BACKGROUND_THEMES.includes(theme)) return theme;
-        if (Object.prototype.hasOwnProperty.call(REMOVED_BACKGROUND_THEME_FALLBACKS, theme)) {
-            return REMOVED_BACKGROUND_THEME_FALLBACKS[theme];
+    function isPlainObject(value) {
+        return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+    }
+
+    function mergeThemeObjects(base = {}, override = {}) {
+        const next = { ...base };
+        for (const [key, value] of Object.entries(override || {})) {
+            next[key] = isPlainObject(value) && isPlainObject(next[key])
+                ? mergeThemeObjects(next[key], value)
+                : value;
         }
-        return fallback;
+        return next;
+    }
+
+    function normalizeThemeId(theme, fallback = DEFAULTS.backgroundTheme) {
+        const raw = typeof theme === 'string' ? theme.trim() : '';
+        const alias = THEME_ALIASES[raw] || THEME_ALIASES[raw.toLowerCase()];
+        const candidate = alias || raw;
+        if (Object.prototype.hasOwnProperty.call(THEME_DEFINITIONS, candidate)) {
+            return candidate;
+        }
+        if (Object.prototype.hasOwnProperty.call(REMOVED_BACKGROUND_THEME_FALLBACKS, candidate)) {
+            return REMOVED_BACKGROUND_THEME_FALLBACKS[candidate];
+        }
+        return Object.prototype.hasOwnProperty.call(THEME_DEFINITIONS, fallback)
+            ? fallback
+            : DEFAULTS.backgroundTheme;
+    }
+
+    function resolveThemeDefinition(themeId) {
+        const normalized = normalizeThemeId(themeId);
+        const theme = normalized === DEFAULTS.backgroundTheme
+            ? THEME_DEFINITIONS[DEFAULTS.backgroundTheme]
+            : mergeThemeObjects(
+                THEME_DEFINITIONS[DEFAULTS.backgroundTheme],
+                THEME_DEFINITIONS[normalized]
+            );
+        return { ...theme, id: normalized };
+    }
+
+    function mergeEventPreset(preset = {}, eventType = 'default') {
+        const base = { ...preset };
+        delete base.events;
+        return {
+            ...base,
+            ...(preset.events?.default || {}),
+            ...(preset.events?.[eventType] || {}),
+        };
+    }
+
+    function getPreset(collection, presetName, fallbackName) {
+        return collection[presetName] || collection[fallbackName];
+    }
+
+    function resolveToneFrequency(note, context = {}) {
+        if (Array.isArray(note.freqByMultiplier)) {
+            const index = Math.max(0, Math.min(
+                note.freqByMultiplier.length - 1,
+                Math.floor(Number(context.multiplier) || 1) - 1
+            ));
+            return note.freqByMultiplier[index];
+        }
+        const base = Number(note.freq) || 440;
+        const streakAdd = (Number(context.answerStreak) || 0) * (Number(note.streakScale) || 0);
+        const wordAdd = Math.min(
+            (Number(context.wordStreak) || 0) * (Number(note.wordScale) || 0),
+            Number(note.maxWordBonus) || 120
+        );
+        return clamp(base + streakAdd + wordAdd, note.minFreq || 40, note.maxFreq || 2800, base);
+    }
+
+    function resolveToneVolume(note, context = {}) {
+        const volume = (Number(note.volume) || 0.12)
+            + (Number(context.answerStreak) || 0) * (Number(note.volumeStreakScale) || 0);
+        return clamp(volume, 0.001, note.maxVolume || 0.3, note.volume || 0.12);
+    }
+
+    const ThemeManager = {
+        getThemeIds() {
+            return BACKGROUND_THEMES;
+        },
+        getThemeId(themeId = settings.backgroundTheme) {
+            return normalizeThemeId(themeId);
+        },
+        getThemeLabel(themeId = settings.backgroundTheme) {
+            return BACKGROUND_THEME_LABELS[this.getThemeId(themeId)]
+                || this.getActiveTheme(themeId).label.toUpperCase();
+        },
+        getActiveTheme(themeId = settings.backgroundTheme) {
+            return resolveThemeDefinition(themeId);
+        },
+        getThemeValue(path, fallback = null) {
+            const parts = String(path || '').split('.').filter(Boolean);
+            let value = this.getActiveTheme();
+            for (const part of parts) {
+                value = value?.[part];
+                if (value === undefined) return fallback;
+            }
+            return value;
+        },
+        getSoundPreset(eventType) {
+            const theme = this.getActiveTheme();
+            const preset = getPreset(SOUND_PRESETS, theme.presets.sound, 'arcade');
+            return preset[eventType] || SOUND_PRESETS.arcade[eventType] || [];
+        },
+        getFloatingTextPreset(eventType) {
+            const theme = this.getActiveTheme();
+            return mergeEventPreset(
+                getPreset(FLOATING_TEXT_PRESETS, theme.presets.floatingText, 'arcadeClassic'),
+                eventType
+            );
+        },
+        getParticlePreset(eventType) {
+            const theme = this.getActiveTheme();
+            return mergeEventPreset(
+                getPreset(PARTICLE_PRESETS, theme.presets.particles, 'arcadeBurst'),
+                eventType
+            );
+        },
+        getComboPreset(eventType) {
+            const theme = this.getActiveTheme();
+            const preset = getPreset(COMBO_EFFECT_PRESETS, theme.presets.combo, 'arcadePop');
+            return mergeEventPreset(preset, eventType);
+        },
+        getEffectPreset(eventType) {
+            return {
+                floatingText: this.getFloatingTextPreset(eventType),
+                particles: this.getParticlePreset(eventType),
+                combo: this.getComboPreset(eventType),
+                budget: this.getEffectBudget(eventType),
+            };
+        },
+        getEffectBudget(_eventType) {
+            const theme = this.getActiveTheme();
+            const profileScale = isMaxMode() ? 1 : (isLiteMode() ? 0.25 : 0.72);
+            return {
+                intensity: theme.motion.effectIntensity * profileScale,
+                shakeScale: theme.motion.shakeScale * (isLiteMode() ? 0.35 : 1),
+                allowIdle: theme.motion.allowIdle && !isLiteMode(),
+            };
+        },
+        applyTheme(themeId, { persist = true, save = false } = {}) {
+            const normalized = normalizeThemeId(themeId);
+            if (persist) settings.backgroundTheme = normalized;
+            const theme = this.applyCssVariables(normalized);
+            if (document.body) {
+                document.body.dataset.mmTheme = normalized;
+                document.body.dataset.mmBg = normalized;
+            }
+            if (persist && save) saveSettings();
+            return theme;
+        },
+        applyCssVariables(themeId = settings.backgroundTheme) {
+            const theme = this.getActiveTheme(themeId);
+            const presentation = mergeThemeObjects(
+                THEME_PRESENTATION_STYLES.default,
+                THEME_PRESENTATION_STYLES[theme.id] || {}
+            );
+            const root = document.documentElement;
+            for (const [key, cssVar] of Object.entries(CSS_THEME_VARIABLES)) {
+                root.style.setProperty(cssVar, theme.colors[key]);
+            }
+            for (const [key, cssVar] of Object.entries(CSS_THEME_PRESENTATION_VARIABLES)) {
+                root.style.setProperty(cssVar, presentation[key]);
+            }
+            return theme;
+        },
+        clearPresentation() {
+            const root = document.documentElement;
+            [
+                ...Object.values(CSS_THEME_VARIABLES),
+                ...Object.values(CSS_THEME_PRESENTATION_VARIABLES),
+            ].forEach(cssVar => {
+                root.style.removeProperty(cssVar);
+            });
+            delete document.body?.dataset.mmTheme;
+            delete document.body?.dataset.mmBg;
+        },
+    };
+
+    function normalizeBackgroundTheme(theme, fallback = DEFAULTS.backgroundTheme) {
+        return normalizeThemeId(theme, fallback);
     }
 
     function normalizeSettings(raw = {}) {
@@ -198,6 +1349,7 @@
     }
 
     let settings = loadSettings();
+    ThemeManager.applyCssVariables(settings.backgroundTheme);
 
     function isLiteMode() {
         return settings.performanceProfile === 'lite';
@@ -420,7 +1572,14 @@
         }, delay);
     }
 
-    function playTone(freq, duration = 0.12, volume = 0.2, type = 'square', delay = 0) {
+    function playTone(
+        freq,
+        duration = 0.12,
+        volume = 0.2,
+        type = 'square',
+        delay = 0,
+        options = {}
+    ) {
         if (!settings.sfxEnabled) return;
         const ctx = getAudioCtx();
         if (!ctx) return;
@@ -428,10 +1587,17 @@
             const osc  = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = type;
-            osc.frequency.value = freq;
             osc.connect(gain);
             gain.connect(ctx.destination);
             const v = volume * settings.volume, now = ctx.currentTime + delay;
+            osc.frequency.setValueAtTime(freq, now);
+            if (options.detune) osc.detune.setValueAtTime(options.detune, now);
+            if (Number.isFinite(options.endFreq) && options.endFreq > 0) {
+                osc.frequency.exponentialRampToValueAtTime(
+                    options.endFreq,
+                    now + Math.max(0.015, duration * 0.86)
+                );
+            }
             gain.gain.setValueAtTime(0.0001, now);
             gain.gain.linearRampToValueAtTime(v, now + 0.005);
             gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
@@ -654,62 +1820,51 @@
         }
     }
 
+    function playThemeSound(eventType, context = {}) {
+        if (!settings.sfxEnabled) return;
+        const notes = ThemeManager.getSoundPreset(eventType);
+        notes.forEach(note => {
+            if (note.skipLite && isLiteMode()) return;
+            if (note.every && (Number(context.answerStreak) || 0) % note.every !== 0) return;
+            if (note.chance && Math.random() >= note.chance) return;
+            const freq = resolveToneFrequency(note, context);
+            const endFreq = note.endFreqScale
+                ? freq * note.endFreqScale
+                : note.endFreq;
+            playTone(
+                freq,
+                note.duration,
+                resolveToneVolume(note, context),
+                note.type || 'square',
+                note.delay || 0,
+                { endFreq, detune: note.detune || 0 }
+            );
+        });
+    }
+
     function playCorrectSound() {
-        const freq = Math.min(440 + state.answerStreak * 20, 1200);
-        const vol  = Math.min(0.22, 0.12 + state.answerStreak * 0.003);
-        playTone(freq, 0.09, vol);
-        if (isLiteMode()) return;
-        if (state.answerStreak % 5  === 0) playTone(freq * 1.5, 0.12, 0.15, 'square',   0.04);
-        if (state.answerStreak % 10 === 0) playTone(freq * 2,   0.15, 0.12, 'triangle', 0.08);
-        if (state.answerStreak % 20 === 0) {
-            [1, 1.25, 1.5, 2].forEach((r, i) => playTone(freq * r, 0.2, 0.18, 'triangle', i * 0.06));
-        }
-        if (Math.random() < 0.07) playTone(freq * 2.5, 0.2, 0.28, 'sine', 0.03);
+        playThemeSound('correct', { answerStreak: state.answerStreak });
     }
 
     function playFailSound() {
-        playTone(300,   0.15, 0.25, 'sawtooth');
-        if (isLiteMode()) return;
-        playTone(180,   0.20, 0.20, 'sawtooth', 0.12);
+        playThemeSound('incorrect');
     }
 
     function playWordCompleteSound() {
-        const extra = Math.min(state.wordStreak * 6, 120);
-        if (isLiteMode()) {
-            playTone(659 + extra, 0.14, 0.16, 'triangle');
-            return;
-        }
-        [523, 659, 784].forEach((n, i) => playTone(n + extra, 0.18, 0.22, 'triangle', i * 0.12));
+        playThemeSound('wordComplete', { wordStreak: state.wordStreak });
     }
 
     function playMultiplierUpSound(mult) {
-        const f = [330, 440, 550, 660, 880][Math.min(mult - 1, 4)];
-        playTone(f,       0.10, 0.20, 'square');
-        if (isLiteMode()) return;
-        playTone(f * 1.5, 0.14, 0.18, 'square',   0.06);
-        playTone(f * 2,   0.18, 0.14, 'triangle', 0.12);
+        playThemeSound('multiplierUp', { multiplier: mult });
     }
 
     function playComboBreakSound() {
-        if (isLiteMode()) {
-            playTone(240, 0.16, 0.18, 'sawtooth');
-            return;
-        }
-        [400, 300, 200].forEach((f, i) => playTone(f, 0.18, 0.22, 'sawtooth', i * 0.08));
+        playThemeSound('comboBreak');
     }
 
     function playSessionEndSound() {
         if (sessionEndSoundTimer) clearTimeout(sessionEndSoundTimer);
-        if (isLiteMode()) {
-            playTone(659, 0.18, 0.16, 'triangle');
-            playTone(784, 0.22, 0.16, 'triangle', 0.1);
-            return;
-        }
-        [523, 659, 784, 1047].forEach((f, i) => playTone(f, 0.22, 0.20, 'triangle', i * 0.14));
-        sessionEndSoundTimer = setTimeout(() => {
-            sessionEndSoundTimer = null;
-            playTone(1047, 0.4, 0.25, 'sine');
-        }, 650);
+        playThemeSound('sessionComplete');
     }
 
     function getDifficultyXpMultiplier() {
@@ -814,45 +1969,47 @@
         /* ── HUD ── */
         #mm-hud {
             position: fixed; top: 20px; left: 20px;
-            background: rgba(0,0,0,0.85);
-            border: 2px solid rgba(255,255,255,0.12);
-            color: #fff; padding: 10px 16px 12px; border-radius: 8px;
+            background: var(--mm-theme-panel-bg, rgba(0,0,0,0.85));
+            border: 2px solid var(--mm-theme-panel-border, rgba(255,255,255,0.12));
+            color: var(--mm-theme-panel-text, #fff);
+            padding: 10px 16px 12px; border-radius: 8px;
             box-sizing: content-box; width: 180px; min-width: 180px;
             font-size: 11px; z-index: 9999;
             line-height: 1.8; image-rendering: pixelated;
             display: flex; flex-direction: column;
             cursor: grab; touch-action: none;
             overflow: hidden; user-select: none;
+            box-shadow: var(--mm-theme-panel-shadow, none);
             transition: width 0.24s ease, min-width 0.24s ease,
                 padding 0.24s ease, background 0.24s ease,
                 border-color 0.24s ease, box-shadow 0.2s ease, opacity 0.3s;
         }
         #mm-hud.dragging { cursor: grabbing; opacity: 0.92; }
         #mm-hud.hidden  { opacity: 0; pointer-events: none; }
-        #mm-hud.glow    { box-shadow: 0 0 18px 4px #f90; }
-        #mm-hud.danger  { box-shadow: 0 0 18px 4px #f33; }
+        #mm-hud.glow    { box-shadow: 0 0 18px 4px var(--mm-theme-hud-glow, #f90); }
+        #mm-hud.danger  { box-shadow: 0 0 18px 4px var(--mm-theme-failure, #f33); }
 
         #mm-hud-header {
             display: flex; align-items: center; justify-content: space-between;
             min-height: 18px; margin-bottom: 4px; order: 0;
         }
         #mm-hud-title {
-            color: rgba(255,255,255,0.42); font-size: 7px;
+            color: var(--mm-theme-panel-muted, rgba(255,255,255,0.42)); font-size: 7px;
             line-height: 1; white-space: nowrap;
         }
         #mm-hud-collapse-btn {
             display: grid; place-items: center; width: 20px; height: 20px;
-            padding: 0; border: 1px solid rgba(255,255,255,0.16);
-            border-radius: 4px; background: rgba(255,255,255,0.04);
-            color: #aaa; font-family: inherit; font-size: 11px;
+            padding: 0; border: 1px solid var(--mm-theme-control-border, rgba(255,255,255,0.16));
+            border-radius: 4px; background: var(--mm-theme-control-bg, rgba(255,255,255,0.04));
+            color: var(--mm-theme-panel-muted, #aaa); font-family: inherit; font-size: 11px;
             line-height: 1; cursor: pointer; flex: 0 0 auto;
         }
         #mm-hud-collapse-btn:hover {
-            color: #fff; border-color: rgba(255,153,0,0.7);
-            background: rgba(255,153,0,0.1);
+            color: #fff; border-color: var(--mm-theme-button, #f90);
+            background: var(--mm-theme-button-soft, rgba(255,153,0,0.1));
         }
         #mm-hud-collapse-btn:focus-visible {
-            outline: 2px solid #7cf; outline-offset: 2px;
+            outline: 2px solid var(--mm-theme-secondary, #7cf); outline-offset: 2px;
         }
         #mm-hud-stats { display: block; order: 1; }
         .mm-hud-stat {
@@ -861,19 +2018,22 @@
                 max-height 0.24s ease, margin 0.24s ease;
         }
         .mm-hud-stat:first-child { margin-top: 0; }
-        .mm-hud-label { color: #aaa; font-size: 8px; }
+        .mm-hud-label { color: var(--mm-theme-panel-muted, #aaa); font-size: 8px; }
         .mm-hud-label-short { display: none; }
         .mm-hud-value { font-variant-numeric: tabular-nums; }
         .mm-hud-secondary { max-height: 44px; opacity: 1; overflow: hidden; }
 
-        #mm-hud-score  { color: #ffe066; font-size: 13px; }
-        #mm-hud-combo  { color: #7cf;    font-size: 13px; }
-        #mm-hud-mult   { color: #f90;    font-size: 13px; }
-        #mm-hud-streak { color: #7f7;    font-size: 13px; }
-        #mm-hud-acc    { color: #c9f;    font-size: 11px; }
-        #mm-hud-bonus  { color: #f90;    font-size: 11px; }
-        #mm-hud-record { color: #ffe066; font-size: 8px; line-height: 1.7; }
-        #mm-hud-record span { color: #7cf; }
+        #mm-hud-score  { color: var(--mm-theme-notification, #ffe066); font-size: 13px; }
+        #mm-hud-combo  { color: var(--mm-theme-secondary, #7cf); font-size: 13px; }
+        #mm-hud-mult   { color: var(--mm-theme-accent, #f90); font-size: 13px; }
+        #mm-hud-streak { color: var(--mm-theme-success, #7f7); font-size: 13px; }
+        #mm-hud-acc    { color: var(--mm-theme-secondary, #c9f); font-size: 11px; }
+        #mm-hud-bonus  { color: var(--mm-theme-accent, #f90); font-size: 11px; }
+        #mm-hud-record {
+            color: var(--mm-theme-notification, #ffe066);
+            font-size: 8px; line-height: 1.7;
+        }
+        #mm-hud-record span { color: var(--mm-theme-secondary, #7cf); }
 
         #mm-hud-controls {
             max-height: 82px; opacity: 1; overflow: hidden;
@@ -883,30 +2043,37 @@
         }
         #mm-hud-settings-btn {
             display: block; margin-top: 10px;
-            background: none; border: 1px solid rgba(255,255,255,0.2);
-            color: #aaa; font-family: inherit; font-size: 7px;
+            background: var(--mm-theme-control-bg, transparent);
+            border: 1px solid var(--mm-theme-control-border, rgba(255,255,255,0.2));
+            color: var(--mm-theme-panel-muted, #aaa); font-family: inherit; font-size: 7px;
             padding: 4px 6px; border-radius: 4px; cursor: pointer;
             width: 100%; text-align: center;
         }
         #mm-hud-rewind-btn {
             display: block; margin-top: 8px;
-            background: rgba(255,153,0,0.08);
-            border: 1px solid rgba(255,153,0,0.35);
-            color: #f90; font-family: inherit; font-size: 7px;
+            background: var(--mm-theme-button-soft, rgba(255,153,0,0.08));
+            border: 1px solid var(--mm-theme-button, rgba(255,153,0,0.35));
+            color: var(--mm-theme-button, #f90); font-family: inherit; font-size: 7px;
             padding: 4px 6px; border-radius: 4px; cursor: pointer;
             width: 100%; text-align: center;
         }
-        #mm-hud-settings-btn:hover, #mm-hud-rewind-btn:hover { border-color: #f90; color: #f90; }
+        #mm-hud-settings-btn:hover,
+        #mm-hud-rewind-btn:hover {
+            border-color: var(--mm-theme-button, #f90);
+            color: var(--mm-theme-button, #f90);
+        }
         #mm-hud-rewind-btn:disabled {
-            opacity: 0.35; cursor: not-allowed; border-color: rgba(255,255,255,0.15);
-            color: #aaa; background: none;
+            opacity: 0.35; cursor: not-allowed;
+            border-color: var(--mm-theme-panel-divider, rgba(255,255,255,0.15));
+            color: var(--mm-theme-panel-muted, #aaa); background: none;
         }
 
         /* combo bar */
         #mm-combo-bar-wrap {
             position: relative; margin-top: 8px; height: 4px;
             order: 2;
-            background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;
+            background: var(--mm-theme-panel-divider, rgba(255,255,255,0.1));
+            border-radius: 2px; overflow: hidden;
         }
         #mm-combo-bar-wrap::after {
             content: ''; position: absolute; inset: 0; pointer-events: none;
@@ -939,15 +2106,16 @@
         }
         #mm-combo-bar.expired { background: #555; }
         #mm-combo-bar-wrap.inactive #mm-combo-bar {
-            width: 100% !important; background: rgba(255,255,255,0.16);
+            width: 100% !important;
+            background: var(--mm-theme-panel-divider, rgba(255,255,255,0.16));
         }
 
         /* compact draggable HUD */
         #mm-hud.mm-panel-collapsed {
             width: min(340px, calc(100vw - 72px)); min-width: 0;
             padding: 6px 9px 8px;
-            background: rgba(3,7,18,0.72);
-            border-color: rgba(160,205,255,0.2);
+            background: var(--mm-theme-panel-bg, rgba(3,7,18,0.72));
+            border-color: var(--mm-theme-panel-border, rgba(160,205,255,0.2));
             backdrop-filter: blur(10px) saturate(1.1);
             -webkit-backdrop-filter: blur(10px) saturate(1.1);
             line-height: 1.2;
@@ -956,7 +2124,7 @@
             min-height: 16px; margin-bottom: 4px;
         }
         #mm-hud.mm-panel-collapsed #mm-hud-title {
-            color: rgba(190,220,255,0.52); font-size: 6px;
+            color: var(--mm-theme-panel-muted, rgba(190,220,255,0.52)); font-size: 6px;
         }
         #mm-hud.mm-panel-collapsed #mm-hud-collapse-btn {
             width: 18px; height: 18px; font-size: 10px;
@@ -971,14 +2139,15 @@
         }
         #mm-hud.mm-panel-collapsed .mm-hud-stat {
             margin: 0; padding: 0 7px;
-            border-left: 1px solid rgba(255,255,255,0.1);
+            border-left: 1px solid var(--mm-theme-panel-divider, rgba(255,255,255,0.1));
             transform: translateY(0);
         }
         #mm-hud.mm-panel-collapsed .mm-hud-stat:first-child {
             padding-left: 0; border-left: 0;
         }
         #mm-hud.mm-panel-collapsed .mm-hud-label {
-            display: block; overflow: hidden; color: rgba(215,225,240,0.52);
+            display: block; overflow: hidden;
+            color: var(--mm-theme-panel-muted, rgba(215,225,240,0.52));
             font-size: 6px; line-height: 1.1; white-space: nowrap;
             text-overflow: ellipsis;
         }
@@ -998,7 +2167,7 @@
         }
 
         body.mm-performance-mode #mm-hud.mm-panel-collapsed {
-            background: rgba(3,7,18,0.9);
+            background: var(--mm-theme-panel-bg, rgba(3,7,18,0.9));
             backdrop-filter: none;
             -webkit-backdrop-filter: none;
         }
@@ -1009,16 +2178,17 @@
 
         .mm-hud-micro {
             position: fixed; z-index: 10000; pointer-events: none;
-            padding: 5px 8px; border: 1px solid rgba(255,255,255,0.16);
-            border-radius: 4px; background: rgba(2,5,14,0.86);
-            color: #ffe066; font-family: var(--mm-arcade-font);
+            padding: 5px 8px; border: 1px solid var(--mm-theme-control-border, rgba(255,255,255,0.16));
+            border-radius: 4px; background: var(--mm-theme-panel-bg, rgba(2,5,14,0.86));
+            color: var(--mm-theme-notification, #ffe066);
+            font-family: var(--mm-arcade-font);
             font-size: 8px; line-height: 1; white-space: nowrap;
-            box-shadow: 0 5px 18px rgba(0,0,0,0.32);
+            box-shadow: var(--mm-theme-panel-shadow, 0 5px 18px rgba(0,0,0,0.32));
             animation: mmHudMicro 0.85s ease-out forwards;
         }
-        .mm-hud-micro.mult { color: #f90; }
-        .mm-hud-micro.streak { color: #7f7; }
-        .mm-hud-micro.fail { color: #f66; }
+        .mm-hud-micro.mult { color: var(--mm-theme-accent, #f90); }
+        .mm-hud-micro.streak { color: var(--mm-theme-success, #7f7); }
+        .mm-hud-micro.fail { color: var(--mm-theme-failure, #f66); }
         @keyframes mmHudMicro {
             0%   { opacity: 0; transform: translateY(3px) scale(0.96); }
             18%  { opacity: 1; transform: translateY(0) scale(1); }
@@ -1041,20 +2211,67 @@
 
         /* ── FLOATING TEXT ── */
         .mm-float {
+            --mm-float-drift-x: 0px;
             position: fixed; pointer-events: none;
             font-family: var(--mm-arcade-font); font-size: 14px; font-weight: bold;
             z-index: 10000; animation: mmFloat 0.9s ease-out forwards;
-            text-shadow: 0 2px 6px rgba(0,0,0,0.8); white-space: nowrap;
+            color: var(--mm-theme-floating-text, #ffe066);
+            text-shadow: var(--mm-theme-floating-shadow, 0 2px 6px rgba(0,0,0,0.8));
+            white-space: nowrap;
         }
-        .mm-float.correct   { color: #ffe066; }
-        .mm-float.incorrect { color: #f55; }
-        .mm-float.wordwin   { color: #7f7;  font-size: 16px; }
-        .mm-float.milestone { color: #f0f;  font-size: 20px; }
-        .mm-float.rewind    { color: #7cf;  font-size: 14px; }
+        .mm-float[data-mm-label]::before {
+            content: attr(data-mm-label);
+            display: block; width: max-content; margin: 0 auto 3px;
+            padding: 2px 5px; border: 1px solid currentColor; border-radius: 3px;
+            background: var(--mm-theme-float-label-bg, rgba(255,255,255,0.08));
+            color: var(--mm-theme-float-label-color, currentColor);
+            font-size: 7px; line-height: 1; letter-spacing: 0;
+            text-shadow: none;
+        }
+        .mm-float.correct   { color: var(--mm-theme-floating-text, #ffe066); }
+        .mm-float.incorrect { color: var(--mm-theme-failure, #f55); }
+        .mm-float.wordwin   { color: var(--mm-theme-success, #7f7);  font-size: 16px; }
+        .mm-float.milestone { color: var(--mm-theme-banner, #f0f);  font-size: 20px; }
+        .mm-float.rewind    { color: var(--mm-theme-secondary, #7cf);  font-size: 14px; }
+        .mm-float[data-mm-motion="drift"] { animation: mmFloatDrift 1.15s ease-out forwards; }
+        .mm-float[data-mm-motion="wave"] { animation: mmFloatWave 1.12s ease-out forwards; }
+        .mm-float[data-mm-motion="snap"] { animation: mmFloatSnap 0.72s steps(3, end) forwards; }
+        .mm-float[data-mm-motion="glitch"] { animation: mmFloatGlitch 0.76s steps(5, end) forwards; }
+        .mm-float[data-mm-motion="minimal"] { animation: mmFloatMinimal 0.72s ease-out forwards; }
         @keyframes mmFloat {
             0%   { opacity: 1; transform: translateY(0)     scale(1);   }
             60%  { opacity: 1; transform: translateY(-38px)  scale(1.1); }
             100% { opacity: 0; transform: translateY(-64px)  scale(0.9); }
+        }
+        @keyframes mmFloatDrift {
+            0%   { opacity: 0; transform: translate(0, 8px) scale(0.94); }
+            22%  { opacity: 1; }
+            72%  { opacity: 1; transform: translate(var(--mm-float-drift-x), -34px) scale(1.05); }
+            100% { opacity: 0; transform: translate(calc(var(--mm-float-drift-x) * 1.5), -66px) scale(0.92); }
+        }
+        @keyframes mmFloatWave {
+            0%   { opacity: 0; transform: translateY(8px) scale(0.92) rotate(-1deg); }
+            20%  { opacity: 1; }
+            58%  { transform: translate(var(--mm-float-drift-x), -32px) scale(1.1) rotate(1deg); }
+            100% { opacity: 0; transform: translate(calc(var(--mm-float-drift-x) * -0.6), -70px) scale(0.88) rotate(-2deg); }
+        }
+        @keyframes mmFloatSnap {
+            0%   { opacity: 1; transform: translate(0,0) scale(1); }
+            34%  { transform: translate(7px,-22px) scale(1.18); }
+            68%  { opacity: 1; transform: translate(-5px,-42px) scale(1.02); }
+            100% { opacity: 0; transform: translate(3px,-62px) scale(0.82); }
+        }
+        @keyframes mmFloatGlitch {
+            0%   { opacity: 1; transform: translate(0,0) skewX(0deg); }
+            24%  { transform: translate(9px,-16px) skewX(-12deg); }
+            50%  { transform: translate(-7px,-32px) skewX(14deg); }
+            76%  { opacity: 1; transform: translate(4px,-48px) skewX(-8deg); }
+            100% { opacity: 0; transform: translate(0,-58px) skewX(0deg); }
+        }
+        @keyframes mmFloatMinimal {
+            0%   { opacity: 0; transform: translateY(4px); }
+            25%  { opacity: 0.85; }
+            100% { opacity: 0; transform: translateY(-32px); }
         }
 
         /* ── BANNERS ── */
@@ -1067,20 +2284,94 @@
         }
         #mm-mult-banner {
             top: 20%; font-size: 28px; color: #fff;
-            text-shadow: 0 0 20px #f90, 0 0 40px #f90;
+            text-shadow: 0 0 20px var(--mm-theme-banner-glow, #f90),
+                0 0 40px var(--mm-theme-banner-glow, #f90);
         }
         #mm-milestone-banner {
-            top: 35%; font-size: 18px; color: #f0f;
-            text-shadow: 0 0 16px #f0f, 0 0 32px #80f;
+            top: 35%; font-size: 18px; color: var(--mm-theme-banner, #f0f);
+            text-shadow: 0 0 16px var(--mm-theme-banner, #f0f),
+                0 0 32px var(--mm-theme-banner-glow, #80f);
         }
         #mm-mult-banner.show     { animation: mmBannerPop 0.8s cubic-bezier(0.34,1.56,0.64,1) forwards; }
         #mm-milestone-banner.show{ animation: mmBannerPop 1.0s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+        #mm-mult-banner[data-mm-combo-style="float"].show,
+        #mm-milestone-banner[data-mm-combo-style="float"].show {
+            animation: mmBannerFloat 1.05s ease-out forwards;
+        }
+        #mm-mult-banner[data-mm-combo-style="wave"].show,
+        #mm-milestone-banner[data-mm-combo-style="wave"].show {
+            animation: mmBannerWave 1.05s ease-out forwards;
+        }
+        #mm-mult-banner[data-mm-combo-style="scan"].show,
+        #mm-milestone-banner[data-mm-combo-style="scan"].show {
+            animation: mmBannerScan 0.78s steps(4, end) forwards;
+        }
+        #mm-mult-banner[data-mm-combo-style="marquee"].show,
+        #mm-milestone-banner[data-mm-combo-style="marquee"].show {
+            animation: mmBannerMarquee 0.9s cubic-bezier(0.18,0.89,0.32,1.28) forwards;
+        }
+        #mm-mult-banner[data-mm-combo-style="calm"].show,
+        #mm-milestone-banner[data-mm-combo-style="calm"].show {
+            animation: mmBannerCalm 1.25s ease-out forwards;
+        }
+        #mm-mult-banner[data-mm-combo-style="glitch"].show,
+        #mm-milestone-banner[data-mm-combo-style="glitch"].show {
+            animation: mmBannerGlitch 0.78s steps(5, end) forwards;
+        }
+        #mm-mult-banner[data-mm-combo-style="minimal"].show,
+        #mm-milestone-banner[data-mm-combo-style="minimal"].show {
+            animation: mmBannerMinimal 0.72s ease-out forwards;
+        }
         @keyframes mmBannerPop {
             0%   { opacity:0; transform: translateX(-50%) scale(0.2);  }
             50%  { opacity:1; transform: translateX(-50%) scale(1.15); }
             75%  {            transform: translateX(-50%) scale(0.95); }
             85%  { opacity:1; transform: translateX(-50%) scale(1.0);  }
             100% { opacity:0; transform: translateX(-50%) scale(1.0);  }
+        }
+        @keyframes mmBannerFloat {
+            0%   { opacity:0; transform: translate(-50%, 14px) scale(0.76); }
+            28%  { opacity:1; transform: translate(-50%, 0) scale(1.04); }
+            72%  { opacity:1; transform: translate(-50%, -18px) scale(1); }
+            100% { opacity:0; transform: translate(-50%, -48px) scale(0.92); }
+        }
+        @keyframes mmBannerWave {
+            0%   { opacity:0; transform: translateX(-50%) scale(0.7) rotate(-2deg); }
+            30%  { opacity:1; transform: translateX(-50%) scale(1.12) rotate(1deg); }
+            58%  { transform: translateX(-50%) scale(1.02) rotate(-1deg); }
+            100% { opacity:0; transform: translateX(-50%) scale(1.05) rotate(2deg); }
+        }
+        @keyframes mmBannerScan {
+            0%   { opacity:0; transform: translate(-50%, 0) scaleX(0.36); }
+            18%  { opacity:1; transform: translate(calc(-50% - 8px), 0) scaleX(1.18); }
+            44%  { transform: translate(calc(-50% + 8px), 0) scaleX(0.92); }
+            72%  { opacity:1; transform: translate(-50%, 0) scaleX(1); }
+            100% { opacity:0; transform: translate(-50%, 0) scaleX(0.82); }
+        }
+        @keyframes mmBannerMarquee {
+            0%   { opacity:0; transform: translateX(-50%) scale(0.28) rotate(-3deg); }
+            34%  { opacity:1; transform: translateX(-50%) scale(1.22) rotate(2deg); }
+            58%  { transform: translateX(-50%) scale(0.98) rotate(-1deg); }
+            82%  { opacity:1; transform: translateX(-50%) scale(1.06) rotate(0deg); }
+            100% { opacity:0; transform: translateX(-50%) scale(0.92); }
+        }
+        @keyframes mmBannerCalm {
+            0%   { opacity:0; transform: translate(-50%, 10px) scale(0.9); filter: blur(2px); }
+            25%  { opacity:1; filter: blur(0); }
+            72%  { opacity:1; transform: translate(-50%, -10px) scale(1); }
+            100% { opacity:0; transform: translate(-50%, -34px) scale(0.98); filter: blur(1px); }
+        }
+        @keyframes mmBannerGlitch {
+            0%   { opacity:1; transform: translateX(-50%) skewX(0deg); }
+            18%  { transform: translate(calc(-50% + 14px), -2px) skewX(-18deg); }
+            36%  { transform: translate(calc(-50% - 12px), 2px) skewX(16deg); }
+            58%  { opacity:1; transform: translate(calc(-50% + 6px), 0) skewX(-10deg); }
+            100% { opacity:0; transform: translateX(-50%) skewX(0deg); }
+        }
+        @keyframes mmBannerMinimal {
+            0%   { opacity:0; transform: translateX(-50%) scale(0.96); }
+            24%  { opacity:0.9; }
+            100% { opacity:0; transform: translateX(-50%) scale(1.02); }
         }
 
         /* ── CELEBRATE ── */
@@ -1119,8 +2410,14 @@
 
         /* ── SCREEN FLASH ── */
         #mm-flash { position: fixed; inset: 0; pointer-events: none; z-index: 10002; opacity: 0; }
-        #mm-flash.correct-flash { background: rgba(100,255,150,0.18); animation: mmFlash 0.3s ease forwards; }
-        #mm-flash.wrong-flash   { background: rgba(255,70,90,0.18); animation: mmFlash 0.3s ease forwards; }
+        #mm-flash.correct-flash {
+            background: var(--mm-theme-flash, rgba(100,255,150,0.18));
+            animation: mmFlash 0.3s ease forwards;
+        }
+        #mm-flash.wrong-flash {
+            background: var(--mm-theme-failure-flash, rgba(255,70,90,0.18));
+            animation: mmFlash 0.3s ease forwards;
+        }
         @keyframes mmFlash { 0%{ opacity:1; } 100%{ opacity:0; } }
 
         /* ── SHAKE ── */
@@ -1146,32 +2443,38 @@
         .mm-progress-glow  { animation: mmGlow   0.60s ease; }
         @keyframes mmPulse  { 0%,100%{transform:scale(1);}   50%{transform:scale(1.15);} }
         @keyframes mmBounce { 0%,100%{transform:scale(1);}   30%{transform:scale(1.3);} 60%{transform:scale(0.9);} }
-        @keyframes mmGlow   { 0%,100%{box-shadow:none;}      50%{box-shadow:0 0 18px gold;} }
+        @keyframes mmGlow {
+            0%,100%{box-shadow:none;}
+            50%{box-shadow:0 0 18px var(--mm-theme-notification, gold);}
+        }
 
         /* ── SETTINGS PANEL ── */
         #mm-settings {
             display: none; position: fixed; bottom: 20px; left: 210px;
-            background: rgba(0,0,0,0.92); border: 2px solid rgba(255,255,255,0.15);
+            background: var(--mm-theme-panel-bg, rgba(0,0,0,0.92));
+            border: 2px solid var(--mm-theme-panel-border, rgba(255,255,255,0.15));
             border-radius: 8px; padding: 14px 18px; font-size: 9px;
-            color: #fff; z-index: 10003; min-width: 220px; line-height: 2;
+            color: var(--mm-theme-panel-text, #fff); z-index: 10003; min-width: 220px; line-height: 2;
             max-height: calc(100vh - 40px); overflow-y: auto;
+            box-shadow: var(--mm-theme-panel-shadow, none);
         }
         #mm-settings.open { display: block; }
         #mm-settings h3 {
-            font-size: 10px; color: #f90; margin: 0 0 10px;
-            border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 6px;
+            font-size: 10px; color: var(--mm-theme-accent, #f90); margin: 0 0 10px;
+            border-bottom: 1px solid var(--mm-theme-panel-divider, rgba(255,255,255,0.1));
+            padding-bottom: 6px;
         }
         .mm-setting-row {
             display: flex; justify-content: space-between;
             align-items: center; margin-bottom: 6px;
         }
-        .mm-setting-row label { color: #ccc; }
+        .mm-setting-row label { color: var(--mm-theme-panel-muted, #ccc); }
         .mm-toggle {
-            width: 28px; height: 14px; background: #444;
+            width: 28px; height: 14px; background: var(--mm-theme-panel-divider, #444);
             border-radius: 7px; position: relative;
             cursor: pointer; border: none; flex-shrink: 0; transition: background 0.2s;
         }
-        .mm-toggle.on { background: #f90; }
+        .mm-toggle.on { background: var(--mm-theme-button, #f90); }
         .mm-toggle::after {
             content: ''; position: absolute;
             width: 10px; height: 10px; background: #fff;
@@ -1179,30 +2482,36 @@
         }
         .mm-toggle.on::after { left: 16px; }
         .mm-cycle-btn {
-            background: rgba(0,180,255,0.08);
-            border: 1px solid rgba(0,180,255,0.28);
-            color: #7cf; font-family: inherit; font-size: 7px;
+            background: var(--mm-theme-button-soft, rgba(0,180,255,0.08));
+            border: 1px solid var(--mm-theme-secondary, rgba(0,180,255,0.28));
+            color: var(--mm-theme-secondary, #7cf); font-family: inherit; font-size: 7px;
             padding: 4px 6px; border-radius: 4px; cursor: pointer;
             min-width: 86px; text-align: center;
         }
-        .mm-cycle-btn:hover { border-color: #7cf; color: #fff; }
+        .mm-cycle-btn:hover { border-color: var(--mm-theme-secondary, #7cf); color: #fff; }
         #mm-vol-slider, #mm-music-vol-slider {
             -webkit-appearance: none; width: 80px; height: 4px;
-            background: #555; border-radius: 2px; outline: none; cursor: pointer;
+            background: var(--mm-theme-panel-divider, #555);
+            border-radius: 2px; outline: none; cursor: pointer;
         }
         #mm-vol-slider::-webkit-slider-thumb, #mm-music-vol-slider::-webkit-slider-thumb {
             -webkit-appearance: none; width: 12px; height: 12px;
-            background: #f90; border-radius: 50%;
+            background: var(--mm-theme-button, #f90); border-radius: 50%;
         }
 
         /* shared close/action button style */
         .mm-btn-outline {
-            display: block; width: 100%; margin-top: 10px; background: none;
-            border: 1px solid rgba(255,255,255,0.2); color: #aaa;
+            display: block; width: 100%; margin-top: 10px;
+            background: var(--mm-theme-control-bg, transparent);
+            border: 1px solid var(--mm-theme-control-border, rgba(255,255,255,0.2));
+            color: var(--mm-theme-panel-muted, #aaa);
             font-family: var(--mm-arcade-font); font-size: 7px;
             padding: 4px; border-radius: 4px; cursor: pointer; text-align: center;
         }
-        .mm-btn-outline:hover { border-color: #f90; color: #f90; }
+        .mm-btn-outline:hover {
+            border-color: var(--mm-theme-button, #f90);
+            color: var(--mm-theme-button, #f90);
+        }
 
         /* ── SESSION SUMMARY ── */
         #mm-summary {
@@ -1212,34 +2521,114 @@
         }
         #mm-summary.open { display: flex; }
         #mm-summary-inner {
-            background: #111; border: 2px solid #f90; border-radius: 12px;
+            background: var(--mm-theme-panel-bg, #111);
+            border: 2px solid var(--mm-theme-panel-border, var(--mm-theme-accent, #f90));
+            border-radius: 12px;
             padding: 32px 40px; text-align: center; max-width: 480px; width: 90%;
+            box-shadow: var(--mm-theme-panel-shadow, none);
             animation: mmSummaryIn 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards;
         }
         @keyframes mmSummaryIn { from{transform:scale(0.5);opacity:0;} to{transform:scale(1);opacity:1;} }
-        #mm-summary h2 { color: #f90; font-size: 18px; margin: 0 0 24px; letter-spacing: 2px; }
+        #mm-summary h2 {
+            color: var(--mm-theme-accent, #f90);
+            font-size: 18px; margin: 0 0 24px; letter-spacing: 2px;
+        }
         #mm-grade      { font-size: 42px; margin: 0 0 18px; line-height: 1; }
         .mm-summary-grid {
             display: grid; grid-template-columns: 1fr 1fr;
             gap: 14px 24px; text-align: left; margin-bottom: 24px;
         }
-        .mm-summary-cell { color: #aaa; font-size: 8px; line-height: 2; }
-        .mm-summary-val  { color: #fff; font-size: 13px; display: block; }
-        .mm-summary-val.gold   { color: #ffe066; }
-        .mm-summary-val.green  { color: #7f7; }
-        .mm-summary-val.cyan   { color: #7cf; }
-        .mm-summary-val.orange { color: #f90; }
-        .mm-summary-val.pink   { color: #f0f; }
+        .mm-summary-cell { color: var(--mm-theme-panel-muted, #aaa); font-size: 8px; line-height: 2; }
+        .mm-summary-val  { color: var(--mm-theme-panel-text, #fff); font-size: 13px; display: block; }
+        .mm-summary-val.gold   { color: var(--mm-theme-notification, #ffe066); }
+        .mm-summary-val.green  { color: var(--mm-theme-success, #7f7); }
+        .mm-summary-val.cyan   { color: var(--mm-theme-secondary, #7cf); }
+        .mm-summary-val.orange { color: var(--mm-theme-accent, #f90); }
+        .mm-summary-val.pink   { color: var(--mm-theme-banner, #f0f); }
         #mm-summary-close {
-            background: #f90; border: none; color: #000;
+            background: var(--mm-theme-button, #f90); border: none; color: #000;
             font-family: var(--mm-arcade-font); font-size: 10px;
             padding: 10px 24px; border-radius: 6px; cursor: pointer;
         }
-        #mm-summary-close:hover { background: #ffb300; }
+        #mm-summary-close:hover { filter: brightness(1.12); }
+
+        .mm-theme-particle {
+            --mm-particle-x: 0px;
+            --mm-particle-y: -56px;
+            --mm-particle-size: 5px;
+            --mm-particle-life: 700ms;
+            --mm-particle-rot: 0deg;
+            position: fixed; z-index: 9999; pointer-events: none;
+            width: var(--mm-particle-size); height: var(--mm-particle-size);
+            color: var(--mm-particle-color, var(--mm-theme-notification, #ffe066));
+            background: currentColor; border-radius: 50%;
+            box-shadow: 0 0 9px currentColor;
+            animation: mmThemeParticleBurst var(--mm-particle-life) ease-out forwards;
+        }
+        .mm-theme-particle.pixel {
+            border-radius: 1px;
+            image-rendering: pixelated;
+        }
+        .mm-theme-particle.star,
+        .mm-theme-particle.glyph {
+            width: auto; height: auto; background: transparent; border-radius: 0;
+            font-family: var(--mm-arcade-font); font-size: var(--mm-particle-size);
+            line-height: 1; text-shadow: 0 0 8px currentColor;
+        }
+        .mm-theme-particle.ring {
+            background: transparent; border: 1px solid currentColor;
+        }
+        .mm-theme-particle.petal {
+            border-radius: 80% 20% 80% 20%;
+        }
+        .mm-theme-particle.fall {
+            animation-name: mmThemeParticleFall;
+        }
+        .mm-theme-particle.drift {
+            animation-name: mmThemeParticleDrift;
+        }
+        .mm-theme-particle.glitch {
+            animation-name: mmThemeParticleGlitch;
+        }
+        @keyframes mmThemeParticleBurst {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+            100% {
+                opacity: 0;
+                transform: translate(calc(-50% + var(--mm-particle-x)),
+                    calc(-50% + var(--mm-particle-y))) scale(0.3) rotate(var(--mm-particle-rot));
+            }
+        }
+        @keyframes mmThemeParticleFall {
+            0% { opacity: 0.9; transform: translate(-50%, -50%) rotate(0deg); }
+            100% {
+                opacity: 0;
+                transform: translate(calc(-50% + var(--mm-particle-x)),
+                    calc(-50% + var(--mm-particle-y) + 48px)) rotate(var(--mm-particle-rot));
+            }
+        }
+        @keyframes mmThemeParticleDrift {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+            22% { opacity: 1; }
+            100% {
+                opacity: 0;
+                transform: translate(calc(-50% + var(--mm-particle-x)),
+                    calc(-50% + var(--mm-particle-y))) scale(1.35);
+            }
+        }
+        @keyframes mmThemeParticleGlitch {
+            0% { opacity: 1; transform: translate(-50%, -50%) skewX(0deg); }
+            36% { transform: translate(calc(-50% + 8px), calc(-50% - 8px)) skewX(-14deg); }
+            100% {
+                opacity: 0;
+                transform: translate(calc(-50% + var(--mm-particle-x)),
+                    calc(-50% + var(--mm-particle-y))) skewX(16deg);
+            }
+        }
 
         @media (prefers-reduced-motion: reduce) {
             #mm-hud, #mm-combo-bar, .mm-toggle::after,
-            .mm-float, .mm-hud-micro, #mm-mult-banner, #mm-milestone-banner,
+            .mm-float, .mm-hud-micro, .mm-theme-particle,
+            #mm-mult-banner, #mm-milestone-banner,
             .mm-celebrate, #mm-flash, body.mm-shake-light,
             body.mm-shake-hard, .mm-pulse, .mm-bounce,
             .mm-progress-glow, #mm-summary-inner {
@@ -1247,8 +2636,8 @@
                 transition: none !important;
             }
 
-            .mm-float, .mm-hud-micro, #mm-mult-banner, #mm-milestone-banner,
-            .mm-celebrate, #mm-flash {
+            .mm-float, .mm-hud-micro, .mm-theme-particle,
+            #mm-mult-banner, #mm-milestone-banner, .mm-celebrate, #mm-flash {
                 opacity: 0 !important;
             }
         }
@@ -1738,13 +3127,13 @@
             <div class="mm-setting-row">
                 <label>Background</label>
                 <button class="mm-cycle-btn" id="mm-bg-theme" type="button">
-                    ${BACKGROUND_THEME_LABELS[settings.backgroundTheme]}
+                    ${ThemeManager.getThemeLabel(settings.backgroundTheme)}
                 </button>
             </div>
             <div class="mm-setting-row">
                 <label>Pinned Default</label>
                 <button class="mm-cycle-btn" id="mm-pinned-bg-theme" type="button">
-                    ${BACKGROUND_THEME_LABELS[settings.pinnedBackgroundTheme]}
+                    ${ThemeManager.getThemeLabel(settings.pinnedBackgroundTheme)}
                 </button>
             </div>
             <button class="mm-btn-outline" id="mm-pin-bg">PIN CURRENT BACKGROUND</button>
@@ -1814,13 +3203,13 @@
 
         const updateBackgroundButtons = () => {
             panel.querySelector('#mm-bg-theme').textContent =
-                BACKGROUND_THEME_LABELS[settings.backgroundTheme];
+                ThemeManager.getThemeLabel(settings.backgroundTheme);
             panel.querySelector('#mm-pinned-bg-theme').textContent =
-                BACKGROUND_THEME_LABELS[settings.pinnedBackgroundTheme];
+                ThemeManager.getThemeLabel(settings.pinnedBackgroundTheme);
         };
 
         const setBackgroundTheme = theme => {
-            settings.backgroundTheme = normalizeBackgroundTheme(theme);
+            ThemeManager.applyTheme(theme, { persist: true });
             updateBackgroundButtons();
             saveSettings();
             restartArcadeBackdrop();
@@ -1833,13 +3222,15 @@
         };
 
         panel.querySelector('#mm-bg-theme').addEventListener('click', () => {
-            const current = BACKGROUND_THEMES.indexOf(settings.backgroundTheme);
-            setBackgroundTheme(BACKGROUND_THEMES[(current + 1) % BACKGROUND_THEMES.length]);
+            const themeIds = ThemeManager.getThemeIds();
+            const current = themeIds.indexOf(ThemeManager.getThemeId(settings.backgroundTheme));
+            setBackgroundTheme(themeIds[(current + 1) % themeIds.length]);
         });
 
         panel.querySelector('#mm-pinned-bg-theme').addEventListener('click', () => {
-            const current = BACKGROUND_THEMES.indexOf(settings.pinnedBackgroundTheme);
-            setPinnedBackgroundTheme(BACKGROUND_THEMES[(current + 1) % BACKGROUND_THEMES.length]);
+            const themeIds = ThemeManager.getThemeIds();
+            const current = themeIds.indexOf(ThemeManager.getThemeId(settings.pinnedBackgroundTheme));
+            setPinnedBackgroundTheme(themeIds[(current + 1) % themeIds.length]);
         });
 
         panel.querySelector('#mm-pin-bg').addEventListener('click', () => {
@@ -2132,7 +3523,10 @@
     }
 
     function applyTimeoutPenalty() {
-        if (state.answerStreak > 4) playComboBreakSound();
+        if (state.answerStreak > 4) {
+            playComboBreakSound();
+            spawnThemeParticles('comboBreak', getInputWrapper());
+        }
         state.answerStreak = 0;
         state.multiplier = 1;
         updateHUD();
@@ -2147,6 +3541,8 @@
         setTimerBarPresentation(0);
         syncXpBonusDisplay();
         spawnFloat('TIME UP', 'incorrect', getInputWrapper());
+        playThemeSound('timeout');
+        spawnThemeParticles('timeout', getInputWrapper());
 
         if (settings.timeoutFailureEnabled) {
             timeoutAutoFailing = attemptTimeoutAutoFail();
@@ -2281,14 +3677,38 @@
         }
     }
 
+    const FLOAT_EVENT_TYPES = {
+        correct: 'correct',
+        incorrect: 'incorrect',
+        wordwin: 'wordComplete',
+        milestone: 'milestone',
+        rewind: 'rewind',
+    };
+
+    const BANNER_EVENT_TYPES = {
+        'mm-mult-banner': 'multiplierUp',
+        'mm-milestone-banner': 'milestone',
+    };
+
+    function getAnchorPoint(anchorEl) {
+        const rect = anchorEl?.getBoundingClientRect();
+        return {
+            x: rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
+            y: rect ? rect.top + rect.height / 2 : window.innerHeight / 2,
+        };
+    }
+
     function shakeScreen(hard = false) {
         if (isLiteMode() || !settings.shakeEnabled
             || !settings.visualsEnabled || prefersReducedMotion()) return;
-        const cls = hard ? 'mm-shake-hard' : 'mm-shake-light';
+        const scale = ThemeManager.getEffectBudget(hard ? 'comboBreak' : 'correct').shakeScale;
+        if (scale < 0.2) return;
+        const hardShake = hard && scale >= 0.75;
+        const cls = hardShake ? 'mm-shake-hard' : 'mm-shake-light';
         document.body.classList.remove('mm-shake-light', 'mm-shake-hard');
         void document.body.offsetWidth;
         document.body.classList.add(cls);
-        setTimeout(() => document.body.classList.remove(cls), hard ? 450 : 350);
+        setTimeout(() => document.body.classList.remove(cls), hardShake ? 450 : 350);
     }
 
     function flashScreen(correct) {
@@ -2317,21 +3737,34 @@
             lastLiteFloatAt = now;
         }
         const node = document.createElement('div');
+        const eventType = FLOAT_EVENT_TYPES[cssClass] || cssClass || 'correct';
+        const preset = ThemeManager.getFloatingTextPreset(eventType);
         node.className   = `mm-float ${cssClass}`;
         node.textContent = text;
-        const r = anchorEl?.getBoundingClientRect();
-        node.style.left = `${(r ? r.left + r.width / 2 : window.innerWidth / 2) - 60 + (Math.random() - 0.5) * 80}px`;
-        node.style.top  = `${r ? r.top + r.height / 2 : window.innerHeight / 2}px`;
+        if (preset.color) node.style.color = preset.color;
+        if (preset.shadow) node.style.textShadow = preset.shadow;
+        if (preset.fontSize) node.style.fontSize = preset.fontSize;
+        if (preset.fontFamily) node.style.fontFamily = preset.fontFamily;
+        if (preset.label) node.dataset.mmLabel = preset.label;
+        if (preset.motion) node.dataset.mmMotion = preset.motion;
+        const point = getAnchorPoint(anchorEl);
+        node.style.left = `${point.x - 60 + (Math.random() - 0.5) * 80}px`;
+        node.style.top  = `${point.y}px`;
+        node.style.setProperty('--mm-float-drift-x', `${Math.round((Math.random() - 0.5) * 42)}px`);
         document.body.appendChild(node);
-        setTimeout(() => node.remove(), 950);
+        setTimeout(() => node.remove(), 1350);
     }
 
     function showBanner(id, text) {
         if (isLiteMode() || !settings.visualsEnabled || prefersReducedMotion()) return;
         const b = document.getElementById(id);
         if (!b) return;
+        const preset = ThemeManager.getComboPreset(BANNER_EVENT_TYPES[id] || 'multiplierUp');
         b.textContent = text;
         b.className   = '';
+        b.dataset.mmComboStyle = preset.style || 'pop';
+        if (preset.color) b.style.color = preset.color;
+        if (preset.shadow) b.style.textShadow = preset.shadow;
         void b.offsetWidth;
         b.classList.add('show');
     }
@@ -2343,10 +3776,54 @@
         node.textContent = celebration.icon;
         node.style.left = `${x}px`;
         node.style.top  = `${y}px`;
+        node.style.color = ThemeManager.getThemeValue('colors.banner', '#fff');
         node.style.setProperty('--mm-celebrate-x', `${Math.round((Math.random() - 0.5) * 100)}px`);
         node.style.setProperty('--mm-celebrate-rot', `${Math.round((Math.random() - 0.5) * 90)}deg`);
         document.body.appendChild(node);
         setTimeout(() => node.remove(), 1000);
+    }
+
+    function getParticleText(shape, preset) {
+        if (shape === 'star') return '✦';
+        if (shape !== 'glyph') return '';
+        const glyphs = preset.glyphs || '01';
+        return glyphs[Math.floor(Math.random() * glyphs.length)];
+    }
+
+    function spawnThemeParticles(eventType, anchorEl, options = {}) {
+        if (!settings.visualsEnabled || prefersReducedMotion() || document.hidden) return;
+        const preset = { ...ThemeManager.getParticlePreset(eventType), ...options };
+        const budget = ThemeManager.getEffectBudget(eventType);
+        const baseCount = isLiteMode()
+            ? Number(preset.liteCount) || 0
+            : Number(preset.count) || 0;
+        const maxCount = isLiteMode() ? 2 : (isMaxMode() ? 16 : 12);
+        const count = Math.min(maxCount, Math.max(0, Math.round(baseCount * budget.intensity)));
+        if (count <= 0) return;
+
+        const point = getAnchorPoint(anchorEl);
+        const spread = Number(preset.spread) || 64;
+        const lifetime = Number(preset.lifetimeMs) || 700;
+        for (let index = 0; index < count; index++) {
+            const node = document.createElement('span');
+            const shape = preset.shape || 'dot';
+            const motion = preset.motion || 'burst';
+            const angle = Math.random() * Math.PI * 2;
+            const distance = spread * (0.25 + Math.random() * 0.75);
+            const fallBias = motion === 'fall' ? spread * 0.6 : 0;
+            node.className = `mm-theme-particle ${shape} ${motion}`;
+            node.textContent = getParticleText(shape, preset);
+            node.style.left = `${point.x + (Math.random() - 0.5) * 20}px`;
+            node.style.top = `${point.y + (Math.random() - 0.5) * 16}px`;
+            node.style.setProperty('--mm-particle-color', preset.color || 'var(--mm-theme-notification)');
+            node.style.setProperty('--mm-particle-size', `${Number(preset.size) || 5}px`);
+            node.style.setProperty('--mm-particle-life', `${lifetime}ms`);
+            node.style.setProperty('--mm-particle-x', `${Math.cos(angle) * distance}px`);
+            node.style.setProperty('--mm-particle-y', `${Math.sin(angle) * distance + fallBias}px`);
+            node.style.setProperty('--mm-particle-rot', `${Math.round((Math.random() - 0.5) * 220)}deg`);
+            document.body.appendChild(node);
+            setTimeout(() => node.remove(), lifetime + 120);
+        }
     }
 
     function pulseElement(el) {
@@ -2436,12 +3913,13 @@
         /* Scanlines */
         #mm-scanlines {
             position: fixed; inset: 0; pointer-events: none; z-index: 9991;
+            opacity: var(--mm-theme-scanline-opacity, 1);
             background: repeating-linear-gradient(
                 to bottom,
                 transparent 0px,
                 transparent 2px,
-                rgba(0,0,0,0.18) 2px,
-                rgba(0,0,0,0.18) 4px
+                var(--mm-theme-scanline-color, rgba(0,0,0,0.18)) 2px,
+                var(--mm-theme-scanline-color, rgba(0,0,0,0.18)) 4px
             );
         }
         body:not(.mm-crt-enabled) #mm-crt-tint,
@@ -2482,7 +3960,8 @@
         body.mm-arcade.mm-crt-enabled [class*="question"],
         body.mm-arcade.mm-crt-enabled [class*="card"],
         body.mm-arcade.mm-crt-enabled [class*="review"] {
-            box-shadow: 0 0 24px rgba(0,220,255,0.12), 0 0 2px rgba(0,220,255,0.08) !important;
+            box-shadow: 0 0 24px var(--mm-theme-field-glow, rgba(0,220,255,0.12)),
+                0 0 2px var(--mm-theme-field-glow, rgba(0,220,255,0.08)) !important;
         }
         body.mm-performance-mode.mm-arcade .input-wrapper,
         body.mm-performance-mode.mm-arcade [class*="question"],
@@ -2494,18 +3973,18 @@
         /* Glow on text inputs */
         body.mm-arcade input[type="text"],
         body.mm-arcade input:not([type]) {
-            color: #00ffcc !important;
-            caret-color: #00ffcc !important;
-            background: rgba(0,0,0,0.6) !important;
-            border-color: rgba(0,200,255,0.4) !important;
+            color: var(--mm-theme-secondary, #00ffcc) !important;
+            caret-color: var(--mm-theme-secondary, #00ffcc) !important;
+            background: var(--mm-theme-field-bg, rgba(0,0,0,0.6)) !important;
+            border-color: var(--mm-theme-field-border, rgba(0,200,255,0.4)) !important;
         }
         body.mm-arcade.mm-crt-enabled input[type="text"],
         body.mm-arcade.mm-crt-enabled input:not([type]) {
-            text-shadow: 0 0 8px rgba(0,255,200,0.6) !important;
+            text-shadow: 0 0 8px var(--mm-theme-field-glow, rgba(0,255,200,0.6)) !important;
         }
         body.mm-arcade input[type="text"]::placeholder,
         body.mm-arcade input:not([type])::placeholder {
-            color: rgba(0,200,255,0.35) !important;
+            color: var(--mm-theme-secondary, rgba(0,200,255,0.35)) !important;
         }
         body.mm-performance-mode.mm-arcade input[type="text"],
         body.mm-performance-mode.mm-arcade input:not([type]) {
@@ -2518,7 +3997,7 @@
             content: '';
             position: absolute;
             width: 18px; height: 18px;
-            border-color: rgba(0,220,255,0.55);
+            border-color: var(--mm-theme-field-border, rgba(0,220,255,0.55));
             border-style: solid;
             pointer-events: none;
             z-index: 2;
@@ -2537,30 +4016,32 @@
         body.mm-arcade [role="progressbar"] > *,
         body.mm-arcade .progress-bar,
         body.mm-arcade .progress > * {
-            background: linear-gradient(90deg, #00cc88, #00ffcc) !important;
+            background: var(--mm-theme-progress, linear-gradient(90deg, #00cc88, #00ffcc)) !important;
         }
         body.mm-arcade.mm-crt-enabled [role="progressbar"] > *,
         body.mm-arcade.mm-crt-enabled .progress-bar,
         body.mm-arcade.mm-crt-enabled .progress > * {
-            box-shadow: 0 0 8px rgba(0,255,180,0.5) !important;
+            box-shadow: 0 0 8px var(--mm-theme-success, rgba(0,255,180,0.5)) !important;
         }
 
         /* ── TOP COUNTER — arcade colour ── */
         body.mm-arcade .top_middle {
             font-family: var(--mm-arcade-font) !important;
-            color: #ffe066 !important;
+            color: var(--mm-theme-notification, #ffe066) !important;
             letter-spacing: 2px !important;
         }
         body.mm-arcade.mm-crt-enabled .top_middle {
-            text-shadow: 0 0 8px rgba(255,220,0,0.6) !important;
+            text-shadow: var(--mm-theme-counter-shadow, 0 0 8px rgba(255,220,0,0.6)) !important;
         }
 
         /* ── CORRECT / INCORRECT state tints ── */
         body.mm-arcade .input-wrapper.correct {
-            box-shadow: 0 0 32px rgba(0,255,150,0.35), 0 0 4px rgba(0,255,150,0.2) !important;
+            box-shadow: 0 0 32px var(--mm-theme-field-glow, rgba(0,255,150,0.35)),
+                0 0 4px var(--mm-theme-success, rgba(0,255,150,0.2)) !important;
         }
         body.mm-arcade .input-wrapper.incorrect {
-            box-shadow: 0 0 32px rgba(255,40,80,0.4), 0 0 4px rgba(255,40,80,0.2) !important;
+            box-shadow: 0 0 32px var(--mm-theme-failure, rgba(255,40,80,0.4)),
+                0 0 4px var(--mm-theme-failure, rgba(255,40,80,0.2)) !important;
         }
         body.mm-performance-mode.mm-arcade .input-wrapper.correct,
         body.mm-performance-mode.mm-arcade .input-wrapper.incorrect,
@@ -2603,18 +4084,22 @@
     }
 
     function restartArcadeBackdrop() {
+        ThemeManager.applyTheme(settings.backgroundTheme, { persist: false });
         if (!settings.visualsEnabled) return;
-        document.body.dataset.mmBg = settings.backgroundTheme;
         stopArcadeBackdrop();
         syncArcadePresentation();
     }
 
     function hasCanvasBackdrop(theme = settings.backgroundTheme) {
-        return CANVAS_BACKGROUND_THEMES.includes(theme);
+        const resolved = ThemeManager.getActiveTheme(theme);
+        return resolved.background.allowCanvasEffects
+            && CANVAS_BACKGROUND_THEMES.includes(resolved.background.renderer);
     }
 
     function hasShootingStars(theme = settings.backgroundTheme) {
-        return SHOOTING_STAR_THEMES.includes(theme);
+        const resolved = ThemeManager.getActiveTheme(theme);
+        return resolved.background.shootingStars
+            && SHOOTING_STAR_THEMES.includes(resolved.id);
     }
 
     function triggerShootingStar() {
@@ -2634,7 +4119,7 @@
 
     function buildStarfield() {
         if (!hasCanvasBackdrop()
-            || (prefersReducedMotion() && settings.backgroundTheme !== 'shrine')) return;
+            || (prefersReducedMotion() && ThemeManager.getThemeId() !== 'shrine')) return;
         document.getElementById('mm-starfield')?.remove();
         const canvas = document.createElement('canvas');
         canvas.id = 'mm-starfield';
@@ -2658,7 +4143,7 @@
         let nextFrameDue = 0;
         let frameScale = 1;
 
-        const theme = settings.backgroundTheme;
+        const theme = ThemeManager.getActiveTheme().background.renderer;
         // Canvas cost scales with both pixels and frames; Lite Mode reduces both.
         const frameInterval = isLiteMode() ? 1000 / 12 : 1000 / 60;
         const renderScale = isLiteMode() ? 0.7 : 1;
@@ -4006,10 +5491,11 @@
     function arcadeOn() {
         if (!settings.visualsEnabled) return;
         const resolved = isAnswerResolved();
+        const theme = ThemeManager.applyTheme(settings.backgroundTheme, { persist: false });
         injectArcadeStyles();
         document.body.classList.add('mm-arcade');
         document.body.classList.toggle('mm-arcade-resolved', resolved);
-        document.body.dataset.mmBg = settings.backgroundTheme;
+        document.body.dataset.mmBg = theme.id;
 
         if (hasCanvasBackdrop()) {
             if (!document.getElementById('mm-starfield')) buildStarfield();
@@ -4029,6 +5515,7 @@
     }
 
     function syncArcadePresentation() {
+        ThemeManager.applyTheme(settings.backgroundTheme, { persist: false });
         if (settings.visualsEnabled) {
             arcadeOn();
         } else {
@@ -4071,7 +5558,10 @@
     ];
 
     function getRandomCelebration() {
-        return CELEBRATIONS[Math.floor(Math.random() * CELEBRATIONS.length)];
+        const preset = ThemeManager.getComboPreset('wordComplete');
+        const icons = preset.celebrations?.length ? preset.celebrations : CELEBRATIONS;
+        const icon = icons[Math.floor(Math.random() * icons.length)];
+        return typeof icon === 'string' ? { icon, effect: 'rise' } : icon;
     }
 
     const FONT_CHALLENGE_LOCAL_FONTS = [
@@ -4244,12 +5734,14 @@
         if (newMult > prevMult) {
             showBanner('mm-mult-banner', `${newMult}x COMBO!`);
             playMultiplierUpSound(newMult);
+            spawnThemeParticles('multiplierUp', getInputWrapper());
         }
 
         const milestone = MILESTONES[state.answerStreak];
         if (milestone) {
             showBanner('mm-milestone-banner', milestone);
             spawnFloat(milestone, 'milestone', getInputWrapper());
+            spawnThemeParticles('milestone', getInputWrapper());
         }
 
         updateHUD();
@@ -4267,6 +5759,7 @@
             ? `+${pts} · ${timedXp.tier.label}! XP x${timedXp.multiplier.toFixed(2)}`
             : `+${pts}`;
         spawnFloat(floatText, 'correct', getInputWrapper());
+        spawnThemeParticles('correct', getInputWrapper());
         pulseElement(els.hud);
         if (state.answerStreak % 10 === 0) shakeScreen(true);
     }
@@ -4299,6 +5792,7 @@
         spawnFloat('WRONG', 'incorrect', anchor);
         if (lostStreak >= 5) spawnFloat(`-${lostStreak} COMBO LOST`, 'incorrect', anchor);
         if (penalty > 0)     spawnFloat(`-${penalty}`, 'incorrect', anchor);
+        spawnThemeParticles(lostStreak >= 5 ? 'comboBreak' : 'incorrect', anchor);
 
     }
 
@@ -4315,6 +5809,7 @@
         if (progress) animateClass(progress, 'mm-progress-glow', 600);
 
         spawnFloat('WORD CLEAR!', 'wordwin', counter);
+        spawnThemeParticles('wordComplete', counter);
 
         const r     = counter?.getBoundingClientRect();
         spawnCelebrate(getRandomCelebration(),
@@ -4368,6 +5863,7 @@
         overlay.classList.add('open');
         overlay.querySelector('#mm-summary-close')
                .addEventListener('click', () => overlay.classList.remove('open'));
+        spawnThemeParticles('sessionComplete', overlay.querySelector('#mm-summary-inner'));
     }
 
     function observeCorrectness() {
@@ -4447,7 +5943,7 @@
 
     function init() {
         if (initialized || !getInputWrapper()) return;
-        settings.backgroundTheme = settings.pinnedBackgroundTheme;
+        ThemeManager.applyTheme(settings.pinnedBackgroundTheme, { persist: true });
         resetState();
         syncPerformanceProfilePresentation();
         injectStyles();
@@ -4515,7 +6011,8 @@
         }
         hudMicroEl?.remove();
         hudMicroEl = null;
-        document.querySelectorAll('.mm-float, .mm-celebrate').forEach(node => node.remove());
+        document.querySelectorAll('.mm-float, .mm-celebrate, .mm-theme-particle')
+            .forEach(node => node.remove());
         stopAnswerTimer();
         removeFirstAnswerInputGate();
         clearFontChallenge();
@@ -4539,6 +6036,7 @@
             document.getElementById(id)?.remove()
         );
         arcadeOff();
+        ThemeManager.clearPresentation();
         document.body.classList.remove(
             'mm-performance-mode', 'mm-max-mode',
             'mm-shake-light', 'mm-shake-hard'

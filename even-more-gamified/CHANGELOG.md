@@ -2,6 +2,34 @@
 
 All notable changes to `MaruMori Even More Gamified - Updated` are documented here.
 
+## 2026-07-09 - v3.7.0
+
+### Added
+
+- Added a data-driven Theme Personality System foundation with theme
+  definitions, preset registries, and a central `ThemeManager`.
+- Added theme-aware CSS variables for HUD, settings, timer, banners, flashes,
+  floating text, progress accents, and summary UI.
+- Added bounded DOM particles for current gameplay presentation events:
+  correct, incorrect, word complete, multiplier up, milestone, combo break,
+  timeout, and session complete.
+- Added procedural theme-aware sound presets while keeping the existing shared
+  Web Audio tone path.
+- Added per-theme UI surface materials, floating feedback labels, banner
+  motion styles, and synth note slides/detune so each theme has a clearer
+  personality beyond its background art.
+
+### Changed
+
+- Background selection and pinned theme restoration now route through
+  `ThemeManager` while preserving the existing `backgroundTheme` persistence
+  model.
+- Theme identity now influences feedback colors, sounds, small particles,
+  combo banners, celebration symbols, and shake intensity without changing
+  scoring, XP, timer, rewind, or MaruMori answer flow.
+- Theme styling now reaches the HUD, settings panel, summary panel, scanlines,
+  native answer input glow, review card brackets, and top counter treatment.
+
 ## 2026-07-09 - v3.6.2
 
 ### Changed
