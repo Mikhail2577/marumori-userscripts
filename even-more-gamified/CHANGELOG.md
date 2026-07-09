@@ -6,7 +6,20 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ### Changed
 
-- Bumped the userscript version to `3.5.1`.
+- Bumped the userscript version to `3.5.2`.
+- Disabled full-screen failure flashes by default with a separate persisted
+  `Failure Flash` setting.
+- Kept incorrect-answer shake, sound, floating text, input tint, and HUD danger
+  feedback while removing the body-wide chromatic and dim pulses.
+- Reworked the former `CRT Theme` setting into independent `CRT Effects`.
+- CRT now controls only scanlines, vignette, flicker, and phosphor glow; turning
+  it off leaves the HUD, selected background, particles, themes, and base arcade
+  styling active.
+- Keeps CRT overlays stable while answers resolve instead of briefly removing
+  them and brightening the page during feedback.
+- Migrated the previous `arcadeEnabled` value to `crtEnabled`.
+- Automatically suppresses CRT effects in `LITE` while preserving the saved CRT
+  preference for `BALANCED` and `MAX`.
 - Added persistent `MAX`, `BALANCED`, and `LITE` visual profiles:
   - `MAX` synchronizes canvas and timer animation with the display refresh rate.
   - `BALANCED`, the default, preserves the original effect density while capping

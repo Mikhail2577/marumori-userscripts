@@ -19,7 +19,8 @@ This is intended to be shared back with the original script author as an experim
 - Per-word timer behavior, including optional Timeout Fail mode.
 - Font Challenge difficulty mode with random Japanese fonts.
 - Difficulty XP multipliers.
-- CRT theme with scanlines, multiple procedural backgrounds, void mode, and shooting stars.
+- Multiple procedural backgrounds, void mode, and shooting stars.
+- Independent CRT effects that can be disabled without disabling themes or backgrounds.
 - Optional procedural `LO-FI` and `RETRO` music with independent volume.
 - Persistent `MAX`, `BALANCED`, and `LITE` visual profiles.
 - Expanded word-clear celebration variants.
@@ -69,7 +70,11 @@ scoring, timers, rewind, difficulty bonuses, or core HUD feedback.
   canvas rendering at 60 FPS and the timer bar at 30 FPS.
 - `LITE` uses 70% canvas resolution, 12 FPS backgrounds, and a 5 FPS timer while
   reducing particles, full-page effects, popup frequency, procedural music,
-  blur, shadows, and challenge webfont loading.
+  blur, shadows, challenge webfont loading, and CRT overlays.
+
+Incorrect answers keep their shake, sound, input tint, floating feedback, and
+HUD warning. The optional `Failure Flash` is disabled by default and uses a
+short, low-opacity dark red pulse when enabled.
 
 ## Changelog
 

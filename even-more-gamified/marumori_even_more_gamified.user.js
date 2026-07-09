@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         MaruMori Even More Gamified - Updated
 // @namespace    marumori-gamify
-// @version      3.5.1
+// @version      3.5.2
 // @description  Gamifies MaruMori review sessions with arcade combo audio, score multipliers, screen shake, floating damage numbers, and more
 // @match        https://marumori.io/*
 // @author       matskye
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_getResourceURL
-// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.5.1
+// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.5.2
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=marumori.io
 // @license      WTFPL
 // @downloadURL https://update.greasyfork.org/scripts/566950/MaruMori%20Even%20More%20Gamified.user.js
@@ -25,7 +25,8 @@
         shakeEnabled:   true,
         floatEnabled:   true,
         flashEnabled:   true,
-        arcadeEnabled:  true,
+        failureFlashEnabled: false,
+        crtEnabled:     true,
         autoFailTimeout: false,
         fontChallengeEnabled: false,
         performanceProfile: 'balanced',
@@ -73,12 +74,13 @@
     };
     const SHRINE_IMAGE_URL =
         'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/'
-        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.5.1';
+        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.5.2';
     const RESOLVED_BACKDROP_OPACITY = 0.5;
 
     const BOOL_SETTINGS = [
         'sfxEnabled', 'visualsEnabled', 'hudEnabled', 'shakeEnabled',
-        'floatEnabled', 'flashEnabled', 'arcadeEnabled', 'autoFailTimeout',
+        'floatEnabled', 'flashEnabled', 'failureFlashEnabled', 'crtEnabled',
+        'autoFailTimeout',
         'fontChallengeEnabled', 'musicEnabled', 'hudCollapsed',
     ];
 
@@ -121,6 +123,9 @@
         const next = { ...DEFAULTS };
         for (const key of BOOL_SETTINGS) {
             if (typeof raw[key] === 'boolean') next[key] = raw[key];
+        }
+        if (typeof raw.crtEnabled !== 'boolean' && typeof raw.arcadeEnabled === 'boolean') {
+            next.crtEnabled = raw.arcadeEnabled;
         }
         next.volume = clamp(raw.volume, 0, 1, DEFAULTS.volume);
         next.musicVolume = clamp(raw.musicVolume, 0, 0.5, DEFAULTS.musicVolume);
@@ -980,7 +985,7 @@
         /* ── SCREEN FLASH ── */
         #mm-flash { position: fixed; inset: 0; pointer-events: none; z-index: 10002; opacity: 0; }
         #mm-flash.correct-flash { background: rgba(100,255,150,0.18); animation: mmFlash 0.3s ease forwards; }
-        #mm-flash.wrong-flash   { background: rgba(255,60,60,0.28);   animation: mmFlash 0.4s ease forwards; }
+        #mm-flash.wrong-flash   { background: rgba(90,0,20,0.10); animation: mmFlash 0.24s ease forwards; }
         @keyframes mmFlash { 0%{ opacity:1; } 100%{ opacity:0; } }
 
         /* ── SHAKE ── */
@@ -1095,8 +1100,6 @@
             padding: 10px 24px; border-radius: 6px; cursor: pointer;
         }
         #mm-summary-close:hover { background: #ffb300; }
-
-        body.mm-wrong-dim { filter: grayscale(0.7) brightness(0.85); }
 
         @media (prefers-reduced-motion: reduce) {
             #mm-hud, #mm-combo-bar, .mm-toggle::after,
@@ -1548,7 +1551,8 @@
         ['shakeEnabled',   'Screen Shake'],
         ['floatEnabled',   'Floating Text'],
         ['flashEnabled',   'Screen Flash'],
-        ['arcadeEnabled',  'CRT Theme'],
+        ['failureFlashEnabled', 'Failure Flash'],
+        ['crtEnabled',     'CRT Effects'],
         ['musicEnabled',   'Music'],
         ['autoFailTimeout', 'Timeout Fail'],
         ['fontChallengeEnabled', 'Font Challenge'],
@@ -1730,16 +1734,14 @@
         if (key === 'visualsEnabled') {
             if (!settings.visualsEnabled) {
                 arcadeOff();
-                document.body.classList.remove(
-                    'mm-shake-light', 'mm-shake-hard', 'mm-chromatic', 'mm-wrong-dim'
-                );
-            } else if (settings.arcadeEnabled) {
+                document.body.classList.remove('mm-shake-light', 'mm-shake-hard');
+            } else {
                 syncArcadePresentation();
             }
         }
 
-        if (key === 'arcadeEnabled') {
-            settings.arcadeEnabled ? syncArcadePresentation() : arcadeOff();
+        if (key === 'crtEnabled') {
+            syncCrtEffects();
         }
 
         if (key === 'musicEnabled') {
@@ -2038,6 +2040,7 @@
     function flashScreen(correct) {
         if (isLiteMode() || !settings.flashEnabled
             || !settings.visualsEnabled || prefersReducedMotion()) return;
+        if (!correct && !settings.failureFlashEnabled) return;
         const f = els.flash;
         if (!f) return;
         f.className = '';
@@ -2155,9 +2158,7 @@
         }
 
         body.mm-arcade.mm-arcade-resolved[data-mm-bg="default"] #mm-starfield,
-        body.mm-arcade.mm-arcade-resolved[data-mm-bg="void"] #mm-starfield,
-        body.mm-arcade.mm-arcade-resolved #mm-crt-tint,
-        body.mm-arcade.mm-arcade-resolved #mm-scanlines {
+        body.mm-arcade.mm-arcade-resolved[data-mm-bg="void"] #mm-starfield {
             display: none !important;
         }
 
@@ -2182,6 +2183,10 @@
                 rgba(0,0,0,0.18) 4px
             );
         }
+        body:not(.mm-crt-enabled) #mm-crt-tint,
+        body:not(.mm-crt-enabled) #mm-scanlines {
+            display: none !important;
+        }
 
         /* Arcade backdrop sits behind page content */
         #mm-starfield {
@@ -2200,9 +2205,11 @@
         }
         body.mm-arcade {
             isolation: isolate;
+        }
+        body.mm-arcade.mm-crt-enabled {
             animation: mmCrtFlicker 8s infinite;
         }
-        body.mm-arcade[data-mm-bg="shrine"] {
+        body.mm-arcade.mm-crt-enabled[data-mm-bg="shrine"] {
             animation: none;
         }
         body.mm-performance-mode.mm-arcade {
@@ -2210,10 +2217,10 @@
         }
 
         /* ── PHOSPHOR GLOW on the main card area ── */
-        body.mm-arcade .input-wrapper,
-        body.mm-arcade [class*="question"],
-        body.mm-arcade [class*="card"],
-        body.mm-arcade [class*="review"] {
+        body.mm-arcade.mm-crt-enabled .input-wrapper,
+        body.mm-arcade.mm-crt-enabled [class*="question"],
+        body.mm-arcade.mm-crt-enabled [class*="card"],
+        body.mm-arcade.mm-crt-enabled [class*="review"] {
             box-shadow: 0 0 24px rgba(0,220,255,0.12), 0 0 2px rgba(0,220,255,0.08) !important;
         }
         body.mm-performance-mode.mm-arcade .input-wrapper,
@@ -2228,9 +2235,12 @@
         body.mm-arcade input:not([type]) {
             color: #00ffcc !important;
             caret-color: #00ffcc !important;
-            text-shadow: 0 0 8px rgba(0,255,200,0.6) !important;
             background: rgba(0,0,0,0.6) !important;
             border-color: rgba(0,200,255,0.4) !important;
+        }
+        body.mm-arcade.mm-crt-enabled input[type="text"],
+        body.mm-arcade.mm-crt-enabled input:not([type]) {
+            text-shadow: 0 0 8px rgba(0,255,200,0.6) !important;
         }
         body.mm-arcade input[type="text"]::placeholder,
         body.mm-arcade input:not([type])::placeholder {
@@ -2262,25 +2272,15 @@
             border-width: 0 2px 2px 0;
         }
 
-        /* ── CHROMATIC ABERRATION on wrong answer ── */
-        @keyframes mmChromatic {
-            0%  { filter: none; }
-            15% { filter: drop-shadow(-2px 0 0 rgba(255,0,80,0.7))
-                          drop-shadow(2px 0 0 rgba(0,255,220,0.7)); }
-            30% { filter: none; }
-            45% { filter: drop-shadow(-1px 0 0 rgba(255,0,80,0.5))
-                          drop-shadow(1px 0 0 rgba(0,255,220,0.5)); }
-            60% { filter: none; }
-            100%{ filter: none; }
-        }
-        body.mm-arcade.mm-chromatic { animation: mmChromatic 0.5s ease forwards; }
-        body.mm-performance-mode.mm-arcade.mm-chromatic { animation: none; }
-
         /* ── PROGRESS BAR — phosphor green ── */
         body.mm-arcade [role="progressbar"] > *,
         body.mm-arcade .progress-bar,
         body.mm-arcade .progress > * {
             background: linear-gradient(90deg, #00cc88, #00ffcc) !important;
+        }
+        body.mm-arcade.mm-crt-enabled [role="progressbar"] > *,
+        body.mm-arcade.mm-crt-enabled .progress-bar,
+        body.mm-arcade.mm-crt-enabled .progress > * {
             box-shadow: 0 0 8px rgba(0,255,180,0.5) !important;
         }
 
@@ -2288,8 +2288,10 @@
         body.mm-arcade .top_middle {
             font-family: var(--mm-arcade-font) !important;
             color: #ffe066 !important;
-            text-shadow: 0 0 8px rgba(255,220,0,0.6) !important;
             letter-spacing: 2px !important;
+        }
+        body.mm-arcade.mm-crt-enabled .top_middle {
+            text-shadow: 0 0 8px rgba(255,220,0,0.6) !important;
         }
 
         /* ── CORRECT / INCORRECT state tints ── */
@@ -2340,7 +2342,7 @@
     }
 
     function restartArcadeBackdrop() {
-        if (!settings.arcadeEnabled || !settings.visualsEnabled) return;
+        if (!settings.visualsEnabled) return;
         document.body.dataset.mmBg = settings.backgroundTheme;
         stopArcadeBackdrop();
         syncArcadePresentation();
@@ -2355,7 +2357,7 @@
     }
 
     function triggerShootingStar() {
-        if (isLiteMode() || !settings.arcadeEnabled || !settings.visualsEnabled
+        if (isLiteMode() || !settings.visualsEnabled
             || prefersReducedMotion() || isAnswerResolved()) return;
         if (!hasShootingStars()) return;
         shootingStars.push({
@@ -3725,6 +3727,21 @@
         tick();
     }
 
+    function syncCrtEffects() {
+        const enabled = settings.visualsEnabled && settings.crtEnabled
+            && !isLiteMode();
+        document.body.classList.toggle('mm-crt-enabled', enabled);
+        if (!enabled) {
+            document.getElementById('mm-crt-tint')?.remove();
+            document.getElementById('mm-scanlines')?.remove();
+            return;
+        }
+        const frag = document.createDocumentFragment();
+        if (!document.getElementById('mm-crt-tint'))   frag.appendChild(el('div', 'mm-crt-tint'));
+        if (!document.getElementById('mm-scanlines'))  frag.appendChild(el('div', 'mm-scanlines'));
+        document.body.appendChild(frag);
+    }
+
     function arcadeOn() {
         if (!settings.visualsEnabled) return;
         const resolved = isAnswerResolved();
@@ -3733,32 +3750,16 @@
         document.body.classList.toggle('mm-arcade-resolved', resolved);
         document.body.dataset.mmBg = settings.backgroundTheme;
 
-        if (resolved) {
-            document.getElementById('mm-crt-tint')?.remove();
-            document.getElementById('mm-scanlines')?.remove();
-            if (!hasCanvasBackdrop()) {
-                stopArcadeBackdrop();
-            } else if (!document.getElementById('mm-starfield')) {
-                buildStarfield();
-            }
-            return;
+        if (hasCanvasBackdrop()) {
+            if (!document.getElementById('mm-starfield')) buildStarfield();
+        } else {
+            stopArcadeBackdrop();
         }
-
-        if (hasCanvasBackdrop() && !document.getElementById('mm-starfield')) buildStarfield();
-        if (settings.backgroundTheme === 'shrine') {
-            document.getElementById('mm-crt-tint')?.remove();
-            document.getElementById('mm-scanlines')?.remove();
-            return;
-        }
-
-        const frag = document.createDocumentFragment();
-        if (!document.getElementById('mm-crt-tint'))   frag.appendChild(el('div', 'mm-crt-tint'));
-        if (!document.getElementById('mm-scanlines'))  frag.appendChild(el('div', 'mm-scanlines'));
-        document.body.appendChild(frag);
+        syncCrtEffects();
     }
 
     function arcadeOff() {
-        document.body.classList.remove('mm-arcade', 'mm-arcade-resolved');
+        document.body.classList.remove('mm-arcade', 'mm-arcade-resolved', 'mm-crt-enabled');
         delete document.body.dataset.mmBg;
         stopArcadeBackdrop();
         ['mm-starfield', 'mm-crt-tint', 'mm-scanlines', 'mm-arcade-styles'].forEach(id =>
@@ -3767,19 +3768,11 @@
     }
 
     function syncArcadePresentation() {
-        if (settings.arcadeEnabled && settings.visualsEnabled) {
+        if (settings.visualsEnabled) {
             arcadeOn();
         } else {
             arcadeOff();
         }
-    }
-
-    function arcadeChromatic() {
-        if (isLiteMode() || !settings.arcadeEnabled || !settings.visualsEnabled) return;
-        document.body.classList.remove('mm-chromatic');
-        void document.body.offsetWidth;
-        document.body.classList.add('mm-chromatic');
-        setTimeout(() => document.body.classList.remove('mm-chromatic'), 500);
     }
 
     function calcMultiplier(streak) { return Math.min(10, 1 + Math.floor(streak / 5)); }
@@ -4028,17 +4021,12 @@
         stopAnswerTimer();
         flashScreen(false);
         shakeScreen(lostStreak > 4);
-        arcadeChromatic();
 
         const anchor = getInputWrapper();
         spawnFloat('WRONG', 'incorrect', anchor);
         if (lostStreak >= 5) spawnFloat(`-${lostStreak} COMBO LOST`, 'incorrect', anchor);
         if (penalty > 0)     spawnFloat(`-${penalty}`, 'incorrect', anchor);
 
-        if (!isLiteMode() && settings.visualsEnabled && !prefersReducedMotion()) {
-            document.body.classList.add('mm-wrong-dim');
-            setTimeout(() => { document.body.classList.remove('mm-wrong-dim'); }, 600);
-        }
     }
 
     function handleWordComplete() {
@@ -4273,7 +4261,7 @@
         arcadeOff();
         document.body.classList.remove(
             'mm-performance-mode', 'mm-max-mode',
-            'mm-shake-light', 'mm-shake-hard', 'mm-wrong-dim'
+            'mm-shake-light', 'mm-shake-hard'
         );
     }
 
