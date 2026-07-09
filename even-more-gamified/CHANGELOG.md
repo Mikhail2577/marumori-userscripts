@@ -12,6 +12,10 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 - Added compact Theme Preview buttons in Settings for testing correct, wrong,
   combo, milestone, timeout, word-clear, and session-complete presentation
   effects without changing review state.
+- Added a `Preview All` theme preview sequence and console-only preview state
+  invariant warnings for catching accidental score/combo/timer mutations.
+- Added a startup theme registry self-check that warns if a theme references
+  a missing sound, particle, combo, celebration, music, or color preset key.
 - Added a lightweight theme-aware music foundation that routes the existing
   Music toggle through ambient, pulse, chiptune, bell, and near-silent presets.
 - Added temporary theme-specific answer-box accent overlays that never modify
@@ -22,6 +26,9 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 - Theme intensity now independently scales particles, particle spread, flash
   strength, SFX gain, shake, and celebration density while still respecting
   `MAX`, `BALANCED`, `LITE`, visual, SFX, music, and reduced-motion settings.
+- Renamed the Settings music row to `Music Mode`; Default still cycles
+  `LO-FI`/`RETRO`, while theme-specific music displays its active mode.
+- Bumped the Shrine backdrop resource cache key to `v3.8.0`.
 
 ## 2026-07-09 - v3.7.0
 

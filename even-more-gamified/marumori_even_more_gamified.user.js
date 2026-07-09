@@ -8,7 +8,7 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_getResourceURL
-// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.7.0
+// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.8.0
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=marumori.io
 // @license      WTFPL
 // @downloadURL https://update.greasyfork.org/scripts/566950/MaruMori%20Even%20More%20Gamified.user.js
@@ -495,6 +495,16 @@
     );
     const MUSIC_STYLES = ['lofi', 'retro'];
     const MUSIC_STYLE_LABELS = { lofi: 'LO-FI', retro: 'RETRO' };
+    const THEME_MUSIC_MODE_LABELS = {
+        arcadeLofi: 'STYLE',
+        starfieldAmbient: 'AMBIENT',
+        nebulaAmbient: 'AMBIENT',
+        gridPulse: 'PULSE',
+        gameCenterChiptune: 'CHIPTUNE',
+        shrineBells: 'BELLS',
+        matrixPulse: 'PULSE',
+        voidSilence: 'FOCUS',
+    };
     const PERFORMANCE_PROFILES = ['max', 'balanced', 'lite'];
     const PERFORMANCE_PROFILE_LABELS = {
         max: 'MAX',
@@ -528,7 +538,7 @@
     };
     const SHRINE_IMAGE_URL =
         'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/'
-        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.7.0';
+        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.8.0';
     const RESOLVED_BACKDROP_OPACITY = 0.5;
 
     const SOUND_PRESETS = {
@@ -1238,6 +1248,15 @@
         'fontChallengeEnabled', 'musicEnabled', 'hudCollapsed',
     ];
 
+    const THEME_PRESET_REGISTRY = {
+        sound: SOUND_PRESETS,
+        floatingText: FLOATING_TEXT_PRESETS,
+        particles: PARTICLE_PRESETS,
+        combo: COMBO_EFFECT_PRESETS,
+        celebration: CELEBRATION_CHOREOGRAPHY_PRESETS,
+        music: MUSIC_PRESETS,
+    };
+
     function clamp(num, min, max, fallback) {
         const parsed = Number(num);
         return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
@@ -1342,6 +1361,66 @@
         return clamp(volume, 0.001, note.maxVolume || 0.3, note.volume || 0.12);
     }
 
+    function validateThemeRegistry() {
+        const issues = [];
+        const requiredIntensityKeys = ['particles', 'flash', 'shake', 'sound', 'celebration'];
+        const requiredMotionKeys = ['shakeScale', 'effectIntensity', 'allowIdle'];
+        const validMusicSchedulers = ['style', 'ambient', 'pulse', 'chiptune', 'bells', 'void'];
+
+        for (const [themeId, theme] of Object.entries(THEME_DEFINITIONS)) {
+            for (const [presetKey, collection] of Object.entries(THEME_PRESET_REGISTRY)) {
+                const presetName = theme.presets?.[presetKey];
+                if (!presetName) {
+                    issues.push(`${themeId}.presets.${presetKey} is missing`);
+                } else if (!collection[presetName]) {
+                    issues.push(`${themeId}.presets.${presetKey} -> ${presetName} is unknown`);
+                }
+            }
+
+            for (const colorKey of Object.keys(CSS_THEME_VARIABLES)) {
+                if (theme.colors?.[colorKey] === undefined) {
+                    issues.push(`${themeId}.colors.${colorKey} is missing`);
+                }
+            }
+
+            for (const key of requiredIntensityKeys) {
+                if (!Number.isFinite(Number(theme.intensity?.[key]))) {
+                    issues.push(`${themeId}.intensity.${key} must be numeric`);
+                }
+            }
+
+            for (const key of requiredMotionKeys) {
+                if (key === 'allowIdle') {
+                    if (typeof theme.motion?.allowIdle !== 'boolean') {
+                        issues.push(`${themeId}.motion.allowIdle must be boolean`);
+                    }
+                } else if (!Number.isFinite(Number(theme.motion?.[key]))) {
+                    issues.push(`${themeId}.motion.${key} must be numeric`);
+                }
+            }
+        }
+
+        for (const [presetId, preset] of Object.entries(CELEBRATION_CHOREOGRAPHY_PRESETS)) {
+            if (!Array.isArray(preset.effects) || preset.effects.length === 0) {
+                issues.push(`celebration.${presetId}.effects must contain at least one effect`);
+            }
+            if (!preset.answerAccent) {
+                issues.push(`celebration.${presetId}.answerAccent is missing`);
+            }
+        }
+
+        for (const [presetId, preset] of Object.entries(MUSIC_PRESETS)) {
+            if (!validMusicSchedulers.includes(preset.scheduler)) {
+                issues.push(`music.${presetId}.scheduler -> ${preset.scheduler} is unknown`);
+            }
+        }
+
+        if (issues.length) {
+            console.warn('[MMGamify] Theme registry check found issues:', issues);
+        }
+        return issues;
+    }
+
     const ThemeManager = {
         getThemeIds() {
             return BACKGROUND_THEMES;
@@ -1398,8 +1477,8 @@
             );
             return mergeEventPreset(preset, eventType);
         },
-        getMusicPreset() {
-            const theme = this.getActiveTheme();
+        getMusicPreset(themeId = settings.backgroundTheme) {
+            const theme = this.getActiveTheme(themeId);
             const presetName = theme.presets.music || 'arcadeLofi';
             const preset = getPreset(MUSIC_PRESETS, presetName, 'arcadeLofi');
             return { ...preset, id: presetName };
@@ -1469,6 +1548,8 @@
             delete document.body?.dataset.mmBg;
         },
     };
+
+    validateThemeRegistry();
 
     function normalizeBackgroundTheme(theme, fallback = DEFAULTS.backgroundTheme) {
         return normalizeThemeId(theme, fallback);
@@ -1705,6 +1786,7 @@
     let summaryTimer          = null;
     let sessionEndSoundTimer  = null;
     let failureFlashTimer     = null;
+    let previewAllTimer       = null;
     let els = {};
 
     const timerState = {
@@ -2998,6 +3080,15 @@
             min-width: 86px; text-align: center;
         }
         .mm-cycle-btn:hover { border-color: var(--mm-theme-secondary, #7cf); color: #fff; }
+        .mm-cycle-btn:disabled {
+            opacity: 0.58; cursor: default;
+            color: var(--mm-theme-panel-muted, #aaa);
+            border-color: var(--mm-theme-control-border, rgba(255,255,255,0.16));
+        }
+        .mm-cycle-btn:disabled:hover {
+            color: var(--mm-theme-panel-muted, #aaa);
+            border-color: var(--mm-theme-control-border, rgba(255,255,255,0.16));
+        }
         .mm-preview-title {
             margin: 10px 0 5px; padding-top: 8px;
             border-top: 1px solid var(--mm-theme-panel-divider, rgba(255,255,255,0.1));
@@ -3616,6 +3707,27 @@
         ['fontChallengeEnabled', 'Font Challenge'],
     ];
 
+    function canCycleMusicStyle() {
+        return ThemeManager.getMusicPreset().scheduler === 'style';
+    }
+
+    function getMusicModeLabel() {
+        const preset = ThemeManager.getMusicPreset();
+        if (preset.scheduler === 'style') return MUSIC_STYLE_LABELS[settings.musicStyle];
+        return THEME_MUSIC_MODE_LABELS[preset.id]
+            || String(preset.scheduler || 'theme').toUpperCase();
+    }
+
+    function syncMusicModeButton(button = els.settings?.querySelector('#mm-music-style')) {
+        if (!button) return;
+        const canCycle = canCycleMusicStyle();
+        button.textContent = getMusicModeLabel();
+        button.disabled = !canCycle;
+        button.title = canCycle
+            ? 'Cycle Default theme music style'
+            : 'Theme music follows the selected background';
+    }
+
     function buildSettingsPanel() {
         const rows = TOGGLES.map(([key, label]) => `
             <div class="mm-setting-row">
@@ -3644,9 +3756,9 @@
                 <input id="mm-vol-slider" type="range" min="0" max="1" step="0.05" value="${settings.volume}">
             </div>
             <div class="mm-setting-row">
-                <label>Music Style</label>
+                <label>Music Mode</label>
                 <button class="mm-cycle-btn" id="mm-music-style" type="button">
-                    ${MUSIC_STYLE_LABELS[settings.musicStyle]}
+                    ${getMusicModeLabel()}
                 </button>
             </div>
             <div class="mm-setting-row">
@@ -3675,6 +3787,7 @@
                 <button class="mm-preview-btn" type="button" data-preview-event="timeout">TIMEOUT</button>
                 <button class="mm-preview-btn" type="button" data-preview-event="wordComplete">WORD CLEAR</button>
                 <button class="mm-preview-btn" type="button" data-preview-event="sessionComplete">SESSION</button>
+                <button class="mm-preview-btn" type="button" data-preview-event="all">PREVIEW ALL</button>
             </div>
             <button class="mm-btn-outline" id="mm-pin-bg">PIN CURRENT BACKGROUND</button>
             <button class="mm-btn-outline" id="mm-use-pinned-bg">USE PINNED BACKGROUND</button>
@@ -3686,6 +3799,7 @@
 
     function wireSettingsPanel() {
         const panel = els.settings;
+        syncMusicModeButton(panel.querySelector('#mm-music-style'));
 
         panel.querySelectorAll('.mm-toggle').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -3724,9 +3838,13 @@
         });
 
         panel.querySelector('#mm-music-style').addEventListener('click', e => {
+            if (!canCycleMusicStyle()) {
+                syncMusicModeButton(e.currentTarget);
+                return;
+            }
             const current = MUSIC_STYLES.indexOf(settings.musicStyle);
             settings.musicStyle = MUSIC_STYLES[(current + 1) % MUSIC_STYLES.length];
-            e.currentTarget.textContent = MUSIC_STYLE_LABELS[settings.musicStyle];
+            syncMusicModeButton(e.currentTarget);
             saveSettings();
             if (settings.musicEnabled) restartMusic();
         });
@@ -3752,6 +3870,7 @@
                 ThemeManager.getThemeLabel(settings.backgroundTheme);
             panel.querySelector('#mm-pinned-bg-theme').textContent =
                 ThemeManager.getThemeLabel(settings.pinnedBackgroundTheme);
+            syncMusicModeButton();
         };
 
         const setBackgroundTheme = theme => {
@@ -4240,6 +4359,17 @@
         'mm-milestone-banner': 'milestone',
     };
 
+    const THEME_PREVIEW_EVENTS = [
+        'correct', 'combo', 'wordComplete', 'milestone',
+        'timeout', 'incorrect', 'sessionComplete',
+    ];
+    const THEME_PREVIEW_DELAY_MS = 360;
+    const PREVIEW_STATE_KEYS = [
+        'answerStreak', 'wordStreak', 'multiplier', 'score', 'lastCompleted',
+        'sessionCorrect', 'sessionIncorrect', 'sessionWords', 'sessionStart',
+        'bestStreak', 'bestMultiplier', 'sessionActive',
+    ];
+
     function getAnchorPoint(anchorEl) {
         const rect = anchorEl?.getBoundingClientRect();
         return {
@@ -4410,7 +4540,32 @@
         return getInputWrapper() || els.hud || null;
     }
 
-    function previewThemeEvent(eventType) {
+    function getPreviewStateInvariant() {
+        return {
+            state: Object.fromEntries(PREVIEW_STATE_KEYS.map(key => [key, state[key]])),
+            records: JSON.stringify(records),
+            rewindAvailable: Boolean(rewindSnapshot),
+            timer: {
+                running: timerState.running,
+                expired: timerState.expired,
+                currentQuestionId: timerState.currentQuestionId,
+                awardedForQuestionId: timerState.awardedForQuestionId,
+            },
+        };
+    }
+
+    function warnIfPreviewChangedState(before, eventType) {
+        const after = getPreviewStateInvariant();
+        if (JSON.stringify(before) !== JSON.stringify(after)) {
+            console.warn('[MMGamify] Theme preview changed gameplay state:', {
+                eventType,
+                before,
+                after,
+            });
+        }
+    }
+
+    function runThemePreviewEvent(eventType) {
         const anchor = getPreviewAnchor();
         const soundContext = {
             answerStreak: Math.max(5, state.answerStreak || 5),
@@ -4424,7 +4579,7 @@
             triggerAnswerBoxAccent('correct', anchor);
             spawnFloat('+100', 'correct', anchor);
             spawnThemeParticles('correct', anchor);
-            return;
+            return true;
         }
 
         if (eventType === 'incorrect') {
@@ -4433,7 +4588,7 @@
             triggerAnswerBoxAccent('incorrect', anchor);
             spawnFloat('WRONG', 'incorrect', anchor);
             spawnThemeParticles('incorrect', anchor);
-            return;
+            return true;
         }
 
         if (eventType === 'combo') {
@@ -4443,7 +4598,7 @@
             spawnFloat('MULT x3', 'correct', anchor);
             spawnThemeParticles('multiplierUp', anchor);
             spawnCelebrationBurst('multiplierUp', anchor);
-            return;
+            return true;
         }
 
         if (eventType === 'milestone') {
@@ -4453,7 +4608,7 @@
             spawnFloat('UNSTOPPABLE!', 'milestone', anchor);
             spawnThemeParticles('milestone', anchor);
             spawnCelebrationBurst('milestone', anchor);
-            return;
+            return true;
         }
 
         if (eventType === 'timeout') {
@@ -4462,7 +4617,7 @@
             triggerAnswerBoxAccent('timeout', anchor);
             spawnFloat('TIME UP', 'incorrect', anchor);
             spawnThemeParticles('timeout', anchor);
-            return;
+            return true;
         }
 
         if (eventType === 'wordComplete') {
@@ -4471,7 +4626,7 @@
             spawnFloat('WORD CLEAR!', 'wordwin', anchor);
             spawnThemeParticles('wordComplete', anchor);
             spawnCelebrationBurst('wordComplete', anchor);
-            return;
+            return true;
         }
 
         if (eventType === 'sessionComplete') {
@@ -4479,7 +4634,49 @@
             showBanner('mm-milestone-banner', 'SESSION COMPLETE');
             spawnThemeParticles('sessionComplete', anchor);
             spawnCelebrationBurst('sessionComplete', anchor);
+            return true;
         }
+
+        return false;
+    }
+
+    function previewOneThemeEvent(eventType) {
+        const before = getPreviewStateInvariant();
+        const didPreview = runThemePreviewEvent(eventType);
+        if (didPreview) warnIfPreviewChangedState(before, eventType);
+        return didPreview;
+    }
+
+    function previewAllThemeEvents() {
+        if (previewAllTimer) {
+            clearTimeout(previewAllTimer);
+            previewAllTimer = null;
+        }
+
+        let index = 0;
+        const runNext = () => {
+            const eventType = THEME_PREVIEW_EVENTS[index];
+            if (!eventType) {
+                previewAllTimer = null;
+                return;
+            }
+            previewOneThemeEvent(eventType);
+            index++;
+            if (index >= THEME_PREVIEW_EVENTS.length) {
+                previewAllTimer = null;
+                return;
+            }
+            previewAllTimer = setTimeout(runNext, THEME_PREVIEW_DELAY_MS);
+        };
+        runNext();
+    }
+
+    function previewThemeEvent(eventType) {
+        if (eventType === 'all') {
+            previewAllThemeEvents();
+            return;
+        }
+        previewOneThemeEvent(eventType);
     }
 
     function getParticleText(shape, preset) {
@@ -6700,6 +6897,10 @@
         if (failureFlashTimer) {
             clearTimeout(failureFlashTimer);
             failureFlashTimer = null;
+        }
+        if (previewAllTimer) {
+            clearTimeout(previewAllTimer);
+            previewAllTimer = null;
         }
         hudMicroEl?.remove();
         hudMicroEl = null;
