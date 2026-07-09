@@ -2,6 +2,37 @@
 
 All notable changes to `MaruMori Even More Gamified - Updated` are documented here.
 
+## 2026-07-09 - v3.6.0
+
+### Added
+
+- Added persistent `Answer Timer`, `Timed XP Bonus`, and `Timeout Failure`
+  settings.
+- Added timer duration presets for 10, 15, 30, 45, 60, and 90 seconds, with
+  loaded values safely clamped from 5 to 120 seconds.
+- Divided the HUD timer into five exact 20% segments with distinct
+  Lightning, Fast, Steady, Close, and Barely states.
+- Added speed-based XP multipliers that scale down as configured timer
+  duration increases.
+- Added compact timed-XP feedback to the existing answer popup and collapsed
+  HUD notice.
+
+### Changed
+
+- The answer timer now starts when every prompt appears, including the first
+  prompt, so waiting before typing cannot inflate speed rewards.
+- Renamed the old `Timeout Fail` setting to `Timeout Failure` and retained its
+  conservative native submit/failure path.
+- Migrates persisted `comboTimeout` and `autoFailTimeout` values to the new
+  timer settings.
+- Timer XP uses the monotonic deadline at answer detection rather than the
+  latest painted bar width, preventing late rewards at low frame rates or
+  after a hidden tab.
+- Rewind restores the original score and starts a fresh timer attempt without
+  allowing duplicate awards.
+- `MAX`, `BALANCED`, and `LITE` continue to change only timer paint frequency;
+  timed XP calculations are identical in every profile.
+
 ## 2026-07-09
 
 ### Changed

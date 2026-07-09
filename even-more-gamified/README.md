@@ -16,7 +16,8 @@ This is intended to be shared back with the original script author as an experim
 - Draggable, persistent arcade HUD with a saved compact mode.
 - Score, combo, multiplier, accuracy, word streak, XP bonus, and 7-day records.
 - Rewind support for typo recovery via HUD button, native redo/undo, or Backspace.
-- Per-word timer behavior, including optional Timeout Fail mode.
+- Configurable per-prompt timer with five speed tiers, timed XP, and optional
+  Timeout Failure mode.
 - Font Challenge difficulty mode with random Japanese fonts.
 - Difficulty XP multipliers.
 - Multiple procedural backgrounds, void mode, and shooting stars.
@@ -75,6 +76,23 @@ scoring, timers, rewind, difficulty bonuses, or core HUD feedback.
 Incorrect answers keep their shake, sound, input tint, floating feedback, and
 HUD warning. The optional `Failure Flash` is disabled by default and uses a
 short, low-opacity dark red pulse when enabled.
+
+## Timed XP
+
+The answer timer defaults to 15 seconds and starts as soon as each prompt
+appears. Its five visible segments represent equal 20% portions of the selected
+duration. Correct answers progress from `Lightning` through `Barely` bonuses as
+the bar drains; incorrect or expired answers receive no timed bonus.
+
+Timer presets are 10, 15, 30, 45, 60, and 90 seconds. Short timers preserve
+more of each speed-tier reward, while longer timers reduce it. Timed XP stacks
+with combo and difficulty multipliers, remains capped, and is rounded with the
+existing score calculation. Disabling `Answer Timer` also disables timed XP and
+timeout failure without changing other gameplay.
+
+`Timeout Failure` uses the existing conservative native answer path and remains
+disabled by default. `LITE` lowers only the bar's paint rate; it uses the same
+timestamp-based XP calculation as `BALANCED` and `MAX`.
 
 ## Changelog
 

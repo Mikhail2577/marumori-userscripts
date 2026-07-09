@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         MaruMori Even More Gamified - Updated
 // @namespace    marumori-gamify
-// @version      3.5.2
+// @version      3.6.0
 // @description  Gamifies MaruMori review sessions with arcade combo audio, score multipliers, screen shake, floating damage numbers, and more
 // @match        https://marumori.io/*
 // @author       matskye
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_getResourceURL
-// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.5.2
+// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.6.0
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=marumori.io
 // @license      WTFPL
 // @downloadURL https://update.greasyfork.org/scripts/566950/MaruMori%20Even%20More%20Gamified.user.js
@@ -27,7 +27,10 @@
         flashEnabled:   true,
         failureFlashEnabled: false,
         crtEnabled:     true,
-        autoFailTimeout: false,
+        timerEnabled:   true,
+        timerSeconds:   15,
+        timedXpBonusEnabled: true,
+        timeoutFailureEnabled: false,
         fontChallengeEnabled: false,
         performanceProfile: 'balanced',
         musicEnabled:   false,
@@ -36,7 +39,6 @@
         backgroundTheme: 'default',
         pinnedBackgroundTheme: 'default',
         volume:         0.5,    // 0–1
-        comboTimeout:   15000,  // ms before idle combo reset
         hudPosition:    null,
         hudCollapsed:   false,
     };
@@ -56,6 +58,22 @@
         balanced: 'BALANCED',
         lite: 'LITE',
     };
+    const TIMER_SECONDS_PRESETS = [10, 15, 30, 45, 60, 90];
+    const MAX_TIMED_XP_MULTIPLIER = 1.75;
+    const SPEED_XP_TIERS = [
+        { minRemainingPct: 0.8, segment: 5, key: 'lightning',
+          label: 'Lightning', multiplier: 1.50 },
+        { minRemainingPct: 0.6, segment: 4, key: 'fast',
+          label: 'Fast', multiplier: 1.35 },
+        { minRemainingPct: 0.4, segment: 3, key: 'steady',
+          label: 'Steady', multiplier: 1.20 },
+        { minRemainingPct: 0.2, segment: 2, key: 'close',
+          label: 'Close', multiplier: 1.10 },
+        { minRemainingPct: 0, segment: 1, key: 'barely',
+          label: 'Barely', multiplier: 1.03 },
+        { minRemainingPct: -1, segment: 0, key: 'expired',
+          label: 'Timeout', multiplier: 1.00 },
+    ];
     const BACKGROUND_THEME_LABELS = {
         default: 'DEFAULT',
         starfield: 'STARFIELD',
@@ -74,13 +92,13 @@
     };
     const SHRINE_IMAGE_URL =
         'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/'
-        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.5.2';
+        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.6.0';
     const RESOLVED_BACKDROP_OPACITY = 0.5;
 
     const BOOL_SETTINGS = [
         'sfxEnabled', 'visualsEnabled', 'hudEnabled', 'shakeEnabled',
         'floatEnabled', 'flashEnabled', 'failureFlashEnabled', 'crtEnabled',
-        'autoFailTimeout',
+        'timerEnabled', 'timedXpBonusEnabled', 'timeoutFailureEnabled',
         'fontChallengeEnabled', 'musicEnabled', 'hudCollapsed',
     ];
 
@@ -127,9 +145,17 @@
         if (typeof raw.crtEnabled !== 'boolean' && typeof raw.arcadeEnabled === 'boolean') {
             next.crtEnabled = raw.arcadeEnabled;
         }
+        if (typeof raw.timeoutFailureEnabled !== 'boolean'
+            && typeof raw.autoFailTimeout === 'boolean') {
+            next.timeoutFailureEnabled = raw.autoFailTimeout;
+        }
         next.volume = clamp(raw.volume, 0, 1, DEFAULTS.volume);
         next.musicVolume = clamp(raw.musicVolume, 0, 0.5, DEFAULTS.musicVolume);
-        next.comboTimeout = clamp(raw.comboTimeout, 3000, 60000, DEFAULTS.comboTimeout);
+        const legacyTimerSeconds = Number(raw.comboTimeout) / 1000;
+        const timerFallback = Number.isFinite(legacyTimerSeconds)
+            ? legacyTimerSeconds
+            : DEFAULTS.timerSeconds;
+        next.timerSeconds = Math.round(clamp(raw.timerSeconds, 5, 120, timerFallback));
         if (MUSIC_STYLES.includes(raw.musicStyle)) next.musicStyle = raw.musicStyle;
         if (PERFORMANCE_PROFILES.includes(raw.performanceProfile)) {
             next.performanceProfile = raw.performanceProfile;
@@ -256,7 +282,6 @@
     function resetState() {
         if (state.comboTimer) { clearTimeout(state.comboTimer); }
         Object.assign(state, STATE_INIT, { sessionActive: true, sessionStart: Date.now() });
-        firstAnswerTimerStarted = false;
     }
 
     function recordKeyToTime(key) {
@@ -312,7 +337,7 @@
     let counterTarget       = null;
     let comboBarTimer       = null;
     let comboBarRaf         = null;
-    let comboBarStart       = null;
+    let comboBarPaint       = null;
     let hudResizeHandler    = null;
     let hudDrag             = null;
     let hudDragRaf          = null;
@@ -324,9 +349,6 @@
     let timeoutAutoFailing  = false;
     let timeoutFallbackTimer = null;
     let timeoutInjectedInput = null;
-    let firstAnswerTimerStarted = false;
-    let firstAnswerInputEl = null;
-    let firstAnswerInputHandler = null;
     let previousFontChallengeText = null;
     let documentClickHandler = null;
     let documentKeyHandler   = null;
@@ -338,6 +360,17 @@
     let summaryTimer          = null;
     let sessionEndSoundTimer  = null;
     let els = {};
+
+    const timerState = {
+        startedAt: 0,
+        durationMs: settings.timerSeconds * 1000,
+        remainingPct: 1,
+        expired: false,
+        running: false,
+        currentQuestionId: 0,
+        awardedForQuestionId: null,
+        visibleTierKey: null,
+    };
 
     let audioCtx = null;
     let audioSuspendTimer = null;
@@ -672,13 +705,79 @@
 
     function getDifficultyXpMultiplier() {
         let mult = 1;
-        if (settings.autoFailTimeout) mult *= 1.25;
+        if (settings.timeoutFailureEnabled) mult *= 1.25;
         if (settings.fontChallengeEnabled) mult *= 1.15;
         return mult;
     }
 
-    function calcAnswerPoints(multiplier) {
-        return Math.round((100 * multiplier * getDifficultyXpMultiplier()) / 10) * 10;
+    function getTimerDurationXpModifier(timerSeconds) {
+        if (timerSeconds <= 10) return 1.20;
+        if (timerSeconds <= 15) return 1.00;
+        if (timerSeconds <= 30) return 0.80;
+        if (timerSeconds <= 45) return 0.65;
+        if (timerSeconds <= 60) return 0.55;
+        if (timerSeconds <= 90) return 0.45;
+        return 0.35;
+    }
+
+    function getSpeedXpTier(remainingPct) {
+        const pct = clamp(remainingPct, 0, 1, 0);
+        return SPEED_XP_TIERS.find(tier => pct > tier.minRemainingPct)
+            || SPEED_XP_TIERS[SPEED_XP_TIERS.length - 1];
+    }
+
+    function getTimedXpMultiplier(tier) {
+        if (!tier || tier.segment === 0) return 1;
+        const durationModifier = getTimerDurationXpModifier(settings.timerSeconds);
+        return clamp(
+            1 + (tier.multiplier - 1) * durationModifier,
+            1,
+            MAX_TIMED_XP_MULTIPLIER,
+            1
+        );
+    }
+
+    function getTimedXpAward(now = performance.now()) {
+        // Score from the monotonic deadline, never from the lower-rate painted bar.
+        const remainingPct = getTimerRemainingPct(now);
+        const tier = getSpeedXpTier(remainingPct);
+        const questionId = timerState.currentQuestionId;
+        const eligible = settings.timerEnabled
+            && settings.timedXpBonusEnabled
+            && timerState.running
+            && !timerState.expired
+            && remainingPct > 0
+            && questionId > 0
+            && timerState.awardedForQuestionId !== questionId;
+
+        if (questionId > 0) timerState.awardedForQuestionId = questionId;
+        return {
+            eligible,
+            remainingPct,
+            tier,
+            multiplier: eligible ? getTimedXpMultiplier(tier) : 1,
+        };
+    }
+
+    function getCurrentXpBonusMultiplier(remainingPct = null) {
+        let timedMultiplier = 1;
+        if (settings.timerEnabled && settings.timedXpBonusEnabled
+            && timerState.running && !timerState.expired) {
+            const pct = Number.isFinite(remainingPct)
+                ? remainingPct
+                : getTimerRemainingPct();
+            timedMultiplier = getTimedXpMultiplier(
+                getSpeedXpTier(pct)
+            );
+        }
+        return getDifficultyXpMultiplier() * timedMultiplier;
+    }
+
+    function calcAnswerPoints(multiplier, timedXpMultiplier = 1) {
+        const points = 100 * multiplier
+            * getDifficultyXpMultiplier()
+            * timedXpMultiplier;
+        return Math.round(points / 10) * 10;
     }
 
     function injectStyles() {
@@ -796,16 +895,43 @@
 
         /* combo bar */
         #mm-combo-bar-wrap {
-            margin-top: 8px; height: 4px;
+            position: relative; margin-top: 8px; height: 4px;
             order: 2;
             background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;
         }
+        #mm-combo-bar-wrap::after {
+            content: ''; position: absolute; inset: 0; pointer-events: none;
+            background: linear-gradient(
+                to right,
+                transparent calc(100% - 1px),
+                rgba(3,7,18,0.72) calc(100% - 1px)
+            );
+            background-size: 20% 100%;
+        }
         #mm-combo-bar {
             height: 100%; width: 100%; border-radius: 2px;
-            background: linear-gradient(90deg, #f90, #ffe066);
+            background: var(--mm-theme-timer-fast, #ffe066);
             transition: background 0.3s;
         }
-        #mm-combo-bar.low { background: linear-gradient(90deg, #f33, #f93); }
+        #mm-combo-bar.lightning {
+            background: var(--mm-theme-timer-fast, #ffe066);
+        }
+        #mm-combo-bar.fast {
+            background: var(--mm-theme-success, #65e88a);
+        }
+        #mm-combo-bar.steady {
+            background: var(--mm-theme-timer-medium, #62d7ff);
+        }
+        #mm-combo-bar.close {
+            background: var(--mm-theme-timer-low, #ff9b42);
+        }
+        #mm-combo-bar.barely {
+            background: var(--mm-theme-timer-critical, #ff5252);
+        }
+        #mm-combo-bar.expired { background: #555; }
+        #mm-combo-bar-wrap.inactive #mm-combo-bar {
+            width: 100% !important; background: rgba(255,255,255,0.16);
+        }
 
         /* compact draggable HUD */
         #mm-hud.mm-panel-collapsed {
@@ -1019,6 +1145,7 @@
             background: rgba(0,0,0,0.92); border: 2px solid rgba(255,255,255,0.15);
             border-radius: 8px; padding: 14px 18px; font-size: 9px;
             color: #fff; z-index: 10003; min-width: 220px; line-height: 2;
+            max-height: calc(100vh - 40px); overflow-y: auto;
         }
         #mm-settings.open { display: block; }
         #mm-settings h3 {
@@ -1195,6 +1322,7 @@
             record:  document.getElementById('mm-hud-record'),
             flash:   document.getElementById('mm-flash'),
             bar:     document.getElementById('mm-combo-bar'),
+            barWrap: document.getElementById('mm-combo-bar-wrap'),
             rewind:  document.getElementById('mm-hud-rewind-btn'),
             collapse: document.getElementById('mm-hud-collapse-btn'),
             hudTitle: document.getElementById('mm-hud-title'),
@@ -1416,7 +1544,7 @@
         lastAnswerState = null;
         updateHUD();
         updateRewindButton();
-        resetComboTimer();
+        resetComboTimer(true);
         spawnFloat('REWIND', 'rewind', els.hud);
         console.warn(`[MMGamify] Rewound last ${source} answer.`);
         return true;
@@ -1496,7 +1624,7 @@
         setTextIfChanged(els.streak, state.wordStreak);
         setTextIfChanged(els.acc, total > 0
             ? `${Math.round(state.sessionCorrect / total * 100)}%` : '—');
-        setTextIfChanged(els.bonus, `x${getDifficultyXpMultiplier().toFixed(2)}`);
+        setTextIfChanged(els.bonus, `x${getCurrentXpBonusMultiplier().toFixed(2)}`);
         const recordMarkup = `S <span>${rollingRecords.score.toLocaleString()}</span> / `
             + `C <span>x${rollingRecords.combo}</span> / M <span>x${rollingRecords.multiplier}</span>`;
         if (els.record._mmMarkup !== recordMarkup) {
@@ -1554,7 +1682,9 @@
         ['failureFlashEnabled', 'Failure Flash'],
         ['crtEnabled',     'CRT Effects'],
         ['musicEnabled',   'Music'],
-        ['autoFailTimeout', 'Timeout Fail'],
+        ['timerEnabled',   'Answer Timer'],
+        ['timedXpBonusEnabled', 'Timed XP Bonus'],
+        ['timeoutFailureEnabled', 'Timeout Failure'],
         ['fontChallengeEnabled', 'Font Challenge'],
     ];
 
@@ -1573,6 +1703,12 @@
                 <label>Visual Profile</label>
                 <button class="mm-cycle-btn" id="mm-performance-profile" type="button">
                     ${PERFORMANCE_PROFILE_LABELS[settings.performanceProfile]}
+                </button>
+            </div>
+            <div class="mm-setting-row">
+                <label>Timer Duration</label>
+                <button class="mm-cycle-btn" id="mm-timer-seconds" type="button">
+                    ${settings.timerSeconds} SEC
                 </button>
             </div>
             <div class="mm-setting-row">
@@ -1637,6 +1773,16 @@
                 PERFORMANCE_PROFILE_LABELS[settings.performanceProfile];
             saveSettings();
             applyPerformanceProfileSideEffects();
+        });
+
+        panel.querySelector('#mm-timer-seconds').addEventListener('click', e => {
+            const current = TIMER_SECONDS_PRESETS.indexOf(settings.timerSeconds);
+            settings.timerSeconds =
+                TIMER_SECONDS_PRESETS[(current + 1) % TIMER_SECONDS_PRESETS.length];
+            e.currentTarget.textContent = `${settings.timerSeconds} SEC`;
+            saveSettings();
+            resetComboTimer(true);
+            updateHUD();
         });
 
         panel.querySelector('#mm-music-style').addEventListener('click', e => {
@@ -1748,7 +1894,12 @@
             settings.musicEnabled ? startMusic() : stopMusic();
         }
 
-        if (key === 'autoFailTimeout' || key === 'fontChallengeEnabled') {
+        if (key === 'timerEnabled') {
+            resetComboTimer(true);
+        }
+
+        if (key === 'timedXpBonusEnabled' || key === 'timeoutFailureEnabled'
+            || key === 'fontChallengeEnabled') {
             updateHUD();
         }
 
@@ -1773,33 +1924,50 @@
             || document.querySelector(ANSWER_INPUT_SELECTOR);
     }
 
-    function startComboBar() {
-        stopComboBar();
-        comboBarStart = performance.now();
-        const bar = els.bar;
-        if (!bar) return;
-        bar.style.width = '100%';
-        bar.classList.remove('low');
-        const scheduleNextPaint = tick => {
-            if (isMaxMode()) {
-                comboBarRaf = requestAnimationFrame(tick);
-            } else {
-                comboBarTimer = setTimeout(tick, isLiteMode() ? 200 : 1000 / 30);
-            }
-        };
-        const tick = now => {
-            comboBarRaf = null;
-            comboBarTimer = null;
-            const paintTime = Number.isFinite(now) ? now : performance.now();
-            const pct = Math.max(0, 1 - (paintTime - comboBarStart) / settings.comboTimeout);
-            bar.style.width = (pct * 100) + '%';
-            bar.classList.toggle('low', pct < 0.25);
-            if (pct > 0) scheduleNextPaint(tick);
-        };
-        scheduleNextPaint(tick);
+    const TIMER_TIER_CLASSES = SPEED_XP_TIERS.map(tier => tier.key);
+
+    function getTimerDurationMs() {
+        return settings.timerSeconds * 1000;
     }
 
-    function stopComboBar() {
+    function getTimerRemainingPct(now = performance.now()) {
+        if (!timerState.running) return timerState.remainingPct;
+        const elapsed = Math.max(0, now - timerState.startedAt);
+        const remainingPct = clamp(
+            1 - elapsed / timerState.durationMs,
+            0,
+            1,
+            0
+        );
+        timerState.remainingPct = remainingPct;
+        if (remainingPct <= 0) timerState.expired = true;
+        return remainingPct;
+    }
+
+    function syncXpBonusDisplay(remainingPct = null) {
+        setTextIfChanged(
+            els.bonus,
+            `x${getCurrentXpBonusMultiplier(remainingPct).toFixed(2)}`
+        );
+    }
+
+    function setTimerBarPresentation(remainingPct, inactive = false) {
+        const bar = els.bar;
+        const wrap = els.barWrap;
+        if (!bar || !wrap) return;
+        wrap.classList.toggle('inactive', inactive);
+        const pct = inactive ? 1 : clamp(remainingPct, 0, 1, 0);
+        bar.style.width = `${pct * 100}%`;
+        const tier = getSpeedXpTier(pct);
+        if (timerState.visibleTierKey !== tier.key) {
+            bar.classList.remove(...TIMER_TIER_CLASSES);
+            bar.classList.add(tier.key);
+            timerState.visibleTierKey = tier.key;
+            syncXpBonusDisplay(pct);
+        }
+    }
+
+    function cancelComboBarPaint() {
         if (comboBarTimer) {
             clearTimeout(comboBarTimer);
             comboBarTimer = null;
@@ -1808,7 +1976,56 @@
             cancelAnimationFrame(comboBarRaf);
             comboBarRaf = null;
         }
-        if (els.bar) { els.bar.style.width = '0%'; els.bar.classList.remove('low'); }
+    }
+
+    function scheduleComboBarPaint() {
+        if (!comboBarPaint || document.hidden || comboBarRaf || comboBarTimer) return;
+        if (isMaxMode()) {
+            comboBarRaf = requestAnimationFrame(comboBarPaint);
+        } else {
+            comboBarTimer = setTimeout(
+                comboBarPaint,
+                isLiteMode() ? 200 : 1000 / 30
+            );
+        }
+    }
+
+    function startComboBar() {
+        stopComboBar();
+        timerState.startedAt = performance.now();
+        timerState.durationMs = getTimerDurationMs();
+        timerState.remainingPct = 1;
+        timerState.expired = false;
+        timerState.running = true;
+        timerState.currentQuestionId++;
+        timerState.awardedForQuestionId = null;
+        setTimerBarPresentation(1);
+
+        comboBarPaint = now => {
+            comboBarRaf = null;
+            comboBarTimer = null;
+            const paintTime = Number.isFinite(now) ? now : performance.now();
+            const remainingPct = getTimerRemainingPct(paintTime);
+            setTimerBarPresentation(remainingPct);
+            if (remainingPct > 0 && timerState.running) scheduleComboBarPaint();
+        };
+        scheduleComboBarPaint();
+    }
+
+    function stopComboBar() {
+        cancelComboBarPaint();
+        comboBarPaint = null;
+        timerState.visibleTierKey = null;
+        if (els.bar) {
+            els.bar.style.width = '0%';
+            els.bar.classList.remove(...TIMER_TIER_CLASSES);
+        }
+        els.barWrap?.classList.remove('inactive');
+    }
+
+    function resumeComboBarPaint() {
+        if (!timerState.running || !comboBarPaint || document.hidden) return;
+        comboBarPaint(performance.now());
     }
 
     function stopAnswerTimer() {
@@ -1816,68 +2033,41 @@
             clearTimeout(state.comboTimer);
             state.comboTimer = null;
         }
+        timerState.running = false;
         stopComboBar();
-    }
-
-    function removeFirstAnswerInputGate() {
-        if (firstAnswerInputEl && firstAnswerInputHandler) {
-            firstAnswerInputEl.removeEventListener('input', firstAnswerInputHandler, true);
-        }
-        firstAnswerInputEl = null;
-        firstAnswerInputHandler = null;
-    }
-
-    function pauseFirstAnswerTimer() {
-        if (state.comboTimer) clearTimeout(state.comboTimer);
-        state.comboTimer = null;
-        stopComboBar();
-        if (els.bar) {
-            els.bar.style.width = '100%';
-            els.bar.classList.remove('low');
-        }
-    }
-
-    function armFirstAnswerTimer() {
-        if (firstAnswerTimerStarted || isAnswerResolved()) {
-            resetComboTimer();
-            return;
-        }
-
-        const input = getAnswerInput();
-        if (!input) return;
-
-        pauseFirstAnswerTimer();
-        removeFirstAnswerInputGate();
-        firstAnswerInputHandler = event => {
-            const value = event.target?.value ?? '';
-            if (!value.length || firstAnswerTimerStarted || isAnswerResolved()) return;
-            firstAnswerTimerStarted = true;
-            removeFirstAnswerInputGate();
-            resetComboTimer();
-        };
-        firstAnswerInputEl = input;
-        input.addEventListener('input', firstAnswerInputHandler, true);
+        syncXpBonusDisplay();
     }
 
     function refreshAnswerTimerForCurrentQuestion() {
-        if (firstAnswerTimerStarted) {
-            resetComboTimer();
-        } else {
-            armFirstAnswerTimer();
-        }
+        resetComboTimer();
     }
 
-    function resetComboTimer() {
+    function resetComboTimer(force = false) {
+        // Class and counter observers can announce the same prompt; keep one deadline.
+        if (!force && timerState.running && state.comboTimer && !isAnswerResolved()) {
+            return;
+        }
         if (state.comboTimer) clearTimeout(state.comboTimer);
         state.comboTimer = null;
+        timerState.running = false;
+
+        if (!settings.timerEnabled) {
+            stopComboBar();
+            timerState.remainingPct = 1;
+            timerState.expired = false;
+            setTimerBarPresentation(1, true);
+            syncXpBonusDisplay();
+            return;
+        }
+
         if (state.sessionActive && getInputWrapper() && !isAnswerResolved()) {
             startComboBar();
             state.comboTimer = setTimeout(() => {
                 state.comboTimer = null;
                 handleAnswerTimeout();
-            }, settings.comboTimeout);
+            }, getTimerDurationMs());
         } else {
-            stopComboBar();
+            stopAnswerTimer();
         }
     }
 
@@ -1886,15 +2076,19 @@
         state.answerStreak = 0;
         state.multiplier = 1;
         updateHUD();
-        stopComboBar();
     }
 
     function handleAnswerTimeout() {
         if (isAnswerResolved()) return;
+        timerState.remainingPct = 0;
+        timerState.expired = true;
+        timerState.running = false;
         stopComboBar();
+        setTimerBarPresentation(0);
+        syncXpBonusDisplay();
         spawnFloat('TIME UP', 'incorrect', getInputWrapper());
 
-        if (settings.autoFailTimeout) {
+        if (settings.timeoutFailureEnabled) {
             timeoutAutoFailing = attemptTimeoutAutoFail();
             if (timeoutAutoFailing) {
                 if (timeoutFallbackTimer) clearTimeout(timeoutFallbackTimer);
@@ -3964,6 +4158,7 @@
         }
         timeoutInjectedInput = null;
         setRewindSnapshot(makeRewindSnapshot('correct'));
+        const timedXp = getTimedXpAward();
         state.sessionCorrect++;
         state.answerStreak++;
         if (state.answerStreak > state.bestStreak) state.bestStreak = state.answerStreak;
@@ -3973,8 +4168,9 @@
         state.multiplier = newMult;
         if (newMult > state.bestMultiplier) state.bestMultiplier = newMult;
 
-        const pts = calcAnswerPoints(newMult);
+        const pts = calcAnswerPoints(newMult, timedXp.multiplier);
         state.score += pts;
+        stopAnswerTimer();
 
         if (newMult > prevMult) {
             showBanner('mm-mult-banner', `${newMult}x COMBO!`);
@@ -3988,14 +4184,20 @@
         }
 
         updateHUD();
-        showHudMicro(
-            newMult > prevMult ? `+${pts} XP · MULT x${newMult}` : `+${pts} XP`,
-            newMult > prevMult ? 'mult' : 'score'
-        );
+        const feedback = [`+${pts} XP`];
+        if (timedXp.eligible && timedXp.multiplier > 1) {
+            feedback.push(
+                `${timedXp.tier.label.toUpperCase()} x${timedXp.multiplier.toFixed(2)}`
+            );
+        }
+        if (newMult > prevMult) feedback.push(`MULT x${newMult}`);
+        showHudMicro(feedback.join(' · '), newMult > prevMult ? 'mult' : 'score');
         playCorrectSound();
-        stopAnswerTimer();
         flashScreen(true);
-        spawnFloat(`+${pts}`, 'correct', getInputWrapper());
+        const floatText = timedXp.eligible && timedXp.multiplier > 1
+            ? `+${pts} · ${timedXp.tier.label}! XP x${timedXp.multiplier.toFixed(2)}`
+            : `+${pts}`;
+        spawnFloat(floatText, 'correct', getInputWrapper());
         pulseElement(els.hud);
         if (state.answerStreak % 10 === 0) shakeScreen(true);
     }
@@ -4015,10 +4217,10 @@
         const penalty = Math.min(state.score, 50 * Math.floor(lostStreak / 5));
         state.score = Math.max(0, state.score - penalty);
 
+        stopAnswerTimer();
         updateHUD();
         if (lostStreak > 0) showHudMicro('COMBO RESET', 'fail');
         playFailSound();
-        stopAnswerTimer();
         flashScreen(false);
         shakeScreen(lostStreak > 4);
 
@@ -4136,6 +4338,9 @@
             syncArcadePresentation();
         });
         correctnessObserver.observe(wrapper, { attributes: true, attributeFilter: ['class'] });
+        if (targetChanged && initialized && !isAnswerResolved()) {
+            refreshAnswerTimerForCurrentQuestion();
+        }
     }
 
     function processCounterChange(counter) {
@@ -4192,7 +4397,7 @@
         installMusicLifecycle();
         updateHUD();
         applyFontChallenge();
-        armFirstAnswerTimer();
+        refreshAnswerTimerForCurrentQuestion();
         syncArcadePresentation();
         initialized = true;
     }
@@ -4237,7 +4442,6 @@
         hudMicroEl = null;
         document.querySelectorAll('.mm-float, .mm-celebrate').forEach(node => node.remove());
         stopAnswerTimer();
-        removeFirstAnswerInputGate();
         clearFontChallenge();
         flushRecordsSave();
         flushSettingsSave();
@@ -4246,7 +4450,6 @@
         pendingRewindRestore = false;
         timeoutAutoFailing = false;
         timeoutInjectedInput = null;
-        firstAnswerTimerStarted = false;
         inputWrapperCache = null;
         counterCache = null;
         fontTargetCache = null;
@@ -4313,7 +4516,9 @@
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) {
             handleRouteChange();
+            resumeComboBarPaint();
         } else {
+            cancelComboBarPaint();
             flushRecordsSave();
             flushSettingsSave();
         }
