@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         MaruMori Even More Gamified - Updated
 // @namespace    marumori-gamify
-// @version      3.6.0
+// @version      3.6.1
 // @description  Gamifies MaruMori review sessions with arcade combo audio, score multipliers, screen shake, floating damage numbers, and more
 // @match        https://marumori.io/*
 // @author       matskye
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_getResourceURL
-// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.6.0
+// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.6.1
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=marumori.io
 // @license      WTFPL
 // @downloadURL https://update.greasyfork.org/scripts/566950/MaruMori%20Even%20More%20Gamified.user.js
@@ -92,7 +92,7 @@
     };
     const SHRINE_IMAGE_URL =
         'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/'
-        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.6.0';
+        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.6.1';
     const RESOLVED_BACKDROP_OPACITY = 0.5;
 
     const BOOL_SETTINGS = [
@@ -1111,7 +1111,7 @@
         /* ── SCREEN FLASH ── */
         #mm-flash { position: fixed; inset: 0; pointer-events: none; z-index: 10002; opacity: 0; }
         #mm-flash.correct-flash { background: rgba(100,255,150,0.18); animation: mmFlash 0.3s ease forwards; }
-        #mm-flash.wrong-flash   { background: rgba(90,0,20,0.10); animation: mmFlash 0.24s ease forwards; }
+        #mm-flash.wrong-flash   { background: rgba(255,70,90,0.18); animation: mmFlash 0.3s ease forwards; }
         @keyframes mmFlash { 0%{ opacity:1; } 100%{ opacity:0; } }
 
         /* ── SHAKE ── */

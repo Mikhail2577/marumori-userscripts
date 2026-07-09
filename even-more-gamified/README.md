@@ -74,8 +74,8 @@ scoring, timers, rewind, difficulty bonuses, or core HUD feedback.
   blur, shadows, challenge webfont loading, and CRT overlays.
 
 Incorrect answers keep their shake, sound, input tint, floating feedback, and
-HUD warning. The optional `Failure Flash` is disabled by default and uses a
-short, low-opacity dark red pulse when enabled.
+HUD warning. The optional `Failure Flash` is disabled by default and matches
+the success flash's opacity and duration when enabled.
 
 ## Timed XP
 

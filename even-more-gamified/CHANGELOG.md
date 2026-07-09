@@ -2,6 +2,13 @@
 
 All notable changes to `MaruMori Even More Gamified - Updated` are documented here.
 
+## 2026-07-09 - v3.6.1
+
+### Changed
+
+- Made the optional failure flash match the success flash's opacity and
+  duration while retaining its red failure color.
+
 ## 2026-07-09 - v3.6.0
 
 ### Added
