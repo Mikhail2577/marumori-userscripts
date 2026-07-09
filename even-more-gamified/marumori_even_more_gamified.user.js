@@ -277,8 +277,8 @@
         nightview: {
             id: 'nightview',
             label: 'Night View',
-            identity: 'Moonlit shrine valley',
-            mood: 'Quiet, luminous, watchful',
+            identity: 'Moonlit Japanese folk festival',
+            mood: 'Soothing, lantern-lit, nostalgic',
             colors: {
                 accent: '#f8d27a',
                 secondary: '#9cc8ff',
@@ -306,7 +306,7 @@
                 particles: 'fireflyWisps',
                 combo: 'moonlitGate',
                 celebration: 'nightviewGlow',
-                music: 'nightviewAmbient',
+                music: 'nightviewMinyo',
             },
             intensity: { particles: 0.64, flash: 0.58, shake: 0.34, sound: 0.72, celebration: 0.62 },
             motion: { shakeScale: 0.28, effectIntensity: 0.7, allowIdle: true },
@@ -557,7 +557,7 @@
         gridPulse: 'PULSE',
         gameCenterChiptune: 'CHIPTUNE',
         shrineBells: 'BELLS',
-        nightviewAmbient: 'MOON',
+        nightviewMinyo: 'MINYO',
         matrixPulse: 'PULSE',
         voidSilence: 'FOCUS',
     };
@@ -838,36 +838,36 @@
         },
         nightview: {
             correct: [
-                { freq: 698, streakScale: 6, maxFreq: 980, duration: 0.14,
-                  volume: 0.11, type: 'sine', detune: -5 },
-                { freq: 1047, streakScale: 7, maxFreq: 1480, duration: 0.22,
-                  volume: 0.07, type: 'triangle', delay: 0.11, detune: 4, skipLite: true },
+                { freq: 587, streakScale: 3, maxFreq: 740, duration: 0.18,
+                  volume: 0.09, type: 'sine', detune: -8 },
+                { freq: 784, streakScale: 4, maxFreq: 988, duration: 0.28,
+                  volume: 0.052, type: 'triangle', delay: 0.14, detune: 5, skipLite: true },
             ],
             incorrect: [
-                { freq: 196, duration: 0.16, volume: 0.11, type: 'triangle',
-                  endFreqScale: 0.86 },
-                { freq: 147, duration: 0.22, volume: 0.075, type: 'sine',
-                  delay: 0.12, skipLite: true },
+                { freq: 185, duration: 0.18, volume: 0.085, type: 'triangle',
+                  endFreqScale: 0.9 },
+                { freq: 139, duration: 0.26, volume: 0.052, type: 'sine',
+                  delay: 0.16, skipLite: true },
             ],
             wordComplete: [
-                { freq: 523, wordScale: 3, duration: 0.18, volume: 0.1, type: 'sine' },
-                { freq: 784, wordScale: 3, duration: 0.24, volume: 0.08,
-                  type: 'triangle', delay: 0.16, skipLite: true },
-                { freq: 1175, wordScale: 2, duration: 0.32, volume: 0.048,
-                  type: 'sine', delay: 0.36, skipLite: true },
+                { freq: 440, wordScale: 2, duration: 0.24, volume: 0.085, type: 'sine' },
+                { freq: 659, wordScale: 2, duration: 0.3, volume: 0.062,
+                  type: 'triangle', delay: 0.2, skipLite: true },
+                { freq: 880, wordScale: 2, duration: 0.42, volume: 0.038,
+                  type: 'sine', delay: 0.46, skipLite: true },
             ],
             multiplierUp: [
-                { freqByMultiplier: [392, 523, 659, 784, 988],
-                  duration: 0.16, volume: 0.1, type: 'sine' },
-                { freqByMultiplier: [784, 1047, 1318, 1568, 1976],
-                  duration: 0.2, volume: 0.065, type: 'triangle', delay: 0.13, skipLite: true },
+                { freqByMultiplier: [330, 392, 440, 523, 659],
+                  duration: 0.2, volume: 0.08, type: 'sine' },
+                { freqByMultiplier: [494, 587, 659, 784, 988],
+                  duration: 0.32, volume: 0.046, type: 'triangle', delay: 0.18, skipLite: true },
             ],
-            comboBreak: [{ freq: 174, duration: 0.22, volume: 0.08, type: 'triangle' }],
-            timeout: [{ freq: 164, duration: 0.24, volume: 0.075, type: 'sine' }],
+            comboBreak: [{ freq: 164, duration: 0.24, volume: 0.06, type: 'triangle' }],
+            timeout: [{ freq: 147, duration: 0.28, volume: 0.055, type: 'sine' }],
             sessionComplete: [
-                { freq: 523, duration: 0.22, volume: 0.09, type: 'sine' },
-                { freq: 784, duration: 0.26, volume: 0.075, type: 'triangle', delay: 0.2 },
-                { freq: 1047, duration: 0.34, volume: 0.055, type: 'sine', delay: 0.44 },
+                { freq: 440, duration: 0.26, volume: 0.074, type: 'sine' },
+                { freq: 587, duration: 0.34, volume: 0.06, type: 'triangle', delay: 0.24 },
+                { freq: 880, duration: 0.56, volume: 0.04, type: 'sine', delay: 0.58 },
             ],
         },
         matrix: {
@@ -1004,16 +1004,16 @@
         },
         moonlitSilver: {
             base: {
-                color: '#dcecff',
-                shadow: '0 0 13px rgba(156,200,255,0.72)',
+                color: '#fff2c6',
+                shadow: '0 0 11px rgba(248,210,122,0.58)',
                 motion: 'drift',
             },
             events: {
-                correct: { label: 'MOON' },
-                incorrect: { color: '#e46f75', label: 'SHADOW' },
-                wordComplete: { color: '#bfe8ff', fontSize: '16px', label: 'CLEAR' },
-                multiplierUp: { color: '#f8d27a', label: 'LANTERN' },
-                milestone: { color: '#f8f2c8', fontSize: '19px', label: 'GUIDED' },
+                correct: { label: '灯' },
+                incorrect: { color: '#e46f75', label: '影' },
+                wordComplete: { color: '#bfe8ff', fontSize: '16px', label: '月明' },
+                multiplierUp: { color: '#f8d27a', label: '祭囃子' },
+                milestone: { color: '#f8f2c8', fontSize: '19px', label: '宵祭' },
             },
         },
         terminalGreen: {
@@ -1098,15 +1098,15 @@
         },
         fireflyWisps: {
             shape: 'dot', motion: 'drift', color: '#f8d27a',
-            count: 6, liteCount: 1, lifetimeMs: 1200, spread: 82, size: 4,
+            count: 4, liteCount: 1, lifetimeMs: 1350, spread: 64, size: 4,
             events: {
-                correct: { count: 5 },
-                wordComplete: { color: '#dcecff', count: 8, spread: 96 },
-                multiplierUp: { color: '#f8d27a', count: 8 },
-                milestone: { color: '#f8f2c8', count: 12, spread: 120, size: 5 },
-                incorrect: { color: '#e46f75', count: 3, lifetimeMs: 850 },
-                timeout: { color: '#e46f75', count: 3, lifetimeMs: 820 },
-                comboBreak: { color: '#e46f75', count: 3 },
+                correct: { count: 3, lifetimeMs: 1250 },
+                wordComplete: { color: '#f8f2c8', count: 6, spread: 74, lifetimeMs: 1500 },
+                multiplierUp: { color: '#f8d27a', count: 5, spread: 70 },
+                milestone: { color: '#f8f2c8', count: 8, spread: 92, size: 5 },
+                incorrect: { color: '#e46f75', count: 2, lifetimeMs: 900 },
+                timeout: { color: '#e46f75', count: 2, lifetimeMs: 860 },
+                comboBreak: { color: '#e46f75', count: 2 },
             },
         },
         matrixCode: {
@@ -1165,8 +1165,8 @@
         moonlitGate: {
             style: 'calm',
             color: '#f8f2c8',
-            shadow: '0 0 20px rgba(156,200,255,0.78), 0 0 38px rgba(248,210,122,0.38)',
-            celebrations: ['✦', '◇', '◆', '月', '灯'],
+            shadow: '0 0 16px rgba(248,210,122,0.64), 0 0 32px rgba(156,200,255,0.28)',
+            celebrations: ['月', '灯', '祭', '花'],
         },
         glitch: {
             style: 'glitch',
@@ -1238,12 +1238,12 @@
             answerAccent: 'shimmer',
         },
         nightviewGlow: {
-            effects: ['calm', 'drift', 'orbit'],
-            count: 2,
+            effects: ['calm', 'drift', 'rise'],
+            count: 1,
             liteCount: 1,
-            spread: 74,
-            size: 44,
-            durationMs: 1180,
+            spread: 54,
+            size: 40,
+            durationMs: 1320,
             answerAccent: 'shimmer',
         },
         matrixGlitch: {
@@ -1315,15 +1315,16 @@
             cutoff: 1450,
             pattern: [0, null, null, 2, null, 4, null, null, 7, null, 5, null, null, 4, null, null],
         },
-        nightviewAmbient: {
-            scheduler: 'ambient',
-            bpm: 52,
-            root: 196,
-            volumeScale: 0.56,
+        nightviewMinyo: {
+            scheduler: 'minyo',
+            bpm: 58,
+            root: 220,
+            volumeScale: 0.5,
             type: 'sine',
-            cutoff: 1050,
-            chords: [[-12, 0, 4], [-10, 2, 5], [-9, 0, 7], [-14, -2, 5]],
-            melody: [null, 7, null, 5, null, null, 4, null],
+            cutoff: 1180,
+            drone: [-12, 0],
+            pattern: [0, null, 2, null, 4, null, 7, 5, null, 4, 2, null, 0, null, -3, null],
+            reply: [null, null, 7, null, 5, null, 4, null, null, 2, null, 0],
         },
         matrixPulse: {
             scheduler: 'pulse',
@@ -1531,7 +1532,7 @@
         const issues = [];
         const requiredIntensityKeys = ['particles', 'flash', 'shake', 'sound', 'celebration'];
         const requiredMotionKeys = ['shakeScale', 'effectIntensity', 'allowIdle'];
-        const validMusicSchedulers = ['style', 'ambient', 'pulse', 'chiptune', 'bells', 'void'];
+        const validMusicSchedulers = ['style', 'ambient', 'pulse', 'chiptune', 'bells', 'minyo', 'void'];
 
         for (const [themeId, theme] of Object.entries(THEME_DEFINITIONS)) {
             for (const [presetKey, collection] of Object.entries(THEME_PRESET_REGISTRY)) {
@@ -2257,6 +2258,70 @@
         return stepDuration * Math.max(8, pattern.length);
     }
 
+    function scheduleMinyoMusicBar(ctx, destination, start, preset) {
+        const beat = 60 / (preset.bpm || 58);
+        const stepDuration = beat / 2;
+        const pattern = preset.pattern || [];
+        const reply = preset.reply || [];
+        const drone = preset.drone || [-12, 0];
+        const phraseOffset = [0, -3, 2, 0][musicPatternIndex % 4];
+
+        drone.forEach((degree, voice) => {
+            scheduleThemeMusicNote(
+                ctx,
+                destination,
+                getScaleFrequency(preset.root, degree),
+                start,
+                beat * 7.4,
+                preset,
+                {
+                    type: voice === 0 ? 'sine' : 'triangle',
+                    volume: voice === 0 ? 0.015 : 0.01,
+                    cutoff: 560 + voice * 180,
+                    detune: voice === 0 ? -4 : 4,
+                }
+            );
+        });
+
+        pattern.forEach((degree, step) => {
+            if (degree === null || degree === undefined) return;
+            scheduleThemeMusicNote(
+                ctx,
+                destination,
+                getScaleFrequency(preset.root * 2, degree + phraseOffset),
+                start + step * stepDuration,
+                stepDuration * (step % 4 === 2 ? 0.92 : 0.68),
+                preset,
+                {
+                    type: step % 4 === 0 ? 'triangle' : 'sine',
+                    volume: step % 4 === 0 ? 0.024 : 0.018,
+                    cutoff: preset.cutoff,
+                    detune: step % 3 === 0 ? -7 : 5,
+                }
+            );
+        });
+
+        reply.forEach((degree, step) => {
+            if (degree === null || degree === undefined) return;
+            scheduleThemeMusicNote(
+                ctx,
+                destination,
+                getScaleFrequency(preset.root, degree + phraseOffset),
+                start + beat * 4 + step * stepDuration,
+                stepDuration * 0.74,
+                preset,
+                {
+                    type: 'triangle',
+                    volume: 0.014,
+                    cutoff: preset.cutoff * 0.88,
+                    detune: -10,
+                }
+            );
+        });
+
+        return stepDuration * Math.max(pattern.length, 8 + reply.length, 16);
+    }
+
     function scheduleVoidMusicBar(ctx, destination, start, preset) {
         const duration = preset.duration || 5;
         scheduleThemeMusicNote(ctx, destination, preset.root, start, duration * 0.82, preset, {
@@ -2333,6 +2398,7 @@
         if (preset.scheduler === 'pulse') return schedulePulseMusicBar(ctx, destination, start, preset);
         if (preset.scheduler === 'chiptune') return scheduleChiptuneMusicBar(ctx, destination, start, preset);
         if (preset.scheduler === 'bells') return scheduleBellMusicBar(ctx, destination, start, preset);
+        if (preset.scheduler === 'minyo') return scheduleMinyoMusicBar(ctx, destination, start, preset);
         if (preset.scheduler === 'void') return scheduleVoidMusicBar(ctx, destination, start, preset);
 
         const progression = MUSIC_PROGRESSIONS[musicPatternIndex % MUSIC_PROGRESSIONS.length];
