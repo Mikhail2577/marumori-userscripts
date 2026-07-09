@@ -2,6 +2,27 @@
 
 All notable changes to `MaruMori Even More Gamified - Updated` are documented here.
 
+## 2026-07-09 - v3.8.0
+
+### Added
+
+- Added per-theme celebration choreography presets for arcade pop, starfield
+  orbit, nebula bloom, grid scan bursts, Game Center jackpot, shrine drift,
+  Matrix glitch, and Void pulse motions.
+- Added compact Theme Preview buttons in Settings for testing correct, wrong,
+  combo, milestone, timeout, word-clear, and session-complete presentation
+  effects without changing review state.
+- Added a lightweight theme-aware music foundation that routes the existing
+  Music toggle through ambient, pulse, chiptune, bell, and near-silent presets.
+- Added temporary theme-specific answer-box accent overlays that never modify
+  MaruMori's native input or focus.
+
+### Changed
+
+- Theme intensity now independently scales particles, particle spread, flash
+  strength, SFX gain, shake, and celebration density while still respecting
+  `MAX`, `BALANCED`, `LITE`, visual, SFX, music, and reduced-motion settings.
+
 ## 2026-07-09 - v3.7.0
 
 ### Added

@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         MaruMori Even More Gamified - Updated
 // @namespace    marumori-gamify
-// @version      3.7.0
+// @version      3.8.0
 // @description  Gamifies MaruMori review sessions with arcade combo audio, score multipliers, screen shake, floating damage numbers, and more
 // @match        https://marumori.io/*
-// @author       matskye
+// @author       matskye & Mikhail2577
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_getResourceURL
@@ -76,8 +76,10 @@
                 floatingText: 'arcadeClassic',
                 particles: 'arcadeBurst',
                 combo: 'arcadePop',
-                celebration: 'arcade',
+                celebration: 'arcadePop',
+                music: 'arcadeLofi',
             },
+            intensity: { particles: 1, flash: 1, shake: 1, sound: 1, celebration: 1 },
             motion: { shakeScale: 1, effectIntensity: 1, allowIdle: true },
             background: { renderer: 'default', allowCanvasEffects: false, shootingStars: false },
         },
@@ -112,8 +114,10 @@
                 floatingText: 'softBlue',
                 particles: 'starSparkles',
                 combo: 'constellation',
-                celebration: 'stellar',
+                celebration: 'starfieldOrbit',
+                music: 'starfieldAmbient',
             },
+            intensity: { particles: 0.72, flash: 0.72, shake: 0.48, sound: 0.86, celebration: 0.72 },
             motion: { shakeScale: 0.35, effectIntensity: 0.78, allowIdle: true },
             background: { renderer: 'starfield', allowCanvasEffects: true, shootingStars: true },
         },
@@ -148,8 +152,10 @@
                 floatingText: 'cosmicGlow',
                 particles: 'cosmicDust',
                 combo: 'nebulaWave',
-                celebration: 'celestial',
+                celebration: 'nebulaBloom',
+                music: 'nebulaAmbient',
             },
+            intensity: { particles: 0.92, flash: 0.82, shake: 0.72, sound: 0.9, celebration: 0.95 },
             motion: { shakeScale: 0.55, effectIntensity: 0.95, allowIdle: true },
             background: { renderer: 'nebula', allowCanvasEffects: true, shootingStars: false },
         },
@@ -184,8 +190,10 @@
                 floatingText: 'electricCyan',
                 particles: 'pixelFragments',
                 combo: 'scanPulse',
-                celebration: 'digital',
+                celebration: 'gridScanBurst',
+                music: 'gridPulse',
             },
+            intensity: { particles: 1.08, flash: 0.96, shake: 1, sound: 1, celebration: 1.08 },
             motion: { shakeScale: 0.9, effectIntensity: 1.05, allowIdle: true },
             background: { renderer: 'grid', allowCanvasEffects: true, shootingStars: false },
         },
@@ -220,8 +228,10 @@
                 floatingText: 'pixelScore',
                 particles: 'confettiPixels',
                 combo: 'arcadeMarquee',
-                celebration: 'arcade',
+                celebration: 'gameCenterJackpot',
+                music: 'gameCenterChiptune',
             },
+            intensity: { particles: 1.18, flash: 1, shake: 1.05, sound: 1.04, celebration: 1.22 },
             motion: { shakeScale: 1.15, effectIntensity: 1.15, allowIdle: true },
             background: { renderer: 'gamecenter', allowCanvasEffects: true, shootingStars: false },
         },
@@ -256,8 +266,10 @@
                 floatingText: 'goldLeaf',
                 particles: 'sakuraPetals',
                 combo: 'lanternGlow',
-                celebration: 'elegant',
+                celebration: 'shrineDrift',
+                music: 'shrineBells',
             },
+            intensity: { particles: 0.58, flash: 0.52, shake: 0.42, sound: 0.74, celebration: 0.56 },
             motion: { shakeScale: 0.35, effectIntensity: 0.68, allowIdle: true },
             background: { renderer: 'shrine', allowCanvasEffects: true, shootingStars: false },
         },
@@ -292,8 +304,10 @@
                 floatingText: 'terminalGreen',
                 particles: 'matrixCode',
                 combo: 'glitch',
-                celebration: 'dataBurst',
+                celebration: 'matrixGlitch',
+                music: 'matrixPulse',
             },
+            intensity: { particles: 0.86, flash: 0.74, shake: 0.74, sound: 0.92, celebration: 0.82 },
             motion: { shakeScale: 0.6, effectIntensity: 0.82, allowIdle: true },
             background: { renderer: 'matrix', allowCanvasEffects: true, shootingStars: false },
         },
@@ -328,8 +342,10 @@
                 floatingText: 'voidMinimal',
                 particles: 'voidDust',
                 combo: 'minimal',
-                celebration: 'minimal',
+                celebration: 'voidPulse',
+                music: 'voidSilence',
             },
+            intensity: { particles: 0.24, flash: 0.22, shake: 0.12, sound: 0.38, celebration: 0.25 },
             motion: { shakeScale: 0.1, effectIntensity: 0.22, allowIdle: false },
             background: { renderer: 'void', allowCanvasEffects: false, shootingStars: false },
         },
@@ -1030,6 +1046,150 @@
         },
     };
 
+    const CELEBRATION_CHOREOGRAPHY_PRESETS = {
+        arcadePop: {
+            effects: ['pop', 'rise', 'burst', 'spin'],
+            count: 1,
+            liteCount: 1,
+            spread: 72,
+            size: 52,
+            durationMs: 850,
+            answerAccent: 'pop',
+        },
+        starfieldOrbit: {
+            effects: ['orbit', 'drift', 'rise'],
+            count: 2,
+            liteCount: 1,
+            spread: 92,
+            size: 44,
+            durationMs: 1100,
+            answerAccent: 'orbit',
+        },
+        nebulaBloom: {
+            effects: ['bloom', 'drift', 'pulse'],
+            count: 2,
+            liteCount: 1,
+            spread: 98,
+            size: 48,
+            durationMs: 1120,
+            answerAccent: 'bloom',
+        },
+        gridScanBurst: {
+            effects: ['scan', 'burst', 'glitch'],
+            count: 2,
+            liteCount: 1,
+            spread: 86,
+            size: 46,
+            durationMs: 760,
+            answerAccent: 'scan',
+        },
+        gameCenterJackpot: {
+            effects: ['pop', 'burst', 'spin'],
+            count: 3,
+            liteCount: 1,
+            spread: 112,
+            size: 54,
+            durationMs: 820,
+            answerAccent: 'jackpot',
+        },
+        shrineDrift: {
+            effects: ['calm', 'drift', 'rise'],
+            count: 1,
+            liteCount: 1,
+            spread: 58,
+            size: 43,
+            durationMs: 1280,
+            answerAccent: 'shimmer',
+        },
+        matrixGlitch: {
+            effects: ['glitch', 'scan', 'burst'],
+            count: 2,
+            liteCount: 1,
+            spread: 74,
+            size: 45,
+            durationMs: 720,
+            answerAccent: 'glitch',
+        },
+        voidPulse: {
+            effects: ['pulse', 'calm'],
+            count: 1,
+            liteCount: 0,
+            spread: 28,
+            size: 34,
+            durationMs: 620,
+            answerAccent: 'pulse',
+        },
+    };
+
+    const MUSIC_PRESETS = {
+        arcadeLofi: { scheduler: 'style', volumeScale: 1 },
+        starfieldAmbient: {
+            scheduler: 'ambient',
+            bpm: 48,
+            root: 196,
+            volumeScale: 0.58,
+            type: 'sine',
+            cutoff: 900,
+            chords: [[-8, 0, 4], [-10, 2, 5], [-9, 1, 4], [-12, 0, 5]],
+            melody: [null, 7, null, null, 5, null, null, 4],
+        },
+        nebulaAmbient: {
+            scheduler: 'ambient',
+            bpm: 56,
+            root: 174.61,
+            volumeScale: 0.68,
+            type: 'triangle',
+            cutoff: 1250,
+            chords: [[-8, 2, 5], [-10, 1, 4], [-9, 3, 6], [-12, 0, 5]],
+            melody: [5, null, 7, null, null, 4, null, 6],
+        },
+        gridPulse: {
+            scheduler: 'pulse',
+            bpm: 116,
+            root: 110,
+            volumeScale: 0.78,
+            type: 'square',
+            cutoff: 1800,
+            pattern: [0, null, 4, 7, null, 4, 11, null, 7, null, 4, 0, null, 12, 11, 7],
+        },
+        gameCenterChiptune: {
+            scheduler: 'chiptune',
+            bpm: 132,
+            root: 130.81,
+            volumeScale: 0.92,
+            type: 'square',
+            cutoff: 2300,
+            pattern: [0, 2, 4, 7, null, 7, 4, 2, 5, 7, 9, 12, null, 9, 7, 4],
+        },
+        shrineBells: {
+            scheduler: 'bells',
+            bpm: 62,
+            root: 220,
+            volumeScale: 0.55,
+            type: 'sine',
+            cutoff: 1450,
+            pattern: [0, null, null, 2, null, 4, null, null, 7, null, 5, null, null, 4, null, null],
+        },
+        matrixPulse: {
+            scheduler: 'pulse',
+            bpm: 94,
+            root: 82.41,
+            volumeScale: 0.58,
+            type: 'square',
+            cutoff: 1250,
+            glitch: true,
+            pattern: [0, null, 7, null, 0, 11, null, 7, null, 0, null, 4, 11, null, 7, null],
+        },
+        voidSilence: {
+            scheduler: 'void',
+            root: 110,
+            volumeScale: 0.2,
+            type: 'sine',
+            cutoff: 360,
+            duration: 5.2,
+        },
+    };
+
     const CSS_THEME_VARIABLES = {
         accent: '--mm-theme-accent',
         secondary: '--mm-theme-secondary',
@@ -1229,20 +1389,45 @@
             const preset = getPreset(COMBO_EFFECT_PRESETS, theme.presets.combo, 'arcadePop');
             return mergeEventPreset(preset, eventType);
         },
+        getCelebrationPreset(eventType) {
+            const theme = this.getActiveTheme();
+            const preset = getPreset(
+                CELEBRATION_CHOREOGRAPHY_PRESETS,
+                theme.presets.celebration,
+                'arcadePop'
+            );
+            return mergeEventPreset(preset, eventType);
+        },
+        getMusicPreset() {
+            const theme = this.getActiveTheme();
+            const presetName = theme.presets.music || 'arcadeLofi';
+            const preset = getPreset(MUSIC_PRESETS, presetName, 'arcadeLofi');
+            return { ...preset, id: presetName };
+        },
         getEffectPreset(eventType) {
             return {
                 floatingText: this.getFloatingTextPreset(eventType),
                 particles: this.getParticlePreset(eventType),
                 combo: this.getComboPreset(eventType),
+                celebration: this.getCelebrationPreset(eventType),
                 budget: this.getEffectBudget(eventType),
             };
         },
         getEffectBudget(_eventType) {
             const theme = this.getActiveTheme();
+            const intensity = theme.intensity || {};
             const profileScale = isMaxMode() ? 1 : (isLiteMode() ? 0.25 : 0.72);
+            const particles = Number(intensity.particles) || 1;
+            const celebration = Number(intensity.celebration) || 1;
             return {
-                intensity: theme.motion.effectIntensity * profileScale,
-                shakeScale: theme.motion.shakeScale * (isLiteMode() ? 0.35 : 1),
+                intensity: theme.motion.effectIntensity * particles * profileScale,
+                celebrationScale: theme.motion.effectIntensity * celebration * profileScale,
+                flashScale: clamp(intensity.flash, 0.08, 1, 1),
+                soundScale: clamp(intensity.sound, 0.08, 1.4, 1),
+                spreadScale: clamp(0.68 + particles * 0.32, 0.45, 1.18, 1),
+                shakeScale: theme.motion.shakeScale
+                    * clamp(intensity.shake, 0.08, 1.3, 1)
+                    * (isLiteMode() ? 0.35 : 1),
                 allowIdle: theme.motion.allowIdle && !isLiteMode(),
             };
         },
@@ -1539,6 +1724,7 @@
     let musicTimer = null;
     let musicRestartTimer = null;
     let musicPatternIndex = 0;
+    let musicPresetId = null;
     let musicGestureHandler = null;
     let musicVisibilityHandler = null;
     const musicOscillators = new Set();
@@ -1634,6 +1820,22 @@
 
     const NOTE_RATIOS = [1, 9 / 8, 5 / 4, 4 / 3, 3 / 2, 5 / 3, 15 / 8, 2];
 
+    function getScaleFrequency(root, degree) {
+        const index = ((degree % NOTE_RATIOS.length) + NOTE_RATIOS.length) % NOTE_RATIOS.length;
+        const octave = Math.floor(degree / NOTE_RATIOS.length);
+        return root * NOTE_RATIOS[index] * Math.pow(2, octave);
+    }
+
+    function scheduleThemeMusicNote(ctx, destination, frequency, start, duration, preset, options = {}) {
+        const volumeScale = clamp(preset.volumeScale, 0.05, 1.4, 1);
+        scheduleMusicNote(ctx, destination, frequency, start, duration, {
+            type: options.type || preset.type || 'triangle',
+            volume: (options.volume || 0.03) * volumeScale,
+            cutoff: options.cutoff || preset.cutoff || 1400,
+            detune: options.detune || 0,
+        });
+    }
+
     function scheduleMusicNote(ctx, destination, frequency, start, duration, options = {}) {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -1653,6 +1855,152 @@
         gain.connect(destination);
         osc.start(start);
         osc.stop(start + duration + 0.03);
+    }
+
+    function scheduleAmbientMusicBar(ctx, destination, start, preset) {
+        const beat = 60 / (preset.bpm || 54);
+        const chord = preset.chords[musicPatternIndex % preset.chords.length];
+        chord.forEach((degree, voice) => {
+            scheduleThemeMusicNote(
+                ctx,
+                destination,
+                getScaleFrequency(preset.root, degree),
+                start,
+                beat * 4.4,
+                preset,
+                {
+                    type: voice === 0 ? 'sine' : preset.type,
+                    volume: voice === 0 ? 0.034 : 0.023,
+                    detune: (voice - 1) * 5,
+                }
+            );
+        });
+
+        const melody = preset.melody || [];
+        melody.forEach((degree, step) => {
+            if (degree === null || degree === undefined) return;
+            scheduleThemeMusicNote(
+                ctx,
+                destination,
+                getScaleFrequency(preset.root * 2, degree),
+                start + step * beat,
+                beat * 0.75,
+                preset,
+                { type: 'sine', volume: 0.018, cutoff: preset.cutoff + 450 }
+            );
+        });
+        return beat * Math.max(8, melody.length || 8);
+    }
+
+    function schedulePulseMusicBar(ctx, destination, start, preset) {
+        const beat = 60 / (preset.bpm || 104);
+        const stepDuration = beat / 2;
+        const pattern = preset.pattern || [];
+        pattern.forEach((degree, step) => {
+            const stepStart = start + step * stepDuration;
+            if (degree !== null && degree !== undefined) {
+                scheduleThemeMusicNote(
+                    ctx,
+                    destination,
+                    getScaleFrequency(preset.root * 2, degree),
+                    stepStart,
+                    stepDuration * 0.52,
+                    preset,
+                    { volume: 0.025, cutoff: preset.cutoff }
+                );
+            }
+            if (step % 4 === 0) {
+                scheduleThemeMusicNote(
+                    ctx,
+                    destination,
+                    preset.root / 2,
+                    stepStart,
+                    stepDuration * 0.8,
+                    preset,
+                    { type: 'sine', volume: 0.022, cutoff: 520 }
+                );
+            }
+            if (preset.glitch && !isLiteMode() && step % 7 === musicPatternIndex % 7) {
+                scheduleThemeMusicNote(
+                    ctx,
+                    destination,
+                    getScaleFrequency(preset.root * 3, 11),
+                    stepStart + stepDuration * 0.35,
+                    0.035,
+                    preset,
+                    { type: 'square', volume: 0.012, cutoff: 2400, detune: 16 }
+                );
+            }
+        });
+        return stepDuration * Math.max(8, pattern.length);
+    }
+
+    function scheduleChiptuneMusicBar(ctx, destination, start, preset) {
+        const beat = 60 / (preset.bpm || 128);
+        const stepDuration = beat / 2;
+        const pattern = preset.pattern || [];
+        pattern.forEach((degree, step) => {
+            if (degree === null || degree === undefined) return;
+            scheduleThemeMusicNote(
+                ctx,
+                destination,
+                getScaleFrequency(preset.root * 2, degree),
+                start + step * stepDuration,
+                stepDuration * 0.62,
+                preset,
+                { volume: step % 4 === 0 ? 0.036 : 0.028, cutoff: preset.cutoff }
+            );
+        });
+        for (let step = 0; step < pattern.length; step += 4) {
+            scheduleThemeMusicNote(
+                ctx,
+                destination,
+                preset.root / 2,
+                start + step * stepDuration,
+                stepDuration * 1.25,
+                preset,
+                { type: 'square', volume: 0.027, cutoff: 720 }
+            );
+        }
+        return stepDuration * Math.max(8, pattern.length);
+    }
+
+    function scheduleBellMusicBar(ctx, destination, start, preset) {
+        const beat = 60 / (preset.bpm || 62);
+        const stepDuration = beat / 2;
+        const pattern = preset.pattern || [];
+        pattern.forEach((degree, step) => {
+            if (degree === null || degree === undefined) return;
+            scheduleThemeMusicNote(
+                ctx,
+                destination,
+                getScaleFrequency(preset.root, degree),
+                start + step * stepDuration,
+                beat * 1.4,
+                preset,
+                { type: step % 5 === 0 ? 'triangle' : 'sine', volume: 0.024, cutoff: preset.cutoff }
+            );
+        });
+        scheduleThemeMusicNote(
+            ctx,
+            destination,
+            preset.root / 2,
+            start,
+            beat * 5.6,
+            preset,
+            { type: 'sine', volume: 0.014, cutoff: 500 }
+        );
+        return stepDuration * Math.max(8, pattern.length);
+    }
+
+    function scheduleVoidMusicBar(ctx, destination, start, preset) {
+        const duration = preset.duration || 5;
+        scheduleThemeMusicNote(ctx, destination, preset.root, start, duration * 0.82, preset, {
+            type: 'sine',
+            volume: 0.006,
+            cutoff: preset.cutoff,
+        });
+        return duration;
     }
 
     function scheduleLofiBar(ctx, destination, start, progression) {
@@ -1716,16 +2064,32 @@
         return beat * 8;
     }
 
+    function scheduleThemeMusicBar(ctx, destination, start, preset) {
+        if (preset.scheduler === 'ambient') return scheduleAmbientMusicBar(ctx, destination, start, preset);
+        if (preset.scheduler === 'pulse') return schedulePulseMusicBar(ctx, destination, start, preset);
+        if (preset.scheduler === 'chiptune') return scheduleChiptuneMusicBar(ctx, destination, start, preset);
+        if (preset.scheduler === 'bells') return scheduleBellMusicBar(ctx, destination, start, preset);
+        if (preset.scheduler === 'void') return scheduleVoidMusicBar(ctx, destination, start, preset);
+
+        const progression = MUSIC_PROGRESSIONS[musicPatternIndex % MUSIC_PROGRESSIONS.length];
+        return settings.musicStyle === 'retro'
+            ? scheduleRetroBar(ctx, destination, start, progression)
+            : scheduleLofiBar(ctx, destination, start, progression);
+    }
+
     function scheduleNextMusicPattern() {
         if (!musicGain || !settings.musicEnabled || isLiteMode()
             || !state.sessionActive || document.hidden) return;
         const ctx = getAudioCtx();
         if (!ctx) return;
         const start = ctx.currentTime + 0.08;
-        const progression = MUSIC_PROGRESSIONS[musicPatternIndex % MUSIC_PROGRESSIONS.length];
-        const duration = settings.musicStyle === 'retro'
-            ? scheduleRetroBar(ctx, musicGain, start, progression)
-            : scheduleLofiBar(ctx, musicGain, start, progression);
+        const preset = ThemeManager.getMusicPreset();
+        if (musicPresetId && musicPresetId !== preset.id) {
+            restartMusic();
+            return;
+        }
+        musicPresetId = preset.id;
+        const duration = scheduleThemeMusicBar(ctx, musicGain, start, preset);
         musicPatternIndex++;
         musicTimer = setTimeout(scheduleNextMusicPattern, Math.max(100, (duration - 0.12) * 1000));
     }
@@ -1737,11 +2101,13 @@
         }
         if (!musicGain || !audioCtx || audioCtx.state === 'closed') {
             musicGain = null;
+            musicPresetId = null;
             musicOscillators.clear();
             return;
         }
         const gain = musicGain;
         musicGain = null;
+        musicPresetId = null;
         const now = audioCtx.currentTime;
         for (const osc of musicOscillators) {
             try { osc.stop(now + Math.max(0.02, fadeSeconds)); } catch { /* already stopped */ }
@@ -1763,6 +2129,7 @@
         musicGain.gain.setValueAtTime(0, ctx.currentTime);
         musicGain.gain.linearRampToValueAtTime(settings.musicVolume, ctx.currentTime + 0.7);
         musicGain.connect(ctx.destination);
+        musicPresetId = ThemeManager.getMusicPreset().id;
         scheduleNextMusicPattern();
     }
 
@@ -1823,6 +2190,7 @@
     function playThemeSound(eventType, context = {}) {
         if (!settings.sfxEnabled) return;
         const notes = ThemeManager.getSoundPreset(eventType);
+        const budget = ThemeManager.getEffectBudget(eventType);
         notes.forEach(note => {
             if (note.skipLite && isLiteMode()) return;
             if (note.every && (Number(context.answerStreak) || 0) % note.every !== 0) return;
@@ -1834,7 +2202,7 @@
             playTone(
                 freq,
                 note.duration,
-                resolveToneVolume(note, context),
+                resolveToneVolume(note, context) * budget.soundScale,
                 note.type || 'square',
                 note.delay || 0,
                 { endFreq, detune: note.detune || 0 }
@@ -2377,15 +2745,26 @@
         /* ── CELEBRATE ── */
         .mm-celebrate {
             --mm-celebrate-x: 0px;
+            --mm-celebrate-y: -90px;
             --mm-celebrate-rot: 0deg;
+            --mm-celebrate-life: 900ms;
             position: fixed; pointer-events: none; font-size: 52px; z-index: 9998;
             transform: translate(-50%, -50%);
             filter: drop-shadow(0 0 10px rgba(255,255,255,0.35));
         }
-        .mm-celebrate.pop   { animation: mmCelebratePop   0.75s ease forwards; }
-        .mm-celebrate.rise  { animation: mmCelebrateRise  0.95s ease-out forwards; }
-        .mm-celebrate.spin  { animation: mmCelebrateSpin  0.85s cubic-bezier(0.34,1.56,0.64,1) forwards; }
-        .mm-celebrate.burst { animation: mmCelebrateBurst 0.90s ease-out forwards; }
+        .mm-celebrate.pop   { animation: mmCelebratePop   var(--mm-celebrate-life) ease forwards; }
+        .mm-celebrate.rise  { animation: mmCelebrateRise  var(--mm-celebrate-life) ease-out forwards; }
+        .mm-celebrate.spin  {
+            animation: mmCelebrateSpin var(--mm-celebrate-life) cubic-bezier(0.34,1.56,0.64,1) forwards;
+        }
+        .mm-celebrate.burst { animation: mmCelebrateBurst var(--mm-celebrate-life) ease-out forwards; }
+        .mm-celebrate.orbit { animation: mmCelebrateOrbit var(--mm-celebrate-life) ease-in-out forwards; }
+        .mm-celebrate.drift { animation: mmCelebrateDrift var(--mm-celebrate-life) ease-out forwards; }
+        .mm-celebrate.bloom { animation: mmCelebrateBloom var(--mm-celebrate-life) ease-out forwards; }
+        .mm-celebrate.scan  { animation: mmCelebrateScan  var(--mm-celebrate-life) steps(5, end) forwards; }
+        .mm-celebrate.calm  { animation: mmCelebrateCalm  var(--mm-celebrate-life) ease-out forwards; }
+        .mm-celebrate.glitch{ animation: mmCelebrateGlitch var(--mm-celebrate-life) steps(5, end) forwards; }
+        .mm-celebrate.pulse { animation: mmCelebratePulse var(--mm-celebrate-life) ease-out forwards; }
         @keyframes mmCelebratePop {
             0%  { opacity:0; transform: translate(-50%, -50%) scale(0.4);  }
             35% { opacity:1; transform: translate(-50%, -50%) scale(1.25); }
@@ -2394,7 +2773,11 @@
         @keyframes mmCelebrateRise {
             0%  { opacity:0; transform: translate(-50%, -30%) scale(0.65); }
             30% { opacity:1; transform: translate(-50%, -70%) scale(1.15); }
-            100%{ opacity:0; transform: translate(calc(-50% + var(--mm-celebrate-x)), -170%) scale(0.85); }
+            100%{
+                opacity:0;
+                transform: translate(calc(-50% + var(--mm-celebrate-x)),
+                    calc(-50% + var(--mm-celebrate-y))) scale(0.85);
+            }
         }
         @keyframes mmCelebrateSpin {
             0%  { opacity:0; transform: translate(-50%, -50%) rotate(-24deg) scale(0.35); }
@@ -2407,6 +2790,132 @@
             60% { opacity:1; transform: translate(calc(-50% + var(--mm-celebrate-x)), -95%) scale(1); }
             100%{ opacity:0; transform: translate(calc(-50% + var(--mm-celebrate-x)), -135%) scale(0.45); }
         }
+        @keyframes mmCelebrateOrbit {
+            0%  { opacity:0; transform: translate(-50%, -50%) rotate(0deg) translateX(0) scale(0.45); }
+            28% { opacity:1; transform: translate(-50%, -50%) rotate(120deg) translateX(16px) scale(1); }
+            72% { opacity:1; transform: translate(-50%, -50%) rotate(260deg) translateX(34px) scale(0.95); }
+            100%{ opacity:0; transform: translate(-50%, -50%) rotate(360deg) translateX(52px) scale(0.55); }
+        }
+        @keyframes mmCelebrateDrift {
+            0%  { opacity:0; transform: translate(-50%, -35%) scale(0.78) rotate(-6deg); }
+            26% { opacity:1; }
+            100%{
+                opacity:0;
+                transform: translate(calc(-50% + var(--mm-celebrate-x)),
+                    calc(-50% + var(--mm-celebrate-y))) scale(0.78) rotate(var(--mm-celebrate-rot));
+            }
+        }
+        @keyframes mmCelebrateBloom {
+            0%  { opacity:0; transform: translate(-50%, -50%) scale(0.2); filter: blur(2px); }
+            30% { opacity:1; filter: blur(0); }
+            74% { opacity:1; transform: translate(-50%, -50%) scale(1.45); }
+            100%{ opacity:0; transform: translate(calc(-50% + var(--mm-celebrate-x)), -80%) scale(1.8); }
+        }
+        @keyframes mmCelebrateScan {
+            0%  { opacity:0; transform: translate(calc(-50% - 26px), -50%) scaleX(0.4); }
+            20% { opacity:1; transform: translate(calc(-50% + 22px), -50%) scaleX(1.25); }
+            52% { transform: translate(calc(-50% - 12px), -86%) scaleX(0.9); }
+            100%{ opacity:0; transform: translate(calc(-50% + var(--mm-celebrate-x)), -120%) scaleX(0.55); }
+        }
+        @keyframes mmCelebrateCalm {
+            0%  { opacity:0; transform: translate(-50%, -30%) scale(0.92); }
+            30% { opacity:0.85; }
+            100%{
+                opacity:0;
+                transform: translate(calc(-50% + var(--mm-celebrate-x)),
+                    calc(-50% + var(--mm-celebrate-y))) scale(0.96);
+            }
+        }
+        @keyframes mmCelebrateGlitch {
+            0%  { opacity:1; transform: translate(-50%, -50%) skewX(0deg); }
+            20% { transform: translate(calc(-50% + 14px), calc(-50% - 8px)) skewX(-18deg); }
+            42% { transform: translate(calc(-50% - 12px), calc(-50% - 22px)) skewX(15deg); }
+            66% { opacity:1; transform: translate(calc(-50% + 8px), calc(-50% - 38px)) skewX(-10deg); }
+            100%{ opacity:0; transform: translate(calc(-50% + var(--mm-celebrate-x)), -120%) skewX(0deg); }
+        }
+        @keyframes mmCelebratePulse {
+            0%  { opacity:0; transform: translate(-50%, -50%) scale(0.72); }
+            30% { opacity:0.78; transform: translate(-50%, -50%) scale(1.08); }
+            100%{ opacity:0; transform: translate(-50%, -50%) scale(1.45); }
+        }
+
+        .mm-answer-accent {
+            --mm-answer-accent-opacity: 0.9;
+            position: fixed; z-index: 9997; pointer-events: none;
+            border: 1px solid var(--mm-theme-field-border, rgba(125,211,252,0.65));
+            border-radius: 8px; box-sizing: border-box;
+            box-shadow: 0 0 18px var(--mm-theme-field-glow, rgba(125,211,252,0.24));
+            opacity: 0; overflow: hidden;
+            animation: mmAnswerAccentPop 620ms ease-out forwards;
+        }
+        .mm-answer-accent::after {
+            content: ''; position: absolute; inset: -2px;
+            background: linear-gradient(90deg, transparent,
+                var(--mm-theme-flash, rgba(125,211,252,0.18)), transparent);
+            transform: translateX(-100%);
+        }
+        .mm-answer-accent[data-mm-accent="scan"] {
+            animation: mmAnswerAccentScan 560ms steps(4, end) forwards;
+        }
+        .mm-answer-accent[data-mm-accent="scan"]::after {
+            animation: mmAnswerSweep 560ms steps(4, end) forwards;
+        }
+        .mm-answer-accent[data-mm-accent="glitch"] {
+            animation: mmAnswerAccentGlitch 520ms steps(5, end) forwards;
+        }
+        .mm-answer-accent[data-mm-accent="orbit"] {
+            border-radius: 999px;
+            animation: mmAnswerAccentOrbit 760ms ease-out forwards;
+        }
+        .mm-answer-accent[data-mm-accent="bloom"] {
+            animation: mmAnswerAccentBloom 760ms ease-out forwards;
+        }
+        .mm-answer-accent[data-mm-accent="shimmer"] {
+            animation: mmAnswerAccentShimmer 900ms ease-out forwards;
+        }
+        .mm-answer-accent[data-mm-accent="pulse"] {
+            animation: mmAnswerAccentPulse 520ms ease-out forwards;
+        }
+        @keyframes mmAnswerAccentPop {
+            0% { opacity:0; transform: scale(0.96); }
+            24% { opacity:var(--mm-answer-accent-opacity); }
+            100% { opacity:0; transform: scale(1.04); }
+        }
+        @keyframes mmAnswerAccentScan {
+            0% { opacity:0; transform: translateX(-3px) scaleX(0.98); }
+            22% { opacity:var(--mm-answer-accent-opacity); }
+            100% { opacity:0; transform: translateX(5px) scaleX(1.02); }
+        }
+        @keyframes mmAnswerSweep {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        @keyframes mmAnswerAccentGlitch {
+            0% { opacity:var(--mm-answer-accent-opacity); transform: translate(0, 0) skewX(0deg); }
+            30% { transform: translate(6px, -2px) skewX(-8deg); }
+            58% { transform: translate(-5px, 2px) skewX(10deg); }
+            100% { opacity:0; transform: translate(0, 0) skewX(0deg); }
+        }
+        @keyframes mmAnswerAccentOrbit {
+            0% { opacity:0; transform: scale(0.92) rotate(0deg); }
+            30% { opacity:var(--mm-answer-accent-opacity); }
+            100% { opacity:0; transform: scale(1.14) rotate(22deg); }
+        }
+        @keyframes mmAnswerAccentBloom {
+            0% { opacity:0; transform: scale(0.9); filter: blur(2px); }
+            28% { opacity:var(--mm-answer-accent-opacity); filter: blur(0); }
+            100% { opacity:0; transform: scale(1.12); filter: blur(1px); }
+        }
+        @keyframes mmAnswerAccentShimmer {
+            0% { opacity:0; transform: translateY(3px); }
+            30% { opacity:var(--mm-answer-accent-opacity); }
+            100% { opacity:0; transform: translateY(-5px); }
+        }
+        @keyframes mmAnswerAccentPulse {
+            0% { opacity:0; transform: scale(0.98); }
+            34% { opacity:var(--mm-answer-accent-opacity); }
+            100% { opacity:0; transform: scale(1.02); }
+        }
 
         /* ── SCREEN FLASH ── */
         #mm-flash { position: fixed; inset: 0; pointer-events: none; z-index: 10002; opacity: 0; }
@@ -2418,7 +2927,7 @@
             background: var(--mm-theme-failure-flash, rgba(255,70,90,0.18));
             animation: mmFlash 0.3s ease forwards;
         }
-        @keyframes mmFlash { 0%{ opacity:1; } 100%{ opacity:0; } }
+        @keyframes mmFlash { 0%{ opacity:var(--mm-theme-flash-strength, 1); } 100%{ opacity:0; } }
 
         /* ── SHAKE ── */
         @keyframes mmShakeLight {
@@ -2489,6 +2998,26 @@
             min-width: 86px; text-align: center;
         }
         .mm-cycle-btn:hover { border-color: var(--mm-theme-secondary, #7cf); color: #fff; }
+        .mm-preview-title {
+            margin: 10px 0 5px; padding-top: 8px;
+            border-top: 1px solid var(--mm-theme-panel-divider, rgba(255,255,255,0.1));
+            color: var(--mm-theme-accent, #f90); font-size: 8px;
+        }
+        .mm-preview-grid {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 5px; margin-bottom: 4px;
+        }
+        .mm-preview-btn {
+            background: var(--mm-theme-control-bg, transparent);
+            border: 1px solid var(--mm-theme-control-border, rgba(255,255,255,0.2));
+            color: var(--mm-theme-panel-muted, #aaa);
+            font-family: inherit; font-size: 7px;
+            padding: 4px 5px; border-radius: 4px; cursor: pointer;
+        }
+        .mm-preview-btn:hover {
+            border-color: var(--mm-theme-button, #f90);
+            color: var(--mm-theme-button, #f90);
+        }
         #mm-vol-slider, #mm-music-vol-slider {
             -webkit-appearance: none; width: 80px; height: 4px;
             background: var(--mm-theme-panel-divider, #555);
@@ -2629,7 +3158,7 @@
             #mm-hud, #mm-combo-bar, .mm-toggle::after,
             .mm-float, .mm-hud-micro, .mm-theme-particle,
             #mm-mult-banner, #mm-milestone-banner,
-            .mm-celebrate, #mm-flash, body.mm-shake-light,
+            .mm-celebrate, .mm-answer-accent, #mm-flash, body.mm-shake-light,
             body.mm-shake-hard, .mm-pulse, .mm-bounce,
             .mm-progress-glow, #mm-summary-inner {
                 animation: none !important;
@@ -2637,7 +3166,8 @@
             }
 
             .mm-float, .mm-hud-micro, .mm-theme-particle,
-            #mm-mult-banner, #mm-milestone-banner, .mm-celebrate, #mm-flash {
+            #mm-mult-banner, #mm-milestone-banner,
+            .mm-celebrate, .mm-answer-accent, #mm-flash {
                 opacity: 0 !important;
             }
         }
@@ -3136,6 +3666,16 @@
                     ${ThemeManager.getThemeLabel(settings.pinnedBackgroundTheme)}
                 </button>
             </div>
+            <div class="mm-preview-title">THEME PREVIEW</div>
+            <div class="mm-preview-grid">
+                <button class="mm-preview-btn" type="button" data-preview-event="correct">CORRECT</button>
+                <button class="mm-preview-btn" type="button" data-preview-event="incorrect">WRONG</button>
+                <button class="mm-preview-btn" type="button" data-preview-event="combo">COMBO</button>
+                <button class="mm-preview-btn" type="button" data-preview-event="milestone">MILESTONE</button>
+                <button class="mm-preview-btn" type="button" data-preview-event="timeout">TIMEOUT</button>
+                <button class="mm-preview-btn" type="button" data-preview-event="wordComplete">WORD CLEAR</button>
+                <button class="mm-preview-btn" type="button" data-preview-event="sessionComplete">SESSION</button>
+            </div>
             <button class="mm-btn-outline" id="mm-pin-bg">PIN CURRENT BACKGROUND</button>
             <button class="mm-btn-outline" id="mm-use-pinned-bg">USE PINNED BACKGROUND</button>
             <button class="mm-btn-outline" id="mm-reset-hud">RESET HUD POSITION</button>
@@ -3201,6 +3741,12 @@
             scheduleSettingsSave();
         });
 
+        panel.querySelectorAll('[data-preview-event]').forEach(btn => {
+            btn.addEventListener('click', event => {
+                previewThemeEvent(event.currentTarget.dataset.previewEvent);
+            });
+        });
+
         const updateBackgroundButtons = () => {
             panel.querySelector('#mm-bg-theme').textContent =
                 ThemeManager.getThemeLabel(settings.backgroundTheme);
@@ -3213,6 +3759,7 @@
             updateBackgroundButtons();
             saveSettings();
             restartArcadeBackdrop();
+            if (settings.musicEnabled) restartMusic();
         };
 
         const setPinnedBackgroundTheme = theme => {
@@ -3281,6 +3828,8 @@
             if (!settings.visualsEnabled) {
                 arcadeOff();
                 document.body.classList.remove('mm-shake-light', 'mm-shake-hard');
+                document.querySelectorAll('.mm-float, .mm-celebrate, .mm-theme-particle, .mm-answer-accent')
+                    .forEach(node => node.remove());
             } else {
                 syncArcadePresentation();
             }
@@ -3542,6 +4091,7 @@
         syncXpBonusDisplay();
         spawnFloat('TIME UP', 'incorrect', getInputWrapper());
         playThemeSound('timeout');
+        triggerAnswerBoxAccent('timeout');
         spawnThemeParticles('timeout', getInputWrapper());
 
         if (settings.timeoutFailureEnabled) {
@@ -3716,7 +4266,9 @@
         if (correct ? !settings.flashEnabled : !settings.failureFlashEnabled) return;
         const f = els.flash;
         if (!f) return;
+        const budget = ThemeManager.getEffectBudget(correct ? 'correct' : 'incorrect');
         f.className = '';
+        f.style.setProperty('--mm-theme-flash-strength', budget.flashScale);
         void f.offsetWidth;
         f.classList.add(correct ? 'correct-flash' : 'wrong-flash');
     }
@@ -3769,18 +4321,165 @@
         b.classList.add('show');
     }
 
-    function spawnCelebrate(celebration, x, y) {
-        if (isLiteMode() || !settings.visualsEnabled || prefersReducedMotion()) return;
+    function pickRandom(items, fallback) {
+        return items?.length ? items[Math.floor(Math.random() * items.length)] : fallback;
+    }
+
+    function spawnCelebrate(celebration, x, y, choreography) {
+        if (!settings.visualsEnabled || prefersReducedMotion() || document.hidden) return;
+        const preset = choreography || ThemeManager.getCelebrationPreset('wordComplete');
         const node = document.createElement('div');
         node.className   = `mm-celebrate ${celebration.effect}`;
         node.textContent = celebration.icon;
         node.style.left = `${x}px`;
         node.style.top  = `${y}px`;
-        node.style.color = ThemeManager.getThemeValue('colors.banner', '#fff');
-        node.style.setProperty('--mm-celebrate-x', `${Math.round((Math.random() - 0.5) * 100)}px`);
+        node.style.color = preset.color || ThemeManager.getThemeValue('colors.banner', '#fff');
+        node.style.fontSize = `${Number(preset.size) || 52}px`;
+        node.style.setProperty('--mm-celebrate-life', `${Number(preset.durationMs) || 900}ms`);
+        const spread = Number(preset.spread) || 72;
+        node.style.setProperty('--mm-celebrate-x', `${Math.round((Math.random() - 0.5) * spread)}px`);
+        node.style.setProperty('--mm-celebrate-y', `${Math.round(-48 - Math.random() * spread)}px`);
         node.style.setProperty('--mm-celebrate-rot', `${Math.round((Math.random() - 0.5) * 90)}deg`);
         document.body.appendChild(node);
-        setTimeout(() => node.remove(), 1000);
+        setTimeout(() => node.remove(), (Number(preset.durationMs) || 900) + 160);
+    }
+
+    function getRandomCelebration(eventType = 'wordComplete') {
+        const preset = ThemeManager.getComboPreset(eventType);
+        const choreography = ThemeManager.getCelebrationPreset(eventType);
+        const icons = preset.celebrations?.length ? preset.celebrations : CELEBRATIONS;
+        const icon = pickRandom(icons, { icon: '✨', effect: 'rise' });
+        if (typeof icon === 'string') {
+            return {
+                icon,
+                effect: pickRandom(choreography.effects, 'rise'),
+            };
+        }
+        return {
+            icon: icon.icon,
+            effect: icon.effect || pickRandom(choreography.effects, 'rise'),
+        };
+    }
+
+    function spawnCelebrationBurst(eventType, anchorEl, options = {}) {
+        if (!settings.visualsEnabled || prefersReducedMotion() || document.hidden) return;
+        const choreography = { ...ThemeManager.getCelebrationPreset(eventType), ...options };
+        const budget = ThemeManager.getEffectBudget(eventType);
+        const baseCount = isLiteMode()
+            ? Number(choreography.liteCount) || 0
+            : Number(choreography.count) || 1;
+        const maxCount = isLiteMode() ? 1 : 4;
+        const minCount = baseCount > 0 ? 1 : 0;
+        const count = Math.min(
+            maxCount,
+            Math.max(minCount, Math.round(baseCount * budget.celebrationScale))
+        );
+        if (count <= 0) return;
+
+        const point = getAnchorPoint(anchorEl);
+        const jitter = Math.max(8, (Number(choreography.spread) || 60) * 0.26);
+        for (let index = 0; index < count; index++) {
+            spawnCelebrate(
+                getRandomCelebration(eventType),
+                point.x + (Math.random() - 0.5) * jitter,
+                point.y + (Math.random() - 0.5) * jitter,
+                choreography
+            );
+        }
+    }
+
+    function triggerAnswerBoxAccent(eventType, anchorEl = getInputWrapper()) {
+        if (!settings.visualsEnabled || prefersReducedMotion() || document.hidden) return;
+        const rect = anchorEl?.getBoundingClientRect?.();
+        if (!rect) return;
+        const choreography = ThemeManager.getCelebrationPreset(eventType);
+        const budget = ThemeManager.getEffectBudget(eventType);
+        const node = document.createElement('div');
+        node.className = 'mm-answer-accent';
+        node.dataset.mmAccent = choreography.answerAccent || 'pop';
+        node.style.left = `${rect.left - 5}px`;
+        node.style.top = `${rect.top - 5}px`;
+        node.style.width = `${rect.width + 10}px`;
+        node.style.height = `${rect.height + 10}px`;
+        node.style.setProperty('--mm-answer-accent-opacity', budget.flashScale);
+        document.body.appendChild(node);
+        setTimeout(() => node.remove(), 980);
+    }
+
+    function getPreviewAnchor() {
+        return getInputWrapper() || els.hud || null;
+    }
+
+    function previewThemeEvent(eventType) {
+        const anchor = getPreviewAnchor();
+        const soundContext = {
+            answerStreak: Math.max(5, state.answerStreak || 5),
+            wordStreak: Math.max(2, state.wordStreak || 2),
+            multiplier: Math.max(3, state.multiplier || 3),
+        };
+
+        if (eventType === 'correct') {
+            playThemeSound('correct', soundContext);
+            flashScreen(true);
+            triggerAnswerBoxAccent('correct', anchor);
+            spawnFloat('+100', 'correct', anchor);
+            spawnThemeParticles('correct', anchor);
+            return;
+        }
+
+        if (eventType === 'incorrect') {
+            playThemeSound('incorrect');
+            flashScreen(false);
+            triggerAnswerBoxAccent('incorrect', anchor);
+            spawnFloat('WRONG', 'incorrect', anchor);
+            spawnThemeParticles('incorrect', anchor);
+            return;
+        }
+
+        if (eventType === 'combo') {
+            playThemeSound('multiplierUp', soundContext);
+            showBanner('mm-mult-banner', '3x COMBO!');
+            triggerAnswerBoxAccent('multiplierUp', anchor);
+            spawnFloat('MULT x3', 'correct', anchor);
+            spawnThemeParticles('multiplierUp', anchor);
+            spawnCelebrationBurst('multiplierUp', anchor);
+            return;
+        }
+
+        if (eventType === 'milestone') {
+            playThemeSound('multiplierUp', soundContext);
+            showBanner('mm-milestone-banner', 'UNSTOPPABLE!');
+            triggerAnswerBoxAccent('milestone', anchor);
+            spawnFloat('UNSTOPPABLE!', 'milestone', anchor);
+            spawnThemeParticles('milestone', anchor);
+            spawnCelebrationBurst('milestone', anchor);
+            return;
+        }
+
+        if (eventType === 'timeout') {
+            playThemeSound('timeout');
+            flashScreen(false);
+            triggerAnswerBoxAccent('timeout', anchor);
+            spawnFloat('TIME UP', 'incorrect', anchor);
+            spawnThemeParticles('timeout', anchor);
+            return;
+        }
+
+        if (eventType === 'wordComplete') {
+            playThemeSound('wordComplete', soundContext);
+            triggerAnswerBoxAccent('wordComplete', anchor);
+            spawnFloat('WORD CLEAR!', 'wordwin', anchor);
+            spawnThemeParticles('wordComplete', anchor);
+            spawnCelebrationBurst('wordComplete', anchor);
+            return;
+        }
+
+        if (eventType === 'sessionComplete') {
+            playThemeSound('sessionComplete');
+            showBanner('mm-milestone-banner', 'SESSION COMPLETE');
+            spawnThemeParticles('sessionComplete', anchor);
+            spawnCelebrationBurst('sessionComplete', anchor);
+        }
     }
 
     function getParticleText(shape, preset) {
@@ -3802,7 +4501,7 @@
         if (count <= 0) return;
 
         const point = getAnchorPoint(anchorEl);
-        const spread = Number(preset.spread) || 64;
+        const spread = (Number(preset.spread) || 64) * budget.spreadScale;
         const lifetime = Number(preset.lifetimeMs) || 700;
         for (let index = 0; index < count; index++) {
             const node = document.createElement('span');
@@ -5557,13 +6256,6 @@
         { icon: '🪷', effect: 'rise' },
     ];
 
-    function getRandomCelebration() {
-        const preset = ThemeManager.getComboPreset('wordComplete');
-        const icons = preset.celebrations?.length ? preset.celebrations : CELEBRATIONS;
-        const icon = icons[Math.floor(Math.random() * icons.length)];
-        return typeof icon === 'string' ? { icon, effect: 'rise' } : icon;
-    }
-
     const FONT_CHALLENGE_LOCAL_FONTS = [
         'MS Gothic', 'MS Mincho', 'Meiryo', 'Yu Gothic', 'Yu Mincho',
         'Hiragino Kaku Gothic Pro', 'Hiragino Mincho Pro', 'Osaka',
@@ -5735,6 +6427,7 @@
             showBanner('mm-mult-banner', `${newMult}x COMBO!`);
             playMultiplierUpSound(newMult);
             spawnThemeParticles('multiplierUp', getInputWrapper());
+            spawnCelebrationBurst('multiplierUp', getInputWrapper());
         }
 
         const milestone = MILESTONES[state.answerStreak];
@@ -5742,6 +6435,7 @@
             showBanner('mm-milestone-banner', milestone);
             spawnFloat(milestone, 'milestone', getInputWrapper());
             spawnThemeParticles('milestone', getInputWrapper());
+            spawnCelebrationBurst('milestone', getInputWrapper());
         }
 
         updateHUD();
@@ -5755,6 +6449,7 @@
         showHudMicro(feedback.join(' · '), newMult > prevMult ? 'mult' : 'score');
         playCorrectSound();
         flashScreen(true);
+        triggerAnswerBoxAccent('correct');
         const floatText = timedXp.eligible && timedXp.multiplier > 1
             ? `+${pts} · ${timedXp.tier.label}! XP x${timedXp.multiplier.toFixed(2)}`
             : `+${pts}`;
@@ -5786,6 +6481,7 @@
         if (lostStreak > 0) showHudMicro('COMBO RESET', 'fail');
         playFailSound();
         scheduleFailureFlash();
+        triggerAnswerBoxAccent('incorrect');
         shakeScreen(lostStreak > 4);
 
         const anchor = getInputWrapper();
@@ -5810,12 +6506,7 @@
 
         spawnFloat('WORD CLEAR!', 'wordwin', counter);
         spawnThemeParticles('wordComplete', counter);
-
-        const r     = counter?.getBoundingClientRect();
-        spawnCelebrate(getRandomCelebration(),
-            r ? r.left + r.width  / 2 : window.innerWidth  / 2,
-            r ? r.top  + r.height / 2 : window.innerHeight / 2,
-        );
+        spawnCelebrationBurst('wordComplete', counter);
         if (Math.random() < 0.55 || state.wordStreak % 5 === 0) triggerShootingStar();
     }
 
@@ -5864,6 +6555,7 @@
         overlay.querySelector('#mm-summary-close')
                .addEventListener('click', () => overlay.classList.remove('open'));
         spawnThemeParticles('sessionComplete', overlay.querySelector('#mm-summary-inner'));
+        spawnCelebrationBurst('sessionComplete', overlay.querySelector('#mm-summary-inner'));
     }
 
     function observeCorrectness() {
@@ -6011,7 +6703,7 @@
         }
         hudMicroEl?.remove();
         hudMicroEl = null;
-        document.querySelectorAll('.mm-float, .mm-celebrate, .mm-theme-particle')
+        document.querySelectorAll('.mm-float, .mm-celebrate, .mm-theme-particle, .mm-answer-accent')
             .forEach(node => node.remove());
         stopAnswerTimer();
         removeFirstAnswerInputGate();
