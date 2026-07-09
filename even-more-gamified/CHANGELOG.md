@@ -6,7 +6,13 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ### Changed
 
-- Bumped the userscript version to `3.4.2`.
+- Bumped the userscript version to `3.4.4`.
+- Added a persistent collapse control to the draggable HUD.
+- Added a compact glass HUD showing score, combo, multiplier, word streak, and
+  XP bonus, with a two-row narrow-screen layout.
+- Added brief score, multiplier, streak, and combo-reset notices beside the
+  collapsed HUD.
+- Kept the answer timer visible above the compact HUD stats.
 - Replaced the realistic garden shrine with a pixel-painted fantasy sky shrine.
 - Reframed the torii, shrine, waterfalls, lanterns, and golden tree around a
   quieter central valley so review content remains readable.

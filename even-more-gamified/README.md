@@ -13,7 +13,7 @@ This is intended to be shared back with the original script author as an experim
 
 ## Highlights
 
-- Draggable, persistent arcade HUD.
+- Draggable, persistent arcade HUD with a saved compact mode.
 - Score, combo, multiplier, accuracy, word streak, XP bonus, and 7-day records.
 - Rewind support for typo recovery via HUD button, native redo/undo, or Backspace.
 - Per-word timer behavior, including optional Timeout Fail mode.

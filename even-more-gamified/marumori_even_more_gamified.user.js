@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         MaruMori Even More Gamified - Updated
 // @namespace    marumori-gamify
-// @version      3.4.2
+// @version      3.4.4
 // @description  Gamifies MaruMori review sessions with arcade combo audio, score multipliers, screen shake, floating damage numbers, and more
 // @match        https://marumori.io/*
 // @author       matskye
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_getResourceURL
-// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.2
+// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.4
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=marumori.io
 // @license      WTFPL
 // @downloadURL https://update.greasyfork.org/scripts/566950/MaruMori%20Even%20More%20Gamified.user.js
@@ -36,6 +36,7 @@
         volume:         0.5,    // 0–1
         comboTimeout:   15000,  // ms before idle combo reset
         hudPosition:    null,
+        hudCollapsed:   false,
     };
 
     const BACKGROUND_THEMES = [
@@ -65,13 +66,13 @@
     };
     const SHRINE_IMAGE_URL =
         'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/'
-        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.2';
+        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.4';
     const RESOLVED_BACKDROP_OPACITY = 0.5;
 
     const BOOL_SETTINGS = [
         'sfxEnabled', 'visualsEnabled', 'hudEnabled', 'shakeEnabled',
         'floatEnabled', 'flashEnabled', 'arcadeEnabled', 'autoFailTimeout',
-        'fontChallengeEnabled', 'musicEnabled',
+        'fontChallengeEnabled', 'musicEnabled', 'hudCollapsed',
     ];
 
     function clamp(num, min, max, fallback) {
@@ -230,6 +231,8 @@
     let comboBarStart       = null;
     let hudResizeHandler    = null;
     let hudDrag             = null;
+    let hudCollapseTimer    = null;
+    let hudMicroTimer       = null;
     let rewindSnapshot      = null;
     let pendingRewindRestore = false;
     let timeoutAutoFailing  = false;
@@ -549,23 +552,54 @@
             background: rgba(0,0,0,0.85);
             border: 2px solid rgba(255,255,255,0.12);
             color: #fff; padding: 10px 16px 12px; border-radius: 8px;
-            font-size: 11px; z-index: 9999; min-width: 180px;
+            box-sizing: content-box; width: 180px; min-width: 180px;
+            font-size: 11px; z-index: 9999;
             line-height: 1.8; image-rendering: pixelated;
+            display: flex; flex-direction: column;
             cursor: grab; touch-action: none;
-            transition: box-shadow 0.2s ease, opacity 0.3s; user-select: none;
+            overflow: hidden; user-select: none;
+            transition: width 0.24s ease, min-width 0.24s ease,
+                padding 0.24s ease, background 0.24s ease,
+                border-color 0.24s ease, box-shadow 0.2s ease, opacity 0.3s;
         }
         #mm-hud.dragging { cursor: grabbing; opacity: 0.92; }
         #mm-hud.hidden  { opacity: 0; pointer-events: none; }
         #mm-hud.glow    { box-shadow: 0 0 18px 4px #f90; }
         #mm-hud.danger  { box-shadow: 0 0 18px 4px #f33; }
 
-        /* label rows — shared style */
-        #mm-hud-score-label, #mm-hud-combo-label, #mm-hud-mult-label,
-        #mm-hud-streak-label, #mm-hud-acc-label, #mm-hud-record-label,
-        #mm-hud-bonus-label { color: #aaa; font-size: 8px; }
-        #mm-hud-combo-label, #mm-hud-mult-label,
-        #mm-hud-streak-label, #mm-hud-acc-label, #mm-hud-record-label,
-        #mm-hud-bonus-label { margin-top: 4px; }
+        #mm-hud-header {
+            display: flex; align-items: center; justify-content: space-between;
+            min-height: 18px; margin-bottom: 4px; order: 0;
+        }
+        #mm-hud-title {
+            color: rgba(255,255,255,0.42); font-size: 7px;
+            line-height: 1; white-space: nowrap;
+        }
+        #mm-hud-collapse-btn {
+            display: grid; place-items: center; width: 20px; height: 20px;
+            padding: 0; border: 1px solid rgba(255,255,255,0.16);
+            border-radius: 4px; background: rgba(255,255,255,0.04);
+            color: #aaa; font-family: inherit; font-size: 11px;
+            line-height: 1; cursor: pointer; flex: 0 0 auto;
+        }
+        #mm-hud-collapse-btn:hover {
+            color: #fff; border-color: rgba(255,153,0,0.7);
+            background: rgba(255,153,0,0.1);
+        }
+        #mm-hud-collapse-btn:focus-visible {
+            outline: 2px solid #7cf; outline-offset: 2px;
+        }
+        #mm-hud-stats { display: block; order: 1; }
+        .mm-hud-stat {
+            min-width: 0; margin-top: 4px;
+            transition: opacity 0.18s ease, transform 0.24s ease,
+                max-height 0.24s ease, margin 0.24s ease;
+        }
+        .mm-hud-stat:first-child { margin-top: 0; }
+        .mm-hud-label { color: #aaa; font-size: 8px; }
+        .mm-hud-label-short { display: none; }
+        .mm-hud-value { font-variant-numeric: tabular-nums; }
+        .mm-hud-secondary { max-height: 44px; opacity: 1; overflow: hidden; }
 
         #mm-hud-score  { color: #ffe066; font-size: 13px; }
         #mm-hud-combo  { color: #7cf;    font-size: 13px; }
@@ -576,6 +610,12 @@
         #mm-hud-record { color: #ffe066; font-size: 8px; line-height: 1.7; }
         #mm-hud-record span { color: #7cf; }
 
+        #mm-hud-controls {
+            max-height: 82px; opacity: 1; overflow: hidden;
+            order: 3;
+            transition: max-height 0.24s ease, opacity 0.16s ease,
+                transform 0.24s ease;
+        }
         #mm-hud-settings-btn {
             display: block; margin-top: 10px;
             background: none; border: 1px solid rgba(255,255,255,0.2);
@@ -600,6 +640,7 @@
         /* combo bar */
         #mm-combo-bar-wrap {
             margin-top: 8px; height: 4px;
+            order: 2;
             background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;
         }
         #mm-combo-bar {
@@ -608,6 +649,93 @@
             transition: background 0.3s;
         }
         #mm-combo-bar.low { background: linear-gradient(90deg, #f33, #f93); }
+
+        /* compact draggable HUD */
+        #mm-hud.mm-panel-collapsed {
+            width: min(340px, calc(100vw - 72px)); min-width: 0;
+            padding: 6px 9px 8px;
+            background: rgba(3,7,18,0.72);
+            border-color: rgba(160,205,255,0.2);
+            backdrop-filter: blur(10px) saturate(1.1);
+            -webkit-backdrop-filter: blur(10px) saturate(1.1);
+            line-height: 1.2;
+        }
+        #mm-hud.mm-panel-collapsed #mm-hud-header {
+            min-height: 16px; margin-bottom: 4px;
+        }
+        #mm-hud.mm-panel-collapsed #mm-hud-title {
+            color: rgba(190,220,255,0.52); font-size: 6px;
+        }
+        #mm-hud.mm-panel-collapsed #mm-hud-collapse-btn {
+            width: 18px; height: 18px; font-size: 10px;
+        }
+        #mm-hud.mm-panel-collapsed #mm-hud-stats {
+            display: grid;
+            grid-template-columns: 1.25fr repeat(4, 1fr);
+            align-items: center; order: 2;
+        }
+        #mm-hud.mm-panel-collapsed #mm-combo-bar-wrap {
+            height: 3px; margin: 1px 0 6px; order: 1;
+        }
+        #mm-hud.mm-panel-collapsed .mm-hud-stat {
+            margin: 0; padding: 0 7px;
+            border-left: 1px solid rgba(255,255,255,0.1);
+            transform: translateY(0);
+        }
+        #mm-hud.mm-panel-collapsed .mm-hud-stat:first-child {
+            padding-left: 0; border-left: 0;
+        }
+        #mm-hud.mm-panel-collapsed .mm-hud-label {
+            display: block; overflow: hidden; color: rgba(215,225,240,0.52);
+            font-size: 6px; line-height: 1.1; white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+        #mm-hud.mm-panel-collapsed .mm-hud-label-full { display: none; }
+        #mm-hud.mm-panel-collapsed .mm-hud-label-short { display: inline; }
+        #mm-hud.mm-panel-collapsed .mm-hud-value {
+            display: block; overflow: hidden; margin-top: 2px;
+            font-size: 10px; line-height: 1.15; white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+        #mm-hud.mm-panel-collapsed .mm-hud-secondary {
+            display: none;
+        }
+        #mm-hud.mm-panel-collapsed #mm-hud-controls {
+            max-height: 0; opacity: 0; transform: translateY(-5px);
+            pointer-events: none;
+        }
+
+        .mm-hud-micro {
+            position: fixed; z-index: 10000; pointer-events: none;
+            padding: 5px 8px; border: 1px solid rgba(255,255,255,0.16);
+            border-radius: 4px; background: rgba(2,5,14,0.86);
+            color: #ffe066; font-family: var(--mm-arcade-font);
+            font-size: 8px; line-height: 1; white-space: nowrap;
+            box-shadow: 0 5px 18px rgba(0,0,0,0.32);
+            animation: mmHudMicro 0.85s ease-out forwards;
+        }
+        .mm-hud-micro.mult { color: #f90; }
+        .mm-hud-micro.streak { color: #7f7; }
+        .mm-hud-micro.fail { color: #f66; }
+        @keyframes mmHudMicro {
+            0%   { opacity: 0; transform: translateY(3px) scale(0.96); }
+            18%  { opacity: 1; transform: translateY(0) scale(1); }
+            72%  { opacity: 1; transform: translateY(-3px) scale(1); }
+            100% { opacity: 0; transform: translateY(-10px) scale(0.98); }
+        }
+
+        @media (max-width: 480px) {
+            #mm-hud.mm-panel-collapsed {
+                width: min(270px, calc(100vw - 56px));
+            }
+            #mm-hud.mm-panel-collapsed #mm-hud-stats {
+                grid-template-columns: repeat(3, 1fr);
+                row-gap: 5px;
+            }
+            #mm-hud.mm-panel-collapsed .mm-hud-stat:nth-child(4) {
+                padding-left: 0; border-left: 0;
+            }
+        }
 
         /* ── FLOATING TEXT ── */
         .mm-float {
@@ -810,7 +938,7 @@
 
         @media (prefers-reduced-motion: reduce) {
             #mm-hud, #mm-combo-bar, .mm-toggle::after,
-            .mm-float, #mm-mult-banner, #mm-milestone-banner,
+            .mm-float, .mm-hud-micro, #mm-mult-banner, #mm-milestone-banner,
             .mm-celebrate, #mm-flash, body.mm-shake-light,
             body.mm-shake-hard, .mm-pulse, .mm-bounce,
             .mm-progress-glow, #mm-summary-inner {
@@ -818,7 +946,7 @@
                 transition: none !important;
             }
 
-            .mm-float, #mm-mult-banner, #mm-milestone-banner,
+            .mm-float, .mm-hud-micro, #mm-mult-banner, #mm-milestone-banner,
             .mm-celebrate, #mm-flash {
                 opacity: 0 !important;
             }
@@ -833,25 +961,57 @@
         const frag = document.createDocumentFragment();
 
         const hud = el('div', 'mm-hud', `
-            <div id="mm-hud-score-label">SCORE</div>
-            <div id="mm-hud-score">0</div>
-            <div id="mm-hud-combo-label">COMBO</div>
-            <div id="mm-hud-combo">x0</div>
-            <div id="mm-hud-mult-label">MULTIPLIER</div>
-            <div id="mm-hud-mult">x1</div>
-            <div id="mm-hud-streak-label">WORD STREAK</div>
-            <div id="mm-hud-streak">0</div>
-            <div id="mm-hud-acc-label">ACCURACY</div>
-            <div id="mm-hud-acc">—</div>
-            <div id="mm-hud-bonus-label">XP BONUS</div>
-            <div id="mm-hud-bonus">x1.00</div>
-            <div id="mm-hud-record-label">7D BEST</div>
-            <div id="mm-hud-record">S <span>0</span> / C <span>x0</span> / M <span>x1</span></div>
+            <div id="mm-hud-header">
+                <span id="mm-hud-title">LIVE STATS</span>
+                <button id="mm-hud-collapse-btn" type="button"
+                    aria-label="Collapse HUD" aria-expanded="true" title="Collapse HUD">−</button>
+            </div>
+            <div id="mm-hud-stats">
+                <div class="mm-hud-stat">
+                    <div class="mm-hud-label" id="mm-hud-score-label">SCORE</div>
+                    <div class="mm-hud-value" id="mm-hud-score">0</div>
+                </div>
+                <div class="mm-hud-stat">
+                    <div class="mm-hud-label" id="mm-hud-combo-label">COMBO</div>
+                    <div class="mm-hud-value" id="mm-hud-combo">x0</div>
+                </div>
+                <div class="mm-hud-stat">
+                    <div class="mm-hud-label" id="mm-hud-mult-label">
+                        <span class="mm-hud-label-full">MULTIPLIER</span>
+                        <span class="mm-hud-label-short">MULT</span>
+                    </div>
+                    <div class="mm-hud-value" id="mm-hud-mult">x1</div>
+                </div>
+                <div class="mm-hud-stat">
+                    <div class="mm-hud-label" id="mm-hud-streak-label">
+                        <span class="mm-hud-label-full">WORD STREAK</span>
+                        <span class="mm-hud-label-short">STREAK</span>
+                    </div>
+                    <div class="mm-hud-value" id="mm-hud-streak">0</div>
+                </div>
+                <div class="mm-hud-stat mm-hud-secondary">
+                    <div class="mm-hud-label" id="mm-hud-acc-label">ACCURACY</div>
+                    <div class="mm-hud-value" id="mm-hud-acc">—</div>
+                </div>
+                <div class="mm-hud-stat">
+                    <div class="mm-hud-label" id="mm-hud-bonus-label">XP BONUS</div>
+                    <div class="mm-hud-value" id="mm-hud-bonus">x1.00</div>
+                </div>
+                <div class="mm-hud-stat mm-hud-secondary">
+                    <div class="mm-hud-label" id="mm-hud-record-label">7D BEST</div>
+                    <div class="mm-hud-value" id="mm-hud-record">
+                        S <span>0</span> / C <span>x0</span> / M <span>x1</span>
+                    </div>
+                </div>
+            </div>
             <div id="mm-combo-bar-wrap"><div id="mm-combo-bar"></div></div>
-            <button id="mm-hud-rewind-btn" disabled>⟲ REWIND</button>
-            <button id="mm-hud-settings-btn">⚙ SETTINGS</button>
+            <div id="mm-hud-controls">
+                <button id="mm-hud-rewind-btn" disabled>⟲ REWIND</button>
+                <button id="mm-hud-settings-btn">⚙ SETTINGS</button>
+            </div>
         `);
         if (!settings.hudEnabled) hud.classList.add('hidden');
+        if (settings.hudCollapsed) hud.classList.add('mm-panel-collapsed');
         frag.appendChild(hud);
         frag.appendChild(el('div', 'mm-flash'));
         frag.appendChild(el('div', 'mm-mult-banner'));
@@ -871,12 +1031,18 @@
             flash:   document.getElementById('mm-flash'),
             bar:     document.getElementById('mm-combo-bar'),
             rewind:  document.getElementById('mm-hud-rewind-btn'),
+            collapse: document.getElementById('mm-hud-collapse-btn'),
+            hudTitle: document.getElementById('mm-hud-title'),
             settings: document.getElementById('mm-settings'),
         };
 
+        syncHudCollapseControl();
         applyHudPosition(settings.hudPosition);
         installHudDrag();
 
+        els.collapse.addEventListener('click', () => {
+            setHudCollapsed(!settings.hudCollapsed);
+        });
         hud.querySelector('#mm-hud-settings-btn')
            .addEventListener('click', () => {
                els.settings.classList.toggle('open');
@@ -886,6 +1052,35 @@
            .addEventListener('click', () => requestRewind('hud'));
 
         wireSettingsPanel();
+    }
+
+    function syncHudCollapseControl() {
+        if (!els.collapse || !els.hudTitle) return;
+        const collapsed = settings.hudCollapsed;
+        els.hudTitle.textContent = collapsed ? 'HUD' : 'LIVE STATS';
+        els.collapse.textContent = collapsed ? '+' : '−';
+        els.collapse.setAttribute('aria-expanded', String(!collapsed));
+        els.collapse.setAttribute('aria-label', collapsed ? 'Expand HUD' : 'Collapse HUD');
+        els.collapse.title = collapsed ? 'Expand HUD' : 'Collapse HUD';
+    }
+
+    function setHudCollapsed(collapsed) {
+        if (!els.hud) return;
+        settings.hudCollapsed = Boolean(collapsed);
+        els.hud.classList.toggle('mm-panel-collapsed', settings.hudCollapsed);
+        if (settings.hudCollapsed) els.settings?.classList.remove('open');
+        syncHudCollapseControl();
+        saveSettings();
+
+        if (hudCollapseTimer) clearTimeout(hudCollapseTimer);
+        hudCollapseTimer = setTimeout(() => {
+            hudCollapseTimer = null;
+            const next = applyHudPosition(settings.hudPosition);
+            if (settings.hudPosition && next) {
+                settings.hudPosition = next;
+                saveSettings();
+            }
+        }, prefersReducedMotion() ? 0 : 260);
     }
 
     function el(tag, id, html = '') {
@@ -1125,6 +1320,39 @@
         els.hud.classList.toggle('glow',   state.answerStreak >= 10);
         els.hud.classList.toggle('danger', state.answerStreak === 0 && state.sessionIncorrect > 0);
         updateRewindButton();
+    }
+
+    function showHudMicro(text, tone = 'score') {
+        if (!settings.hudCollapsed || !settings.visualsEnabled
+            || prefersReducedMotion() || !els.hud) return;
+
+        if (hudMicroTimer) clearTimeout(hudMicroTimer);
+        document.querySelector('.mm-hud-micro')?.remove();
+
+        const node = document.createElement('div');
+        node.className = `mm-hud-micro ${tone}`;
+        node.textContent = text;
+        document.body.appendChild(node);
+
+        const hudRect = els.hud.getBoundingClientRect();
+        const gap = 7;
+        const maxLeft = Math.max(8, window.innerWidth - node.offsetWidth - 8);
+        const left = clamp(
+            hudRect.left + (hudRect.width - node.offsetWidth) / 2,
+            8,
+            maxLeft,
+            8
+        );
+        const fitsBelow = hudRect.bottom + gap + node.offsetHeight <= window.innerHeight - 8;
+        node.style.left = `${left}px`;
+        node.style.top = `${fitsBelow
+            ? hudRect.bottom + gap
+            : Math.max(8, hudRect.top - node.offsetHeight - gap)}px`;
+
+        hudMicroTimer = setTimeout(() => {
+            node.remove();
+            hudMicroTimer = null;
+        }, 900);
     }
 
     const TOGGLES = [
@@ -3389,6 +3617,10 @@
         }
 
         updateHUD();
+        showHudMicro(
+            newMult > prevMult ? `+${pts} XP · MULT x${newMult}` : `+${pts} XP`,
+            newMult > prevMult ? 'mult' : 'score'
+        );
         playCorrectSound();
         stopAnswerTimer();
         flashScreen(true);
@@ -3409,6 +3641,7 @@
         state.score = Math.max(0, state.score - penalty);
 
         updateHUD();
+        if (lostStreak > 0) showHudMicro('COMBO RESET', 'fail');
         playFailSound();
         stopAnswerTimer();
         flashScreen(false);
@@ -3429,6 +3662,8 @@
     function handleWordComplete() {
         state.wordStreak++;
         state.sessionWords++;
+        updateHUD();
+        showHudMicro(`STREAK ${state.wordStreak}`, 'streak');
         playWordCompleteSound();
 
         const counter  = document.querySelector('.top_middle');
@@ -3585,6 +3820,15 @@
             window.removeEventListener('resize', hudResizeHandler);
             hudResizeHandler = null;
         }
+        if (hudCollapseTimer) {
+            clearTimeout(hudCollapseTimer);
+            hudCollapseTimer = null;
+        }
+        if (hudMicroTimer) {
+            clearTimeout(hudMicroTimer);
+            hudMicroTimer = null;
+        }
+        document.querySelector('.mm-hud-micro')?.remove();
         stopAnswerTimer();
         removeFirstAnswerInputGate();
         clearFontChallenge();
