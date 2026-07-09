@@ -42,8 +42,8 @@ or `USE PINNED BACKGROUND` to return to it immediately.
   wireframe mountains, palm silhouettes, stars, and a perspective runway.
 - `GAME CENTER` - a subdued Japanese arcade interior with side-framed animated
   cabinets, restrained neon signs, hanging lights, and a perspective floor.
-- `SHRINE` - a pixel-painted fantasy sky shrine framed by a torii, floating
-  cliffs, waterfalls, lanterns, and a golden tree, with a quiet center for reviews.
+- `SHRINE` - a golden-hour mountain shrine framed by a torii, rope bridge,
+  Mount Fuji, waterfalls, and a sea of clouds.
 - `MATRIX` - falling Japanese glyphs and digital rain.
 - `VOID`
 
@@ -55,8 +55,8 @@ generated locally with Web Audio and uses no external recordings.
 
 The `SHRINE` artwork is packaged as a userscript resource from
 [`assets/shrine-garden.jpg`](./assets/shrine-garden.jpg). It adds subtle camera
-drift, lantern breathing, and sparse falling golden leaves, and remains static
-when reduced motion is enabled.
+drift, shrine-lantern breathing, and sparse falling golden leaves, and remains
+static when reduced motion is enabled.
 
 ## Changelog
 

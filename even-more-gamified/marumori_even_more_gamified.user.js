@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         MaruMori Even More Gamified - Updated
 // @namespace    marumori-gamify
-// @version      3.4.4
+// @version      3.4.5
 // @description  Gamifies MaruMori review sessions with arcade combo audio, score multipliers, screen shake, floating damage numbers, and more
 // @match        https://marumori.io/*
 // @author       matskye
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_getResourceURL
-// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.4
+// @resource     mmShrineGarden https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.5
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=marumori.io
 // @license      WTFPL
 // @downloadURL https://update.greasyfork.org/scripts/566950/MaruMori%20Even%20More%20Gamified.user.js
@@ -66,7 +66,7 @@
     };
     const SHRINE_IMAGE_URL =
         'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/'
-        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.4';
+        + 'main/even-more-gamified/assets/shrine-garden.jpg?v=3.4.5';
     const RESOLVED_BACKDROP_OPACITY = 0.5;
 
     const BOOL_SETTINGS = [
@@ -3045,9 +3045,9 @@
             const pulse = prefersReducedMotion() ? 1 : 0.88 + Math.sin(t * 1.15) * 0.12;
             const radius = Math.min(W, H) * 0.075;
             const lanterns = [
-                { x: W * 0.075, y: H * 0.62 },
-                { x: W * 0.77, y: H * 0.51 },
-                { x: W * 0.87, y: H * 0.49 },
+                { x: W * 0.68, y: H * 0.44 },
+                { x: W * 0.812, y: H * 0.468 },
+                { x: W * 0.835, y: H * 0.318 },
             ];
             for (const { x, y } of lanterns) {
                 const glow = ctx.createRadialGradient(x, y, 0, x, y, radius);
