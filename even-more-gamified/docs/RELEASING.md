@@ -61,6 +61,16 @@ If documentation or release notes changed after the gate, rerun it. `npm run che
 already performs the final `npm run build`; running `npm run build` again is safe
 but should not change the output.
 
+On the macOS release machine, also run the account-free Firefox/Safari contracts:
+
+```sh
+npm run test:browser
+```
+
+See [Local browser testing](./BROWSER-TESTING.md) for the one-time Safari Remote
+Automation setting and Firefox driver setup. These GUI tests remain separate from
+`npm run check` by design.
+
 ## 5. Inspect metadata and generated output
 
 ```sh

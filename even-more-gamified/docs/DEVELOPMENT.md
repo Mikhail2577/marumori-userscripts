@@ -22,6 +22,9 @@ npm run build
 npm run build:dev
 npm run test
 npm run test:watch
+npm run test:browser:firefox
+npm run test:browser:safari
+npm run test:browser
 npm run lint
 npm run format
 npm run format:check
@@ -34,6 +37,7 @@ npm run check
 | `npm run build:dev`    | Creates the same installable shape with retained function names and an external `.user.js.map`.                                |
 | `npm run test`         | Runs the Vitest unit, integration, regression, and build suites once.                                                          |
 | `npm run test:watch`   | Runs Vitest in watch mode.                                                                                                     |
+| `npm run test:browser` | Builds and runs five account-free production-bundle contracts in installed Firefox and Safari.                                 |
 | `npm run lint`         | Lints source, build scripts, tests, configs, and the preserved legacy script.                                                  |
 | `npm run format`       | Formats source CSS/JavaScript, build/test/config files, and project Markdown.                                                  |
 | `npm run format:check` | Checks formatting without changing files.                                                                                      |
@@ -76,6 +80,10 @@ after it.
 
 Use observable state, DOM, scheduling, and cleanup behavior in new tests. Avoid
 pixel snapshots for canvas unless a stable rendering harness is introduced.
+
+The separate browser-contract suite uses Selenium WebDriver and a local fixture;
+it never contacts MaruMori. Firefox and Safari setup, scope, and debugging options
+are documented in [Local browser testing](./BROWSER-TESTING.md).
 
 ## Build outputs
 

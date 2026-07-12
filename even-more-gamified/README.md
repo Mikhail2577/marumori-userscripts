@@ -82,6 +82,10 @@ See [Development](./docs/DEVELOPMENT.md),
 [Architecture](./docs/ARCHITECTURE.md), and
 [Releasing](./docs/RELEASING.md) for the complete workflow.
 
+The generated production bundle can also run through five account-free contracts
+in installed Firefox and Safari. See
+[Local browser testing](./docs/BROWSER-TESTING.md).
+
 ## Compatibility status
 
 The build targets ES2020 and current Chrome, Firefox, and Chromium Edge. The
@@ -100,6 +104,7 @@ matrix, before making a parity claim.
 - [Development and generated-file ownership](./docs/DEVELOPMENT.md)
 - [Release process](./docs/RELEASING.md)
 - [Manual browser checklist](./docs/MANUAL-TESTING.md)
+- [Local Firefox and Safari contracts](./docs/BROWSER-TESTING.md)
 - [Migration notes and intentional fixes](./docs/MIGRATION-NOTES.md)
 - [Changelog](./CHANGELOG.md)
 

@@ -5,6 +5,14 @@ cannot prove compatibility with MaruMori's authenticated live DOM, userscript
 manager injection, Web Audio activation, or visual output. Complete this checklist
 against the generated production artifact before claiming browser parity.
 
+Five production-bundle contracts now automate route cleanup, answer/wrapper
+processing, final rewind, persistence/session remount, and serialized timeout in
+installed Firefox and Safari without contacting MaruMori. Run
+`npm run test:browser` as described in
+[Local browser testing](./BROWSER-TESTING.md). The matching checklist entries below
+still require a short live-manager smoke check, but no longer need destructive edge
+case repetition on a personal account.
+
 ## Test record and support matrix
 
 Record this for every run:

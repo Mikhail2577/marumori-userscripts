@@ -12,9 +12,12 @@
         "validate:build": "node build/validate-build.mjs",
         "check:legacy": "node --check marumori_even_more_gamified.user.js",
         "lint": "eslint src build tests *.config.js marumori_even_more_gamified.user.js",
-        "format": "prettier --write \"src/**/*.{js,css}\" \"build/**/*.mjs\" \"tests/**/*.js\" \"*.config.js\" README.md \"docs/**/*.md\" package.json",
-        "format:check": "prettier --check \"src/**/*.{js,css}\" \"build/**/*.mjs\" \"tests/**/*.js\" \"*.config.js\" README.md \"docs/**/*.md\" package.json",
+        "format": "prettier --write \"src/**/*.{js,css}\" \"build/**/*.mjs\" \"tests/**/*.{html,js}\" \"*.config.js\" README.md \"docs/**/*.md\" package.json",
+        "format:check": "prettier --check \"src/**/*.{js,css}\" \"build/**/*.mjs\" \"tests/**/*.{html,js}\" \"*.config.js\" README.md \"docs/**/*.md\" package.json",
         "test": "vitest run",
+        "test:browser": "npm run build && node tests/browser/run-browser-contract.js --browser=all",
+        "test:browser:firefox": "npm run build && node tests/browser/run-browser-contract.js --browser=firefox",
+        "test:browser:safari": "npm run build && node tests/browser/run-browser-contract.js --browser=safari",
         "test:watch": "vitest",
         "check": "npm run check:legacy && npm run lint && npm run test && npm run build && npm run validate:build && node --check dist/marumori_even_more_gamified.user.js && npm run format:check"
     },
@@ -25,6 +28,7 @@
         "globals": "^17.7.0",
         "jsdom": "^29.1.1",
         "prettier": "^3.9.5",
+        "selenium-webdriver": "^4.46.0",
         "vitest": "^4.1.10"
     }
 }
