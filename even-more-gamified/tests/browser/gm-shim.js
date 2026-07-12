@@ -51,6 +51,7 @@
     }
 
     if (parameters.get('mode') === 'timeout') {
+        const timerSeconds = Math.max(5, Number(parameters.get('timerSeconds')) || 5);
         setValue(
             'mmSettings',
             JSON.stringify({
@@ -59,7 +60,7 @@
                 sfxEnabled: false,
                 timedXpBonusEnabled: false,
                 timerEnabled: true,
-                timerSeconds: 10,
+                timerSeconds,
                 timeoutFailureEnabled: true,
                 visualsEnabled: false,
             }),

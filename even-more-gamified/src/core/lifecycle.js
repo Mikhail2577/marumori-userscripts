@@ -233,8 +233,15 @@ export class LifecycleController {
         return true;
     }
 
-    complete() {
-        if (this.sessionState !== SESSION_STATES.ACTIVE) return false;
+    complete(ownership = this.captureOwnership()) {
+        if (
+            this.sessionState !== SESSION_STATES.ACTIVE ||
+            !this.owns(ownership) ||
+            (this.questionState !== QUESTION_STATES.RESOLVED_CORRECT &&
+                this.questionState !== QUESTION_STATES.RESOLVED_INCORRECT)
+        ) {
+            return false;
+        }
         this.transitionSession(SESSION_STATES.COMPLETED);
         return true;
     }

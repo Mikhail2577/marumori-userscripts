@@ -4,37 +4,84 @@ function outcome(ok, status, reason, source, extra = {}) {
     return Object.freeze({ ok, status, reason, source, ...extra });
 }
 
+/**
+ * @typedef {object} TimeoutTransaction
+ * @property {number} generation
+ * @property {Readonly<object>} timerOwnership
+ * @property {Readonly<object>} ownership
+ * @property {string} questionIdentity
+ * @property {string} domGeneration
+ * @property {Element} reviewRoot
+ * @property {Element} wrapper
+ */
+
 export function createTimeoutFailureController({
     lifecycle,
     dom,
+    validateTimerOwnership,
     invalidValue = () => `__mm_timeout_${Date.now()}__`,
     resolutionTimeoutMs = 1200,
     advanceDelayMs = 150,
+    canAdvance = () => true,
     onIncorrectConfirmed = () => {},
     onUnresolvedFailure = () => {},
     onFailure = () => {},
+    onSettled = () => {},
 } = {}) {
-    if (!lifecycle?.captureOwnership || !lifecycle?.owns) {
+    if (!lifecycle?.owns) {
         throw new TypeError('Timeout failure requires a lifecycle controller');
     }
-    if (!dom?.getResolvedState || !dom?.getQuestionIdentity) {
-        throw new TypeError('Timeout failure requires a MaruMori DOM adapter');
+    if (!dom?.readQuestionContext) {
+        throw new TypeError('Timeout failure requires atomic MaruMori DOM context');
+    }
+    if (typeof validateTimerOwnership !== 'function') {
+        throw new TypeError('Timeout failure requires timer ownership validation');
     }
 
     let pending = null;
+    let nextTransactionGeneration = 1;
+
+    function getAdvanceContext(transaction) {
+        return Object.freeze({
+            transactionGeneration: transaction.generation,
+            timerOwnership: transaction.timerOwnership,
+            ownership: transaction.ownership,
+            questionIdentity: transaction.questionIdentity,
+            domGeneration: transaction.domGeneration,
+            reviewRoot: transaction.reviewRoot,
+            wrapper: transaction.wrapper,
+            source: transaction.source,
+            strategy: transaction.strategy,
+        });
+    }
+
+    function validateTransaction(transaction, allowedResolutions) {
+        const validation = validateTimerOwnership(transaction.timerOwnership, {
+            allowedResolutions,
+            requireExactDom: true,
+        });
+        if (!validation?.ok) return validation ?? { ok: false, reason: 'timer-owner-rejected' };
+        const { context } = validation;
+        if (
+            !context ||
+            !lifecycle.owns(transaction.ownership) ||
+            transaction.timerOwnership.lifecycleOwnership !== transaction.ownership ||
+            context.logicalQuestionIdentity !== transaction.questionIdentity ||
+            context.domGeneration !== transaction.domGeneration ||
+            context.root !== transaction.reviewRoot ||
+            context.wrapper !== transaction.wrapper
+        ) {
+            return Object.freeze({ ok: false, reason: 'transaction-owner-mismatch', context });
+        }
+        return validation;
+    }
 
     function restoreInjectedInput(transaction) {
         const injected = transaction.injectedInput;
         if (!injected) return false;
         transaction.injectedInput = null;
-        if (
-            !lifecycle.owns(transaction.ownership) ||
-            dom.getQuestionIdentity() !== transaction.questionIdentity ||
-            dom.getResolvedState() !== DOM_RESOLUTION.UNRESOLVED ||
-            dom.getAnswerInput?.() !== injected.input
-        ) {
-            return false;
-        }
+        const validation = validateTransaction(transaction, DOM_RESOLUTION.UNRESOLVED);
+        if (!validation.ok || dom.getAnswerInput?.() !== injected.input) return false;
         return dom.setAnswerValue?.(injected.input, injected.originalValue) ?? false;
     }
 
@@ -47,35 +94,55 @@ export function createTimeoutFailureController({
         transaction.removeOwnershipCleanup?.();
         const restoredInput = restore ? restoreInjectedInput(transaction) : false;
         pending = null;
-        const originStillUnresolved = Boolean(
-            !result.ok &&
-            lifecycle.owns(transaction.ownership) &&
-            dom.getQuestionIdentity() === transaction.questionIdentity &&
-            dom.getResolvedState() === DOM_RESOLUTION.UNRESOLVED,
-        );
+        const unresolvedValidation = !result.ok
+            ? validateTransaction(transaction, DOM_RESOLUTION.UNRESOLVED)
+            : null;
+        const originStillUnresolved = unresolvedValidation?.ok === true;
         const finalResult = Object.freeze({
             ...result,
+            transactionGeneration: transaction.generation,
+            timerGeneration: transaction.timerOwnership.timerGeneration,
             ...(restoredInput ? { restoredInput: true } : {}),
             ...(originStillUnresolved ? { originStillUnresolved: true } : {}),
         });
         transaction.resolve(finalResult);
         if (originStillUnresolved) onUnresolvedFailure(finalResult);
         if (!finalResult.ok) onFailure(finalResult);
+        onSettled(finalResult, getAdvanceContext(transaction));
+    }
+
+    function suppressAdvance(transaction) {
+        settle(
+            transaction,
+            outcome(true, 'completed', 'automatic-advance-suppressed', transaction.source, {
+                strategy: transaction.strategy,
+            }),
+        );
     }
 
     function advance(transaction) {
-        if (pending !== transaction || transaction.settled || transaction.advanced) {
+        if (
+            pending !== transaction ||
+            transaction.settled ||
+            transaction.advanceState !== 'scheduled'
+        ) {
             return;
         }
-        if (
-            !lifecycle.owns(transaction.ownership) ||
-            dom.getQuestionIdentity() !== transaction.questionIdentity ||
-            dom.getResolvedState() !== DOM_RESOLUTION.INCORRECT
-        ) {
+        const validation = validateTransaction(transaction, DOM_RESOLUTION.INCORRECT);
+        if (!validation.ok) {
             settle(
                 transaction,
-                outcome(false, 'cancelled', 'stale-before-advance', transaction.source),
+                outcome(
+                    false,
+                    'cancelled',
+                    `stale-before-advance:${validation.reason}`,
+                    transaction.source,
+                ),
             );
+            return;
+        }
+        if (!canAdvance(getAdvanceContext(transaction))) {
+            suppressAdvance(transaction);
             return;
         }
         const next = dom.getCapability?.('next');
@@ -84,7 +151,7 @@ export function createTimeoutFailureController({
             return;
         }
 
-        transaction.advanced = true;
+        transaction.advanceState = 'invoking';
         transaction.committingAdvance = true;
         const invoked = next.invoke();
         transaction.committingAdvance = false;
@@ -95,6 +162,7 @@ export function createTimeoutFailureController({
             );
             return;
         }
+        transaction.advanceState = 'done';
         settle(
             transaction,
             outcome(true, 'advanced', 'incorrect-confirmed', transaction.source, {
@@ -105,38 +173,73 @@ export function createTimeoutFailureController({
 
     function confirmIncorrect(transaction) {
         if (transaction.incorrectConfirmed) return;
+        const validation = validateTransaction(transaction, DOM_RESOLUTION.INCORRECT);
+        if (!validation.ok) {
+            settle(
+                transaction,
+                outcome(
+                    false,
+                    'cancelled',
+                    `stale-before-confirm:${validation.reason}`,
+                    transaction.source,
+                ),
+            );
+            return;
+        }
+
         transaction.incorrectConfirmed = true;
         transaction.injectedInput = null;
         transaction.cancelResolutionTimeout?.();
         transaction.cancelResolutionTimeout = null;
         lifecycle.resolve?.('incorrect');
+        onIncorrectConfirmed(getAdvanceContext(transaction));
+
+        const afterCallback = validateTransaction(transaction, DOM_RESOLUTION.INCORRECT);
+        if (!afterCallback.ok) {
+            settle(
+                transaction,
+                outcome(
+                    false,
+                    'cancelled',
+                    `stale-after-confirm:${afterCallback.reason}`,
+                    transaction.source,
+                ),
+            );
+            return;
+        }
+        if (!canAdvance(getAdvanceContext(transaction))) {
+            suppressAdvance(transaction);
+            return;
+        }
+        transaction.advanceState = 'scheduled';
         transaction.cancelAdvance = lifecycle.questionScope?.setTimeout(
             () => advance(transaction),
             advanceDelayMs,
         );
-        onIncorrectConfirmed({
-            source: transaction.source,
-            ownership: transaction.ownership,
-            strategy: transaction.strategy,
-        });
     }
 
     function reconcile() {
         const transaction = pending;
         if (!transaction || transaction.settled) return false;
-        if (!lifecycle.owns(transaction.ownership)) {
-            settle(transaction, outcome(false, 'cancelled', 'stale-owner', transaction.source));
-            return false;
-        }
-        if (dom.getQuestionIdentity() !== transaction.questionIdentity) {
+        const validation = validateTransaction(transaction, [
+            DOM_RESOLUTION.UNRESOLVED,
+            DOM_RESOLUTION.INCORRECT,
+            DOM_RESOLUTION.CORRECT,
+        ]);
+        if (!validation.ok) {
             settle(
                 transaction,
-                outcome(false, 'cancelled', 'question-changed', transaction.source),
+                outcome(
+                    false,
+                    'cancelled',
+                    `ownership-rejected:${validation.reason}`,
+                    transaction.source,
+                ),
             );
             return false;
         }
 
-        const resolution = dom.getResolvedState();
+        const resolution = validation.context.resolution;
         if (resolution === DOM_RESOLUTION.INCORRECT) {
             confirmIncorrect(transaction);
             return true;
@@ -144,27 +247,32 @@ export function createTimeoutFailureController({
         if (resolution === DOM_RESOLUTION.CORRECT) {
             settle(
                 transaction,
-                outcome(false, 'failed', 'unexpected-correct-resolution', transaction.source),
+                outcome(false, 'cancelled', 'natural-answer-won-race', transaction.source),
             );
         }
         return false;
     }
 
-    function createTransaction(source) {
+    function createTransaction(source, timerOwnership) {
         let resolvePromise;
         const promise = new Promise((resolve) => {
             resolvePromise = resolve;
         });
         const transaction = {
+            generation: nextTransactionGeneration++,
             source,
             promise,
             resolve: resolvePromise,
-            ownership: lifecycle.captureOwnership(),
-            questionIdentity: dom.getQuestionIdentity(),
+            timerOwnership,
+            ownership: timerOwnership.lifecycleOwnership,
+            questionIdentity: timerOwnership.logicalQuestionIdentity,
+            domGeneration: timerOwnership.domGeneration,
+            reviewRoot: timerOwnership.reviewRoot,
+            wrapper: timerOwnership.wrapper,
             strategy: null,
             injectedInput: null,
             incorrectConfirmed: false,
-            advanced: false,
+            advanceState: 'idle',
             committingAdvance: false,
             settled: false,
             cancelResolutionTimeout: null,
@@ -176,16 +284,41 @@ export function createTimeoutFailureController({
         return transaction;
     }
 
-    function start(source = 'timeout') {
-        if (pending) return pending.promise;
-        if (dom.getResolvedState() !== DOM_RESOLUTION.UNRESOLVED || !dom.getQuestionIdentity()) {
-            const result = outcome(false, 'failed', 'question-not-unresolved', source);
-            onFailure(result);
-            return Promise.resolve(result);
+    function immediateFailure(source, reason, timerOwnership = null) {
+        const failure = outcome(false, 'failed', reason, source, {
+            ...(timerOwnership ? { timerGeneration: timerOwnership.timerGeneration } : {}),
+        });
+        onFailure(failure);
+        onSettled(failure, null);
+        return Promise.resolve(failure);
+    }
+
+    function start(source = 'timeout', timerOwnership = null) {
+        if (pending) {
+            if (pending.timerOwnership === timerOwnership) return pending.promise;
+            settle(
+                pending,
+                outcome(false, 'cancelled', 'superseded-by-new-timer', pending.source),
+                { restore: true },
+            );
+        }
+        if (!timerOwnership) return immediateFailure(source, 'missing-timer-ownership');
+
+        const initialValidation = validateTimerOwnership(timerOwnership, {
+            allowedResolutions: DOM_RESOLUTION.UNRESOLVED,
+            requireExactDom: true,
+            requireExpired: true,
+        });
+        if (!initialValidation?.ok) {
+            return immediateFailure(
+                source,
+                `timer-owner-rejected:${initialValidation?.reason ?? 'unknown'}`,
+                timerOwnership,
+            );
         }
 
-        const transaction = createTransaction(source);
-        if (!lifecycle.owns(transaction.ownership)) {
+        const transaction = createTransaction(source, timerOwnership);
+        if (!validateTransaction(transaction, DOM_RESOLUTION.UNRESOLVED).ok) {
             settle(transaction, outcome(false, 'cancelled', 'stale-owner', source));
             return transaction.promise;
         }
@@ -193,7 +326,9 @@ export function createTimeoutFailureController({
         transaction.removeOwnershipCleanup =
             lifecycle.questionScope?.defer(() => {
                 if (transaction.committingAdvance) return;
-                settle(transaction, outcome(false, 'cancelled', 'stale-owner', source));
+                settle(transaction, outcome(false, 'cancelled', 'stale-owner', source), {
+                    restore: true,
+                });
             }) ?? (() => {});
         transaction.cancelResolutionTimeout = lifecycle.questionScope?.setTimeout(() => {
             reconcile();
@@ -204,10 +339,24 @@ export function createTimeoutFailureController({
             }
         }, resolutionTimeoutMs);
 
+        let validation = validateTransaction(transaction, DOM_RESOLUTION.UNRESOLVED);
+        if (!validation.ok) {
+            settle(
+                transaction,
+                outcome(false, 'cancelled', `stale-before-failure:${validation.reason}`, source),
+            );
+            return transaction.promise;
+        }
         const wrong = dom.getCapability?.('wrong');
         if (wrong) {
             transaction.strategy = 'wrong-control';
-            if (!wrong.invoke()) {
+            validation = validateTransaction(transaction, DOM_RESOLUTION.UNRESOLVED);
+            if (!validation.ok) {
+                settle(
+                    transaction,
+                    outcome(false, 'cancelled', `stale-before-wrong:${validation.reason}`, source),
+                );
+            } else if (!wrong.invoke()) {
                 settle(transaction, outcome(false, 'failed', 'wrong-invocation-failed', source));
             } else {
                 reconcile();
@@ -223,12 +372,22 @@ export function createTimeoutFailureController({
         }
 
         transaction.strategy = 'invalid-answer';
-        transaction.injectedInput = {
-            input,
-            originalValue: input.value,
-        };
+        transaction.injectedInput = { input, originalValue: input.value };
+        validation = validateTransaction(transaction, DOM_RESOLUTION.UNRESOLVED);
+        if (!validation.ok || dom.getAnswerInput?.() !== input) {
+            settle(transaction, outcome(false, 'cancelled', 'stale-before-input', source));
+            return transaction.promise;
+        }
         if (!dom.setAnswerValue(input, invalidValue())) {
             settle(transaction, outcome(false, 'failed', 'input-injection-failed', source), {
+                restore: true,
+            });
+            return transaction.promise;
+        }
+
+        validation = validateTransaction(transaction, DOM_RESOLUTION.UNRESOLVED);
+        if (!validation.ok || dom.getAnswerInput?.() !== input) {
+            settle(transaction, outcome(false, 'cancelled', 'stale-before-submit', source), {
                 restore: true,
             });
             return transaction.promise;

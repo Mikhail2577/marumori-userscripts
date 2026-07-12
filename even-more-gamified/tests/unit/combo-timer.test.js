@@ -133,6 +133,40 @@ describe('combo timer compositor', () => {
         expect(scheduler.pending('timeout')).toHaveLength(0);
     });
 
+    it('delivers the exact immutable owner supplied when that timer was armed', () => {
+        const onExpire = vi.fn();
+        const { scheduler, timer } = createTimer({ onExpire });
+        const ownership = Object.freeze({ timerGeneration: 7, deadline: 11_000 });
+
+        expect(timer.start({ durationMs: 10_000, ownership }).ownership).toBe(ownership);
+        scheduler.advanceBy(10_000);
+
+        expect(onExpire).toHaveBeenCalledTimes(1);
+        expect(onExpire.mock.calls[0][1]).toBe(ownership);
+        expect(onExpire.mock.calls[0][0].ownership).toBe(ownership);
+    });
+
+    it('keeps a replacement timer active when the superseded deadline passes', () => {
+        const onExpire = vi.fn();
+        const { scheduler, timer } = createTimer({ onExpire });
+        const firstOwner = Object.freeze({ timerGeneration: 1 });
+        const secondOwner = Object.freeze({ timerGeneration: 2 });
+        timer.start({ durationMs: 10_000, ownership: firstOwner });
+        scheduler.advanceBy(2_000);
+        timer.start({ durationMs: 10_000, ownership: secondOwner });
+
+        scheduler.advanceBy(8_000);
+        expect(onExpire).not.toHaveBeenCalled();
+        expect(timer.getSnapshot()).toMatchObject({
+            status: COMBO_TIMER_STATUS.RUNNING,
+            ownership: secondOwner,
+        });
+
+        scheduler.advanceBy(2_000);
+        expect(onExpire).toHaveBeenCalledTimes(1);
+        expect(onExpire.mock.calls[0][1]).toBe(secondOwner);
+    });
+
     it('uses WAAPI for continuous transform interpolation without touching width', () => {
         const scheduler = new FakeScheduler();
         const { bar, wrapper } = createElements();

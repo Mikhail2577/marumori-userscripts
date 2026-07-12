@@ -36,6 +36,7 @@ const QUESTION_ID_ATTRIBUTES = Object.freeze([
 ]);
 
 const SESSION_ID_ATTRIBUTES = Object.freeze(['data-review-session', 'data-session-id']);
+const HOST_DECORATION_CLASSES = new Set(['mm-bounce', 'mm-progress-glow']);
 
 function normalizeText(value) {
     return String(value ?? '')
@@ -53,7 +54,10 @@ function isUserscriptOwned(element) {
         // Those classes do not make the host application's descendants ours.
         if (
             current.localName !== 'body' &&
-            [...current.classList].some((className) => className.startsWith('mm-'))
+            [...current.classList].some(
+                (className) =>
+                    className.startsWith('mm-') && !HOST_DECORATION_CLASSES.has(className),
+            )
         ) {
             return true;
         }
@@ -116,8 +120,19 @@ export function createMaruMoriDomAdapter({
     }
 
     const resolvedSelectors = { ...DEFAULT_SELECTORS, ...selectors };
+    const rootIds = new WeakMap();
     const wrapperIds = new WeakMap();
+    let nextRootId = 1;
     let nextWrapperId = 1;
+
+    function getGenerationId(element, ids, nextId) {
+        let id = ids.get(element);
+        if (!id) {
+            id = nextId();
+            ids.set(element, id);
+        }
+        return id;
+    }
 
     function visibleSiteElements(root, selector) {
         return queryIncludingRoot(root, selector).filter(
@@ -191,19 +206,20 @@ export function createMaruMoriDomAdapter({
         return unique(inputs);
     }
 
-    function getCounterElement() {
-        const context = resolveContext();
-        if (!context) return null;
+    function getCounterElementForContext(context) {
         const counters = visibleSiteElements(context.root, resolvedSelectors.counter).filter(
             (counter) => parseCounterText(counter.textContent),
         );
         return unique(counters);
     }
 
-    function getProgress() {
+    function getCounterElement() {
         const context = resolveContext();
-        if (!context) return null;
-        const counter = getCounterElement();
+        return context ? getCounterElementForContext(context) : null;
+    }
+
+    function getProgressForContext(context) {
+        const counter = getCounterElementForContext(context);
         const parsedCounter = counter ? parseCounterText(counter.textContent) : null;
         if (parsedCounter) return { ...parsedCounter, element: counter };
 
@@ -217,27 +233,26 @@ export function createMaruMoriDomAdapter({
         return { current, total, ratio: current / total, element: progress };
     }
 
-    function getResolvedState() {
-        const wrapper = getInputWrapper();
-        if (!wrapper) return DOM_RESOLUTION.UNKNOWN;
-        const correct = wrapper.classList.contains('correct');
-        const incorrect = wrapper.classList.contains('incorrect');
+    function getProgress() {
+        const context = resolveContext();
+        return context ? getProgressForContext(context) : null;
+    }
+
+    function getResolvedStateForContext(context) {
+        const correct = context.wrapper.classList.contains('correct');
+        const incorrect = context.wrapper.classList.contains('incorrect');
         if (correct && incorrect) return DOM_RESOLUTION.UNKNOWN;
         if (correct) return DOM_RESOLUTION.CORRECT;
         if (incorrect) return DOM_RESOLUTION.INCORRECT;
         return DOM_RESOLUTION.UNRESOLVED;
     }
 
-    function getQuestionIdentity() {
+    function getResolvedState() {
         const context = resolveContext();
-        if (!context) return null;
-        let wrapperId = wrapperIds.get(context.wrapper);
-        if (!wrapperId) {
-            wrapperId = nextWrapperId;
-            nextWrapperId += 1;
-            wrapperIds.set(context.wrapper, wrapperId);
-        }
+        return context ? getResolvedStateForContext(context) : DOM_RESOLUTION.UNKNOWN;
+    }
 
+    function getQuestionIdentityForContext(context, progress) {
         const attributedElements = [context.wrapper, context.root];
         for (const selector of QUESTION_ID_ATTRIBUTES.map((attribute) => `[${attribute}]`)) {
             attributedElements.push(...context.root.querySelectorAll(selector));
@@ -251,12 +266,60 @@ export function createMaruMoriDomAdapter({
             }
         }
         const distinctSiteIds = [...new Set(siteIds)];
-        const progress = getProgress();
-        if (distinctSiteIds.length === 0 && !progress) return null;
+        if (distinctSiteIds.length > 1) return null;
+        if (distinctSiteIds.length === 1) {
+            return Object.freeze({
+                identityKind: 'host',
+                logicalQuestionIdentity: `host:${distinctSiteIds[0]}`,
+            });
+        }
 
-        const sitePart = distinctSiteIds.sort().join('|') || 'no-site-id';
-        const progressPart = progress ? `${progress.current}/${progress.total}` : 'no-progress';
-        return `${sitePart}|progress:${progressPart}|wrapper:${wrapperId}`;
+        // Without one unambiguous host ID, wrapper and progress form a strict
+        // fallback identity. It intentionally does not survive replacement or
+        // progress changes because treating an unknown question as the same one
+        // would permit stale timeout/rewind actions.
+        if (!progress) return null;
+        const wrapperId = getGenerationId(context.wrapper, wrapperIds, () => nextWrapperId++);
+        return Object.freeze({
+            identityKind: 'fallback',
+            logicalQuestionIdentity: `fallback:progress:${progress.current}/${progress.total}|wrapper:${wrapperId}`,
+        });
+    }
+
+    function getDomGenerationForContext(context) {
+        const rootId = getGenerationId(context.root, rootIds, () => nextRootId++);
+        const wrapperId = getGenerationId(context.wrapper, wrapperIds, () => nextWrapperId++);
+        return Object.freeze({
+            domGeneration: `root:${rootId}|wrapper:${wrapperId}`,
+            rootGeneration: rootId,
+            wrapperGeneration: wrapperId,
+        });
+    }
+
+    function readQuestionContext() {
+        const context = resolveContext();
+        if (!context) return null;
+        const progress = getProgressForContext(context);
+        const identity = getQuestionIdentityForContext(context, progress);
+        const resolution = getResolvedStateForContext(context);
+        if (!progress || !identity || resolution === DOM_RESOLUTION.UNKNOWN) return null;
+        const generation = getDomGenerationForContext(context);
+        return Object.freeze({
+            root: context.root,
+            wrapper: context.wrapper,
+            ...generation,
+            ...identity,
+            progress: Object.freeze({ ...progress }),
+            resolution,
+        });
+    }
+
+    function getQuestionIdentity() {
+        return readQuestionContext()?.logicalQuestionIdentity ?? null;
+    }
+
+    function getDomQuestionGeneration() {
+        return readQuestionContext()?.domGeneration ?? null;
     }
 
     function controlCandidates(root) {
@@ -360,6 +423,8 @@ export function createMaruMoriDomAdapter({
         getProgress,
         getResolvedState,
         getQuestionIdentity,
+        getDomQuestionGeneration,
+        readQuestionContext,
         getControl,
         getCapability,
         getNativeRewindCapability: () => getCapability('rewind'),

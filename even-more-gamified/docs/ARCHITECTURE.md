@@ -59,6 +59,14 @@ Each mount increments `sessionGeneration`; each accepted question identity
 increments `questionGeneration`. `LifecycleScope` owns listeners, timeouts, and
 cleanup callbacks. A callback runs only while its captured generation is current.
 
+Session completion is resolution-gated. The counter's final position is progress
+metadata, not a completion signal by itself. The session-finalization controller
+deduplicates confirmed resolved question ownership, counts the final question,
+and calls the lifecycle's guarded `complete()` transition only when that resolved
+question is also at the final progress position. Its delayed summary callback is
+owned by the session generation, final question ownership, and a finalization
+token; cleanup or confirmed rewind invalidates it.
+
 The runtime flow is:
 
 1. The navigation adapter recognizes the exact review path, installs a scoped
@@ -71,10 +79,13 @@ The runtime flow is:
    do not mutate score independently.
 5. Reconciliation samples root, identity, progress, and resolution together,
    advances lifecycle state, then applies the answer once.
-6. A new wrapper or question starts a new question generation. A changed review
-   URL, review root, host session token, or unresolved backwards progress causes
-   cleanup and a fresh session mount. URL/root/token boundaries remain authoritative
-   even while rewind is pending.
+6. A new logical question starts a new question generation. Stable host question
+   IDs exclude wrapper instance and mutable progress; when no unambiguous host ID
+   exists, the adapter uses a strict wrapper/progress fallback that intentionally
+   fails closed across replacement. A changed review URL, review root, host session
+   token, or unresolved backwards progress causes cleanup and a fresh session
+   mount. URL/root/token boundaries remain authoritative even while rewind is
+   pending.
 7. Route exit, visibility/session teardown, or remount disposes observers,
    transactions, timers, audio scheduling, Font Challenge styling, transient
    effects, and HUD state owned by that session.
@@ -107,6 +118,21 @@ Timeout auto-failure is one serialized controller. It chooses a scoped Wrong
 control or a scoped invalid-answer/Submit fallback, waits for confirmed incorrect
 resolution, and owns the only delayed Next action. Injected text is restored only
 while the original unresolved question still owns the input.
+
+Each armed answer timer carries one immutable `TimerOwnership` record containing
+the session/question generations, logical identity, review root, DOM generation,
+timer generation, arm time, and monotonic deadline. Expiration receives that exact
+record from the compositor and atomically revalidates it before any presentation or
+host side effect. A same-logical wrapper replacement gets a new timer generation;
+the original deadline is preserved while still live, while a replacement first
+seen after expiry receives a fresh deadline rather than allowing the stale owner
+to fail it.
+
+The timeout-failure transaction must be created from that original timer owner; it
+does not recapture whichever question happens to be current. Ownership is checked
+before Wrong, input injection, Submit, incorrect confirmation, Next scheduling,
+Next invocation, and input restoration. One transaction state owns advancement,
+and confirmed final completion suppresses it.
 
 ## Timer, audio, effects, and backgrounds
 

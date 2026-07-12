@@ -137,6 +137,7 @@ export class ComboTimerCompositor {
         this.generation = 0;
         this.expirationNotified = false;
         this.visualsEnabled = true;
+        this.ownership = null;
 
         this.initialStyle = Object.freeze({
             transform: bar.style.transform,
@@ -153,7 +154,13 @@ export class ComboTimerCompositor {
         bar.style.willChange = 'transform';
     }
 
-    start({ durationMs, remainingPct = 1, inactive = false, visualsEnabled = true } = {}) {
+    start({
+        durationMs,
+        remainingPct = 1,
+        inactive = false,
+        visualsEnabled = true,
+        ownership = null,
+    } = {}) {
         this.#assertUsable();
         if (!Number.isFinite(durationMs) || durationMs <= 0) {
             throw new RangeError('Combo timer durationMs must be greater than zero');
@@ -167,6 +174,7 @@ export class ComboTimerCompositor {
         this.status = COMBO_TIMER_STATUS.RUNNING;
         this.expirationNotified = false;
         this.visualsEnabled = Boolean(visualsEnabled);
+        this.ownership = ownership;
         this.#setInactive(inactive);
         if (this.visualsEnabled) {
             this.#present(this.anchorRemainingPct, { updateTransform: true });
@@ -251,6 +259,7 @@ export class ComboTimerCompositor {
         this.anchorRemainingPct = finalRemainingPct;
         this.anchorTime = this.clock();
         this.status = COMBO_TIMER_STATUS.STOPPED;
+        this.ownership = null;
         this.#setInactive(inactive);
         if (clearTier) {
             this.bar.classList.remove(...this.tierClasses);
@@ -279,6 +288,7 @@ export class ComboTimerCompositor {
             tierKey: this.#getTier(remainingPct).key,
             animationMode: this.activeAnimationMode,
             visualsEnabled: this.visualsEnabled,
+            ownership: this.ownership,
         });
     }
 
@@ -288,6 +298,7 @@ export class ComboTimerCompositor {
         this.generation += 1;
         this.status = COMBO_TIMER_STATUS.DISPOSED;
         this.visibleTierKey = null;
+        this.ownership = null;
 
         this.bar.style.transform = this.initialStyle.transform;
         this.bar.style.transformOrigin = this.initialStyle.transformOrigin;
@@ -451,6 +462,7 @@ export class ComboTimerCompositor {
 
     #expire() {
         if (this.status === COMBO_TIMER_STATUS.DISPOSED) return;
+        const ownership = this.ownership;
         this.#cancelScheduledWork();
         this.generation += 1;
         this.anchorRemainingPct = 0;
@@ -460,7 +472,7 @@ export class ComboTimerCompositor {
         if (this.expirationNotified) return;
 
         this.expirationNotified = true;
-        this.onExpire(this.getSnapshot());
+        this.onExpire(this.getSnapshot(), ownership);
     }
 
     #cancelScheduledWork() {

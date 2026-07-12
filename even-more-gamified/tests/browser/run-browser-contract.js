@@ -101,12 +101,17 @@ async function waitForElement(driver, selector, timeout = DEFAULT_TIMEOUT_MS) {
     return driver.wait(until.elementLocated(By.css(selector)), timeout, `Missing ${selector}`);
 }
 
-async function openFixture(driver, baseUrl, { mode = 'quiet', total = 3 } = {}) {
+async function openFixture(
+    driver,
+    baseUrl,
+    { mode = 'quiet', timerSeconds = null, total = 3 } = {},
+) {
     const url = new URL('/study-lists/reviews', baseUrl);
     url.searchParams.set('case', `${Date.now()}-${Math.random()}`);
     url.searchParams.set('mode', mode);
     url.searchParams.set('reset', '1');
     url.searchParams.set('total', String(total));
+    if (timerSeconds !== null) url.searchParams.set('timerSeconds', String(timerSeconds));
     await driver.get(url.href);
     const fixtureShape = await driver.executeScript(`
         const root = document.getElementById('time-me');
@@ -145,6 +150,22 @@ async function text(driver, selector) {
 
 async function hostSnapshot(driver) {
     return driver.executeScript('return globalThis.__mmHost.snapshot();');
+}
+
+async function summarySnapshot(driver) {
+    return driver.executeScript(`
+        const overlay = document.getElementById('mm-summary');
+        const stats = Object.fromEntries(
+            [...(overlay?.querySelectorAll('.mm-summary-cell') || [])].map((cell) => [
+                cell.childNodes[0]?.textContent?.trim() || '',
+                cell.querySelector('.mm-summary-val')?.textContent?.trim() || '',
+            ])
+        );
+        return {
+            open: overlay?.classList.contains('open') === true,
+            stats,
+        };
+    `);
 }
 
 async function assertNoPageErrors(driver) {
@@ -206,6 +227,154 @@ async function answerAndWrapperContract(driver, baseUrl) {
     );
 }
 
+async function multiQuestionFinalizationContract(driver, baseUrl) {
+    await openFixture(driver, baseUrl, { total: 2 });
+    await driver.sleep(950);
+    assert.equal(await count(driver, '#mm-summary.open'), 0);
+    assert.equal(await text(driver, '#mm-hud-streak'), '0');
+
+    await (await waitForElement(driver, '#answer')).sendKeys('answer one');
+    await (await waitForElement(driver, "[data-action='check']")).click();
+    await waitForElement(driver, '.input-wrapper.correct');
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-hud-streak')?.textContent === '1'",
+        'First resolved question was not counted',
+    );
+    await (await waitForElement(driver, "[data-action='next']")).click();
+    await waitForElement(driver, "[data-question-id='fixture-question-2']");
+    await driver.executeScript('globalThis.__mmHost.repeatSignals();');
+    await driver.sleep(950);
+
+    assert.equal(await count(driver, '#mm-summary.open'), 0);
+    assert.equal(await text(driver, '#mm-hud-streak'), '1');
+    assert.equal((await hostSnapshot(driver)).resolution, 'unresolved');
+
+    await (await waitForElement(driver, '#answer')).sendKeys('answer two');
+    await (await waitForElement(driver, "[data-action='check']")).click();
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-summary')?.classList.contains('open')",
+        'Resolved final question did not open the summary',
+    );
+    await driver.executeScript(`
+        globalThis.__mmHost.repeatSignals();
+        globalThis.__mmHost.repeatSignals();
+    `);
+    await driver.sleep(950);
+
+    const summary = await summarySnapshot(driver);
+    assert.equal(summary.open, true);
+    assert.equal(summary.stats.CORRECT, '2');
+    assert.equal(summary.stats['WORDS DONE'], '2');
+    assert.equal(await count(driver, '#mm-summary.open'), 1);
+}
+
+async function oneQuestionFinalizationContract(driver, baseUrl) {
+    await openFixture(driver, baseUrl, { total: 1 });
+    await driver.sleep(950);
+    assert.equal(await count(driver, '#mm-summary.open'), 0);
+
+    await (await waitForElement(driver, '#answer')).sendKeys('answer');
+    await (await waitForElement(driver, "[data-action='check']")).click();
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-summary')?.classList.contains('open')",
+        'One-question session did not complete after resolution',
+    );
+
+    const summary = await summarySnapshot(driver);
+    assert.equal(summary.stats.CORRECT, '1');
+    assert.equal(summary.stats['WORDS DONE'], '1');
+    assert.equal(await count(driver, '#mm-summary.open'), 1);
+}
+
+async function finalIncorrectContract(driver, baseUrl) {
+    await openFixture(driver, baseUrl, { total: 1 });
+    await (await waitForElement(driver, "[data-action='wrong']")).click();
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-summary')?.classList.contains('open')",
+        'Incorrect final resolution did not complete the session',
+    );
+    await driver.executeScript('globalThis.__mmHost.repeatSignals();');
+    await driver.sleep(950);
+
+    const summary = await summarySnapshot(driver);
+    assert.equal(summary.stats.CORRECT, '0');
+    assert.equal(summary.stats.INCORRECT, '1');
+    assert.equal(summary.stats['WORDS DONE'], '1');
+    assert.equal((await hostSnapshot(driver)).wrongClicks, 1);
+    assert.equal(await count(driver, '#mm-summary.open'), 1);
+}
+
+async function finalTimeoutContract(driver, baseUrl) {
+    await openFixture(driver, baseUrl, { mode: 'timeout', timerSeconds: 5, total: 1 });
+    await (await waitForElement(driver, '#answer')).sendKeys('start timer');
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-summary')?.classList.contains('open')",
+        'Final timeout did not reach the owned summary',
+        10_000,
+    );
+    await driver.sleep(500);
+
+    const snapshot = await hostSnapshot(driver);
+    const summary = await summarySnapshot(driver);
+    assert.equal(snapshot.wrongClicks, 1);
+    assert.equal(snapshot.nextClicks, 0);
+    assert.equal(snapshot.current, 1);
+    assert.equal(snapshot.resolution, 'incorrect');
+    assert.equal(summary.stats.INCORRECT, '1');
+    assert.equal(summary.stats['WORDS DONE'], '1');
+}
+
+async function summaryCleanupContract(driver, baseUrl) {
+    await openFixture(driver, baseUrl, { total: 1 });
+    await (await waitForElement(driver, '#answer')).sendKeys('answer');
+    await (await waitForElement(driver, "[data-action='check']")).click();
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-hud-score')?.textContent !== '0'",
+        'Final answer was not processed before cleanup',
+    );
+
+    await driver.executeScript("history.pushState({}, '', '/study-lists/reviews-archive');");
+    await waitForScript(driver, "!document.getElementById('mm-hud')", 'HUD did not clean up');
+    await driver.sleep(950);
+    assert.equal(await count(driver, '#mm-summary.open'), 0);
+}
+
+async function sameRouteSecondSessionContract(driver, baseUrl) {
+    await openFixture(driver, baseUrl, { total: 1 });
+    await (await waitForElement(driver, '#answer')).sendKeys('first session');
+    await (await waitForElement(driver, "[data-action='check']")).click();
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-hud-score')?.textContent !== '0'",
+        'First session did not process its final answer',
+    );
+    await driver.executeScript("globalThis.__mmHost.resetSession('fixture-session-2', 1);");
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-hud-score')?.textContent === '0'",
+        'Second same-route session did not start with clean state',
+    );
+    await driver.sleep(950);
+    assert.equal(await count(driver, '#mm-summary.open'), 0);
+
+    await (await waitForElement(driver, '#answer')).sendKeys('second session');
+    await (await waitForElement(driver, "[data-action='check']")).click();
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-summary')?.classList.contains('open')",
+        'Second same-route session did not complete independently',
+    );
+    const summary = await summarySnapshot(driver);
+    assert.equal(summary.stats.CORRECT, '1');
+    assert.equal(summary.stats['WORDS DONE'], '1');
+}
+
 async function rewindContract(driver, baseUrl) {
     await openFixture(driver, baseUrl, { total: 1 });
     await (await waitForElement(driver, '#answer')).sendKeys('answer');
@@ -230,6 +399,18 @@ async function rewindContract(driver, baseUrl) {
     await driver.sleep(950);
     assert.equal(await count(driver, '#mm-summary.open'), 0);
     assert.equal((await hostSnapshot(driver)).rewinds, 1);
+
+    await (await waitForElement(driver, '#answer')).sendKeys('answer again');
+    await (await waitForElement(driver, "[data-action='check']")).click();
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-summary')?.classList.contains('open')",
+        'Re-answered final question did not complete cleanly',
+    );
+    const summary = await summarySnapshot(driver);
+    assert.equal(summary.stats.CORRECT, '1');
+    assert.equal(summary.stats['WORDS DONE'], '1');
+    assert.equal(await count(driver, '#mm-summary.open'), 1);
 }
 
 async function remountAndPersistenceContract(driver, baseUrl) {
@@ -274,7 +455,13 @@ async function timeoutContract(driver, baseUrl) {
 const CONTRACTS = Object.freeze([
     ['bundle boot and exact-route cleanup', bootAndRouteContract],
     ['answer processing and wrapper replacement', answerAndWrapperContract],
+    ['multi-question finalization ownership', multiQuestionFinalizationContract],
+    ['one-question finalization', oneQuestionFinalizationContract],
+    ['incorrect finalization', finalIncorrectContract],
+    ['final timeout without automatic advance', finalTimeoutContract],
+    ['summary cancellation on cleanup', summaryCleanupContract],
     ['transactional final-answer rewind', rewindContract],
+    ['same-route second-session finalization', sameRouteSecondSessionContract],
     ['settings persistence and same-root remount', remountAndPersistenceContract],
     ['serialized timeout advancement', timeoutContract],
 ]);
@@ -305,9 +492,17 @@ async function runBrowser(browserName, baseUrl) {
         });
     }
 
+    const contractFilter = process.env.MM_BROWSER_CONTRACT?.trim().toLowerCase();
+    const contracts = contractFilter
+        ? CONTRACTS.filter(([name]) => name.toLowerCase().includes(contractFilter))
+        : CONTRACTS;
+    if (contracts.length === 0) {
+        throw new Error(`No browser contract matched MM_BROWSER_CONTRACT=${contractFilter}`);
+    }
+
     const failures = [];
     try {
-        for (const [name, contract] of CONTRACTS) {
+        for (const [name, contract] of contracts) {
             try {
                 await contract(driver, baseUrl);
                 await assertNoPageErrors(driver);
@@ -335,16 +530,18 @@ async function runBrowser(browserName, baseUrl) {
             .join('\n\n');
         throw new Error(`${browserName} failed ${failures.length} contract(s):\n\n${details}`);
     }
+    return contracts.length;
 }
 
 async function main() {
     const browsers = parseBrowsers(process.argv.slice(2));
     const fixtureServer = await createFixtureServer();
     const failures = [];
+    let passedContracts = 0;
     try {
         for (const browserName of browsers) {
             try {
-                await runBrowser(browserName, fixtureServer.baseUrl);
+                passedContracts += await runBrowser(browserName, fixtureServer.baseUrl);
             } catch (error) {
                 failures.push(error);
             }
@@ -358,7 +555,7 @@ async function main() {
         process.exitCode = 1;
         return;
     }
-    process.stdout.write(`\nPassed ${CONTRACTS.length} contracts in ${browsers.join(' and ')}.\n`);
+    process.stdout.write(`\nPassed ${passedContracts} contracts in ${browsers.join(' and ')}.\n`);
 }
 
 await main();

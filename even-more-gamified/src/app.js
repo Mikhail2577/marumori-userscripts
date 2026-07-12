@@ -18,10 +18,12 @@ import { createThemeMusicScheduler } from './audio/theme-music-scheduler.js';
 import { createToneScheduler } from './audio/tone-scheduler.js';
 import { createLifecycleController, SESSION_STATES } from './core/lifecycle.js';
 import { createReconciler } from './core/reconciliation.js';
+import { createSessionFinalizationController } from './core/session-finalization.js';
 import { getReviewSessionBoundaryReason } from './core/session-boundary.js';
 import { createCrtController } from './effects/crt.js';
 import { createTransientEffectsController } from './effects/transient-effects.js';
 import { createFontChallengeController } from './font-challenge/controller.js';
+import { createAnswerTimerOwnershipController } from './gameplay/answer-timer-ownership.js';
 import { getGrade } from './gameplay/grades.js';
 import { createFirstInputGate } from './gameplay/first-input-gate.js';
 import {
@@ -202,13 +204,17 @@ let settingsPanelController = null;
 let documentClickHandler = null;
 let documentKeyHandler = null;
 let domSyncRaf = null;
-let summaryTimer = null;
 let previewAllTimer = null;
 let sessionRemountPending = false;
 let els = {};
 
 const marumoriDom = createMaruMoriDomAdapter({ document });
 const lifecycle = createLifecycleController();
+const answerTimerOwnership = createAnswerTimerOwnershipController({
+    lifecycle,
+    dom: marumoriDom,
+    clock: () => performance.now(),
+});
 const crtController = createCrtController({ document });
 const transientEffects = createTransientEffectsController({
     document,
@@ -252,6 +258,7 @@ const firstInputGate = createFirstInputGate({
 let reviewReconciler = null;
 let rewindController = null;
 let timeoutFailureController = null;
+let sessionFinalizationController = null;
 let activeReviewRoot = null;
 let activeReviewUrl = null;
 let activeReviewSessionIdentity = null;
@@ -264,6 +271,7 @@ const timerState = {
     running: false,
     currentQuestionId: 0,
     awardedForQuestionId: null,
+    ownership: null,
 };
 
 let lastAudioWarnAt = 0;
@@ -589,10 +597,7 @@ function updateRewindButton() {
 }
 
 function cancelPendingSummary() {
-    if (summaryTimer) {
-        clearTimeout(summaryTimer);
-        summaryTimer = null;
-    }
+    sessionFinalizationController?.cancelPendingSummary();
     document.getElementById('mm-summary')?.classList.remove('open');
 }
 
@@ -779,35 +784,51 @@ function ensureComboTimerCompositor() {
         bar: els.bar,
         wrapper: els.barWrap,
         reducedMotion: prefersReducedMotion,
-        onTierChange({ remainingPct }) {
+        onTierChange({ remainingPct, snapshot }) {
+            if (snapshot.ownership !== timerState.ownership) return;
             timerState.remainingPct = remainingPct;
             syncXpBonusDisplay(remainingPct);
         },
-        onExpire() {
-            if (!timerState.running) return;
-            timerState.remainingPct = 0;
-            timerState.expired = true;
-            timerState.running = false;
-            handleAnswerTimeout();
+        onExpire(_snapshot, ownership) {
+            if (!ownership || ownership !== timerState.ownership) return;
+            const validation = answerTimerOwnership.validate(ownership, {
+                requireExpired: true,
+            });
+            if (!validation.ok) {
+                handleRejectedTimerExpiration(ownership, validation);
+                return;
+            }
+            handleAnswerTimeout(ownership);
         },
     });
     return comboTimerCompositor;
 }
 
-function startComboBar() {
+function startComboBar({ ownership = null } = {}) {
     const compositor = ensureComboTimerCompositor();
     if (!compositor) return false;
-    timerState.startedAt = performance.now();
-    timerState.durationMs = getTimerDurationMs();
-    timerState.remainingPct = 1;
+    const durationMs = ownership?.durationMs ?? getTimerDurationMs();
+    const nextOwnership = ownership ?? answerTimerOwnership.arm({ durationMs });
+    if (!nextOwnership) return false;
+    const remainingPct = clamp(
+        (nextOwnership.deadline - performance.now()) / nextOwnership.durationMs,
+        0,
+        1,
+        0,
+    );
+    timerState.startedAt = nextOwnership.armedAt;
+    timerState.durationMs = nextOwnership.durationMs;
+    timerState.remainingPct = remainingPct;
     timerState.expired = false;
     timerState.running = true;
-    timerState.currentQuestionId++;
+    timerState.currentQuestionId = nextOwnership.timerGeneration;
     timerState.awardedForQuestionId = null;
+    timerState.ownership = nextOwnership;
     compositor.start({
         durationMs: timerState.durationMs,
-        remainingPct: 1,
+        remainingPct,
         visualsEnabled: settings.hudEnabled,
+        ownership: nextOwnership,
     });
     return true;
 }
@@ -816,8 +837,15 @@ function stopComboBar({ remainingPct = 0, inactive = false, clearTier = true } =
     ensureComboTimerCompositor()?.stop({ remainingPct, inactive, clearTier });
 }
 
-function stopAnswerTimer() {
+function invalidateAnswerTimerOwnership(ownership = timerState.ownership) {
+    const invalidated = answerTimerOwnership.invalidate(ownership);
+    if (timerState.ownership === ownership) timerState.ownership = null;
+    return invalidated;
+}
+
+function stopAnswerTimer({ preserveOwnership = false } = {}) {
     timerState.running = false;
+    if (!preserveOwnership) invalidateAnswerTimerOwnership();
     stopComboBar();
     syncXpBonusDisplay();
 }
@@ -830,6 +858,7 @@ function pauseFirstAnswerTimer() {
     timerState.running = false;
     timerState.expired = false;
     timerState.remainingPct = 1;
+    invalidateAnswerTimerOwnership();
     stopComboBar({ remainingPct: 1, clearTier: false });
     syncXpBonusDisplay();
 }
@@ -867,6 +896,7 @@ function resetComboTimer(force = false) {
         return;
     }
     timerState.running = false;
+    invalidateAnswerTimerOwnership();
 
     if (!settings.timerEnabled) {
         timerState.remainingPct = 1;
@@ -893,8 +923,45 @@ function applyTimeoutPenalty() {
     updateHUD();
 }
 
-function handleAnswerTimeout() {
-    if (isAnswerResolved()) return;
+function handleRejectedTimerExpiration(ownership, validation) {
+    if (answerTimerOwnership.current !== ownership) return false;
+    if (validation.reason === 'deadline-not-reached') {
+        return startComboBar({ ownership });
+    }
+    const rearmed = answerTimerOwnership.rearmForCurrentDom(ownership);
+    if (rearmed.ok && rearmed.ownership) {
+        return startComboBar({ ownership: rearmed.ownership });
+    }
+
+    invalidateAnswerTimerOwnership(ownership);
+    timerState.running = false;
+    timerState.expired = false;
+    timerState.remainingPct = 1;
+    stopComboBar({ remainingPct: 1, inactive: true, clearTier: true });
+    syncXpBonusDisplay();
+    reviewReconciler?.request('timer-owner-rejected');
+    return false;
+}
+
+function reconcileAnswerTimerDomOwnership() {
+    const ownership = timerState.ownership;
+    if (!timerState.running || !ownership) return false;
+    const validation = answerTimerOwnership.validate(ownership);
+    if (validation.ok) return false;
+    if (validation.reason !== 'dom-generation-changed') return false;
+    const rearmed = answerTimerOwnership.rearmForCurrentDom(ownership);
+    if (!rearmed.ok || !rearmed.ownership || rearmed.ownership === ownership) return false;
+    return startComboBar({ ownership: rearmed.ownership });
+}
+
+function handleAnswerTimeout(ownership) {
+    const validation = answerTimerOwnership.validate(ownership, {
+        requireExpired: true,
+    });
+    if (!validation.ok || ownership !== timerState.ownership) {
+        handleRejectedTimerExpiration(ownership, validation);
+        return false;
+    }
     timerState.remainingPct = 0;
     timerState.expired = true;
     timerState.running = false;
@@ -906,11 +973,13 @@ function handleAnswerTimeout() {
     spawnThemeParticles('timeout', getInputWrapper());
 
     if (settings.timeoutFailureEnabled && timeoutFailureController) {
-        timeoutFailureController.start('answer-timeout');
-        return;
+        timeoutFailureController.start('answer-timeout', ownership);
+        return true;
     }
 
     applyTimeoutPenalty();
+    invalidateAnswerTimerOwnership(ownership);
+    return true;
 }
 
 const THEME_PREVIEW_EVENTS = [
@@ -1173,7 +1242,7 @@ function handleCorrect() {
     if (state.answerStreak % 10 === 0) shakeScreen(true);
 }
 
-function handleIncorrect() {
+function handleIncorrect({ preserveTimerOwnership = false } = {}) {
     firstInputGate.markStarted();
     removeFirstAnswerInputGate();
     setRewindSnapshot(makeRewindSnapshot('incorrect'));
@@ -1185,7 +1254,7 @@ function handleIncorrect() {
     const penalty = calcIncorrectPenalty(state.score, lostStreak);
     state.score = Math.max(0, state.score - penalty);
 
-    stopAnswerTimer();
+    stopAnswerTimer({ preserveOwnership: preserveTimerOwnership });
     updateHUD();
     if (lostStreak > 0) showHudMicro('COMBO RESET', 'fail');
     playFailSound();
@@ -1256,50 +1325,43 @@ function showSummary() {
     spawnCelebrationBurst('sessionComplete', overlay.querySelector('#mm-summary-inner'));
 }
 
-function processResolvedAnswer(resolution, { lifecycleAlreadyResolved = false } = {}) {
+function processResolvedAnswer(
+    resolution,
+    {
+        lifecycleAlreadyResolved = false,
+        preserveTimerOwnership = false,
+        ownership = lifecycle.captureOwnership(),
+        questionIdentity = ownership?.questionId,
+        progress = marumoriDom.getProgress(),
+    } = {},
+) {
     if (resolution !== DOM_RESOLUTION.CORRECT && resolution !== DOM_RESOLUTION.INCORRECT) {
         return false;
     }
-    if (lastAnswerState === resolution) return false;
-    if (!lifecycleAlreadyResolved && !lifecycle.resolve(resolution)) return false;
-    lastAnswerState = resolution;
-    if (resolution === DOM_RESOLUTION.CORRECT) handleCorrect();
-    else handleIncorrect();
-    return true;
+    let processed = false;
+    if (lastAnswerState !== resolution) {
+        if (!lifecycleAlreadyResolved && !lifecycle.resolve(resolution)) return false;
+        lastAnswerState = resolution;
+        if (resolution === DOM_RESOLUTION.CORRECT) handleCorrect();
+        else handleIncorrect({ preserveTimerOwnership });
+        processed = true;
+    }
+    sessionFinalizationController?.recordResolvedQuestion({
+        ownership,
+        questionIdentity,
+        progress,
+        resolution,
+    });
+    return processed;
 }
 
-function processCounterChange(progress, { allowCompletion = true } = {}) {
+function processCounterChange(progress) {
     if (!progress) return;
-    const { current, total: max } = progress;
+    const { current } = progress;
     if (current > state.lastCompleted) {
         state.lastCompleted = current;
-        handleWordComplete();
         applyFontChallenge();
         refreshAnswerTimerForCurrentQuestion();
-    }
-    const summary = document.getElementById('mm-summary');
-    if (
-        allowCompletion &&
-        current === max &&
-        max > 0 &&
-        state.sessionActive &&
-        summary &&
-        !summary.classList.contains('open')
-    ) {
-        state.sessionActive = false;
-        lifecycle.complete();
-        const ownership = lifecycle.captureOwnership();
-        if (summaryTimer) clearTimeout(summaryTimer);
-        summaryTimer = setTimeout(() => {
-            summaryTimer = null;
-            if (
-                initialized &&
-                lifecycle.sessionState === SESSION_STATES.COMPLETED &&
-                lifecycle.owns(ownership, { requireQuestion: false })
-            ) {
-                showSummary();
-            }
-        }, 800);
     }
 }
 
@@ -1316,16 +1378,11 @@ function scheduleSessionRemount() {
     });
 }
 
-function reconcileReviewDom(reasons = []) {
+function reconcileReviewDom() {
     if (!initialized) return;
-    const root = marumoriDom.getActiveReviewRoot();
-    const wrapper = marumoriDom.getInputWrapper();
-    const questionId = marumoriDom.getQuestionIdentity();
-    const progress = marumoriDom.getProgress();
-    const resolution = marumoriDom.getResolvedState();
-    if (!root || !wrapper || !questionId || !progress || resolution === DOM_RESOLUTION.UNKNOWN) {
-        return;
-    }
+    const questionContext = marumoriDom.readQuestionContext();
+    if (!questionContext) return;
+    const { root, logicalQuestionIdentity: questionId, progress, resolution } = questionContext;
 
     if (root !== activeReviewRoot) {
         scheduleSessionRemount();
@@ -1363,11 +1420,7 @@ function reconcileReviewDom(reasons = []) {
         return;
     }
 
-    if (
-        lifecycle.sessionState === SESSION_STATES.ACTIVE &&
-        resolution === DOM_RESOLUTION.UNRESOLVED &&
-        questionId !== lifecycle.questionId
-    ) {
+    if (lifecycle.sessionState === SESSION_STATES.ACTIVE && questionId !== lifecycle.questionId) {
         timeoutFailureController?.cancel('question-changed');
         rewindController?.discard();
         lastAnswerState = null;
@@ -1375,17 +1428,21 @@ function reconcileReviewDom(reasons = []) {
         updateRewindButton();
         applyFontChallenge();
         refreshAnswerTimerForCurrentQuestion();
+    } else {
+        reconcileAnswerTimerDomOwnership();
     }
 
     timeoutFailureController?.reconcile();
     rewindController?.reconcile();
     if (resolution === DOM_RESOLUTION.CORRECT || resolution === DOM_RESOLUTION.INCORRECT) {
-        processResolvedAnswer(resolution);
+        processResolvedAnswer(resolution, {
+            ownership: lifecycle.captureOwnership(),
+            questionIdentity: questionId,
+            progress,
+        });
     }
 
-    processCounterChange(progress, {
-        allowCompletion: resolution !== DOM_RESOLUTION.UNRESOLVED || reasons.includes('counter'),
-    });
+    processCounterChange(progress);
     syncArcadePresentation();
 }
 
@@ -1412,12 +1469,29 @@ function observeCounter() {
 }
 
 function setupReviewControllers() {
+    sessionFinalizationController = createSessionFinalizationController({
+        lifecycle,
+        isCompletionCurrent(completion) {
+            return (
+                initialized &&
+                marumoriDom.getActiveReviewRoot() === activeReviewRoot &&
+                marumoriDom.getQuestionIdentity() === completion.logicalQuestionIdentity &&
+                marumoriDom.getResolvedState() === completion.resolution
+            );
+        },
+        onQuestionCompleted: handleWordComplete,
+        onSessionCompleted() {
+            state.sessionActive = false;
+        },
+        onShowSummary: showSummary,
+    });
     rewindController = createTransactionalRewind({
         lifecycle,
         dom: marumoriDom,
         restoreSnapshot: restoreRewindSnapshot,
         cancelSummary: cancelPendingSummary,
         onCommit() {
+            sessionFinalizationController?.reopenQuestion(lifecycle.captureOwnership());
             lastAnswerState = null;
             state.sessionActive = true;
             if (settings.musicEnabled) startMusic();
@@ -1437,9 +1511,26 @@ function setupReviewControllers() {
     timeoutFailureController = createTimeoutFailureController({
         lifecycle,
         dom: marumoriDom,
-        onIncorrectConfirmed() {
+        validateTimerOwnership: (ownership, options) =>
+            answerTimerOwnership.validate(ownership, options),
+        canAdvance({ ownership, questionIdentity }) {
+            return Boolean(
+                state.sessionActive &&
+                lifecycle.sessionState === SESSION_STATES.ACTIVE &&
+                lifecycle.owns(ownership) &&
+                !sessionFinalizationController?.isFinalizedQuestion({
+                    ownership,
+                    questionIdentity,
+                }),
+            );
+        },
+        onIncorrectConfirmed({ ownership, questionIdentity }) {
             processResolvedAnswer(DOM_RESOLUTION.INCORRECT, {
                 lifecycleAlreadyResolved: true,
+                preserveTimerOwnership: true,
+                ownership,
+                questionIdentity,
+                progress: marumoriDom.getProgress(),
             });
             reviewReconciler?.request('timeout-incorrect');
         },
@@ -1451,14 +1542,17 @@ function setupReviewControllers() {
                 console.warn('[MMGamify] Timeout auto-fail stopped:', outcome.reason);
             }
         },
+        onSettled(_outcome, context) {
+            const ownership = context?.timerOwnership;
+            if (ownership) invalidateAnswerTimerOwnership(ownership);
+        },
     });
 }
 
 function init() {
-    const root = marumoriDom.getActiveReviewRoot();
-    const questionId = marumoriDom.getQuestionIdentity();
-    const progress = marumoriDom.getProgress();
-    if (initialized || !root || !questionId || !progress) return;
+    const questionContext = marumoriDom.readQuestionContext();
+    if (initialized || !questionContext) return;
+    const { root, logicalQuestionIdentity: questionId, progress } = questionContext;
     ThemeManager.applyTheme(settings.pinnedBackgroundTheme, { persist: true });
     resetState();
     lifecycle.mount();
@@ -1509,6 +1603,8 @@ function cleanup() {
     timeoutFailureController = null;
     rewindController?.discard();
     rewindController = null;
+    sessionFinalizationController?.cleanup();
+    sessionFinalizationController = null;
     lifecycle.cleanup();
     activeReviewRoot = null;
     activeReviewUrl = null;
@@ -1519,10 +1615,6 @@ function cleanup() {
     hudController = null;
     settingsPanelController?.cleanup();
     settingsPanelController = null;
-    if (summaryTimer) {
-        clearTimeout(summaryTimer);
-        summaryTimer = null;
-    }
     if (previewAllTimer) {
         clearTimeout(previewAllTimer);
         previewAllTimer = null;

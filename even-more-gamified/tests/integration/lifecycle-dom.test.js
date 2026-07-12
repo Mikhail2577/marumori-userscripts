@@ -39,6 +39,17 @@ describe('session and question lifecycle', () => {
         expect(lifecycle.sessionState).toBe(SESSION_STATES.ACTIVE);
     });
 
+    it('rejects session completion while the current question is unresolved', () => {
+        const lifecycle = createLifecycleController();
+        lifecycle.mount();
+        lifecycle.start();
+        lifecycle.beginQuestion('q1');
+
+        expect(lifecycle.complete()).toBe(false);
+        expect(lifecycle.sessionState).toBe(SESSION_STATES.ACTIVE);
+        expect(lifecycle.questionState).toBe(QUESTION_STATES.AWAITING_ANSWER);
+    });
+
     it('cancels question-owned callbacks after a question change', () => {
         const lifecycle = createLifecycleController();
         lifecycle.mount();
@@ -147,6 +158,37 @@ describe('fail-closed MaruMori DOM adapter', () => {
         expect(adapter.getQuestionIdentity()).toContain('question-2');
     });
 
+    it('separates stable logical identity from wrapper and progress generations', () => {
+        const before = adapter.readQuestionContext();
+        replaceQuestionWrapper(fixture, { questionId: 'question-1' });
+        fixture.counter.textContent = '1 / 3';
+        const after = adapter.readQuestionContext();
+
+        expect(before).toMatchObject({
+            identityKind: 'host',
+            resolution: DOM_RESOLUTION.UNRESOLVED,
+        });
+        expect(after.logicalQuestionIdentity).toBe(before.logicalQuestionIdentity);
+        expect(after.domGeneration).not.toBe(before.domGeneration);
+        expect(after.wrapperGeneration).not.toBe(before.wrapperGeneration);
+        expect(after.rootGeneration).toBe(before.rootGeneration);
+        expect(after.progress).toMatchObject({ current: 1, total: 3 });
+    });
+
+    it('fails closed on conflicting host IDs and uses a strict fallback without one', () => {
+        fixture.wrapper.dataset.itemId = 'conflict';
+        expect(adapter.getQuestionIdentity()).toBeNull();
+        expect(adapter.readQuestionContext()).toBeNull();
+
+        delete fixture.wrapper.dataset.itemId;
+        delete fixture.wrapper.dataset.questionId;
+        const fallback = adapter.readQuestionContext();
+        expect(fallback).toMatchObject({ identityKind: 'fallback' });
+
+        fixture.counter.textContent = '2 / 3';
+        expect(adapter.getQuestionIdentity()).not.toBe(fallback.logicalQuestionIdentity);
+    });
+
     it('fails closed when two review wrappers are simultaneously visible', () => {
         fixture.root.append(fixture.wrapper.cloneNode(true));
         expect(adapter.getActiveReviewRoot()).toBeNull();
@@ -159,6 +201,17 @@ describe('fail-closed MaruMori DOM adapter', () => {
         expect(adapter.getResolvedState()).toBe(DOM_RESOLUTION.CORRECT);
         fixture.wrapper.classList.add('incorrect');
         expect(adapter.getResolvedState()).toBe(DOM_RESOLUTION.UNKNOWN);
+    });
+
+    it('keeps host context readable while owned transient decoration classes are active', () => {
+        fixture.counter.classList.add('mm-bounce');
+        fixture.root.querySelector('.quiz_progress').classList.add('mm-progress-glow');
+
+        expect(adapter.readQuestionContext()).toMatchObject({
+            logicalQuestionIdentity: expect.stringContaining('question-1'),
+            progress: { current: 1, total: 3 },
+            resolution: DOM_RESOLUTION.UNRESOLVED,
+        });
     });
 });
 

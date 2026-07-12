@@ -4242,6 +4242,7 @@
     "data-item-key"
   ]);
   var SESSION_ID_ATTRIBUTES = Object.freeze(["data-review-session", "data-session-id"]);
+  var HOST_DECORATION_CLASSES = /* @__PURE__ */ new Set(["mm-bounce", "mm-progress-glow"]);
   function normalizeText(value) {
     return String(value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
   }
@@ -4250,7 +4251,9 @@
     while (current?.nodeType === 1) {
       if (current.hasAttribute("data-mm-owned")) return true;
       if (current.id?.startsWith("mm-")) return true;
-      if (current.localName !== "body" && [...current.classList].some((className) => className.startsWith("mm-"))) {
+      if (current.localName !== "body" && [...current.classList].some(
+        (className) => className.startsWith("mm-") && !HOST_DECORATION_CLASSES.has(className)
+      )) {
         return true;
       }
       if (current.localName === "body") break;
@@ -4302,8 +4305,18 @@
       throw new TypeError("A document is required by the MaruMori DOM adapter");
     }
     const resolvedSelectors = { ...DEFAULT_SELECTORS, ...selectors };
+    const rootIds = /* @__PURE__ */ new WeakMap();
     const wrapperIds = /* @__PURE__ */ new WeakMap();
+    let nextRootId = 1;
     let nextWrapperId = 1;
+    function getGenerationId(element, ids, nextId) {
+      let id = ids.get(element);
+      if (!id) {
+        id = nextId();
+        ids.set(element, id);
+      }
+      return id;
+    }
     function visibleSiteElements(root, selector) {
       return queryIncludingRoot(root, selector).filter(
         (element) => !isUserscriptOwned(element) && isVisible(element)
@@ -4360,18 +4373,18 @@
       );
       return unique(inputs);
     }
-    function getCounterElement2() {
-      const context = resolveContext();
-      if (!context) return null;
+    function getCounterElementForContext(context) {
       const counters = visibleSiteElements(context.root, resolvedSelectors.counter).filter(
         (counter) => parseCounterText(counter.textContent)
       );
       return unique(counters);
     }
-    function getProgress() {
+    function getCounterElement2() {
       const context = resolveContext();
-      if (!context) return null;
-      const counter = getCounterElement2();
+      return context ? getCounterElementForContext(context) : null;
+    }
+    function getProgressForContext(context) {
+      const counter = getCounterElementForContext(context);
       const parsedCounter = counter ? parseCounterText(counter.textContent) : null;
       if (parsedCounter) return { ...parsedCounter, element: counter };
       const progress = unique(visibleSiteElements(context.root, resolvedSelectors.progress));
@@ -4383,25 +4396,23 @@
       }
       return { current, total, ratio: current / total, element: progress };
     }
-    function getResolvedState() {
-      const wrapper = getInputWrapper2();
-      if (!wrapper) return DOM_RESOLUTION.UNKNOWN;
-      const correct = wrapper.classList.contains("correct");
-      const incorrect = wrapper.classList.contains("incorrect");
+    function getProgress() {
+      const context = resolveContext();
+      return context ? getProgressForContext(context) : null;
+    }
+    function getResolvedStateForContext(context) {
+      const correct = context.wrapper.classList.contains("correct");
+      const incorrect = context.wrapper.classList.contains("incorrect");
       if (correct && incorrect) return DOM_RESOLUTION.UNKNOWN;
       if (correct) return DOM_RESOLUTION.CORRECT;
       if (incorrect) return DOM_RESOLUTION.INCORRECT;
       return DOM_RESOLUTION.UNRESOLVED;
     }
-    function getQuestionIdentity() {
+    function getResolvedState() {
       const context = resolveContext();
-      if (!context) return null;
-      let wrapperId = wrapperIds.get(context.wrapper);
-      if (!wrapperId) {
-        wrapperId = nextWrapperId;
-        nextWrapperId += 1;
-        wrapperIds.set(context.wrapper, wrapperId);
-      }
+      return context ? getResolvedStateForContext(context) : DOM_RESOLUTION.UNKNOWN;
+    }
+    function getQuestionIdentityForContext(context, progress) {
       const attributedElements = [context.wrapper, context.root];
       for (const selector of QUESTION_ID_ATTRIBUTES.map((attribute) => `[${attribute}]`)) {
         attributedElements.push(...context.root.querySelectorAll(selector));
@@ -4415,11 +4426,51 @@
         }
       }
       const distinctSiteIds = [...new Set(siteIds)];
-      const progress = getProgress();
-      if (distinctSiteIds.length === 0 && !progress) return null;
-      const sitePart = distinctSiteIds.sort().join("|") || "no-site-id";
-      const progressPart = progress ? `${progress.current}/${progress.total}` : "no-progress";
-      return `${sitePart}|progress:${progressPart}|wrapper:${wrapperId}`;
+      if (distinctSiteIds.length > 1) return null;
+      if (distinctSiteIds.length === 1) {
+        return Object.freeze({
+          identityKind: "host",
+          logicalQuestionIdentity: `host:${distinctSiteIds[0]}`
+        });
+      }
+      if (!progress) return null;
+      const wrapperId = getGenerationId(context.wrapper, wrapperIds, () => nextWrapperId++);
+      return Object.freeze({
+        identityKind: "fallback",
+        logicalQuestionIdentity: `fallback:progress:${progress.current}/${progress.total}|wrapper:${wrapperId}`
+      });
+    }
+    function getDomGenerationForContext(context) {
+      const rootId = getGenerationId(context.root, rootIds, () => nextRootId++);
+      const wrapperId = getGenerationId(context.wrapper, wrapperIds, () => nextWrapperId++);
+      return Object.freeze({
+        domGeneration: `root:${rootId}|wrapper:${wrapperId}`,
+        rootGeneration: rootId,
+        wrapperGeneration: wrapperId
+      });
+    }
+    function readQuestionContext() {
+      const context = resolveContext();
+      if (!context) return null;
+      const progress = getProgressForContext(context);
+      const identity = getQuestionIdentityForContext(context, progress);
+      const resolution = getResolvedStateForContext(context);
+      if (!progress || !identity || resolution === DOM_RESOLUTION.UNKNOWN) return null;
+      const generation = getDomGenerationForContext(context);
+      return Object.freeze({
+        root: context.root,
+        wrapper: context.wrapper,
+        ...generation,
+        ...identity,
+        progress: Object.freeze({ ...progress }),
+        resolution
+      });
+    }
+    function getQuestionIdentity() {
+      return readQuestionContext()?.logicalQuestionIdentity ?? null;
+    }
+    function getDomQuestionGeneration() {
+      return readQuestionContext()?.domGeneration ?? null;
     }
     function controlCandidates(root) {
       return [
@@ -4511,6 +4562,8 @@
       getProgress,
       getResolvedState,
       getQuestionIdentity,
+      getDomQuestionGeneration,
+      readQuestionContext,
       getControl,
       getCapability,
       getNativeRewindCapability: () => getCapability("rewind"),
@@ -4577,9 +4630,9 @@
     if (typeof original !== "function") return null;
     const ownDescriptor = Object.getOwnPropertyDescriptor(history2, methodName);
     const wrapped = function navigationHistoryWrapper(...args) {
-      const result2 = Reflect.apply(original, this, args);
+      const result3 = Reflect.apply(original, this, args);
       onChange(methodName);
-      return result2;
+      return result3;
     };
     let installed = false;
     try {
@@ -6283,13 +6336,13 @@
       this.transitionQuestion(QUESTION_STATES.AWAITING_ANSWER);
       return true;
     }
-    resolve(result2) {
+    resolve(result3) {
       if (this.questionState !== QUESTION_STATES.AWAITING_FIRST_INPUT && this.questionState !== QUESTION_STATES.AWAITING_ANSWER) {
         return false;
       }
-      if (result2 !== "correct" && result2 !== "incorrect") return false;
+      if (result3 !== "correct" && result3 !== "incorrect") return false;
       this.transitionQuestion(
-        result2 === "correct" ? QUESTION_STATES.RESOLVED_CORRECT : QUESTION_STATES.RESOLVED_INCORRECT
+        result3 === "correct" ? QUESTION_STATES.RESOLVED_CORRECT : QUESTION_STATES.RESOLVED_INCORRECT
       );
       return true;
     }
@@ -6318,8 +6371,10 @@
       this.previousResolvedState = null;
       return true;
     }
-    complete() {
-      if (this.sessionState !== SESSION_STATES.ACTIVE) return false;
+    complete(ownership = this.captureOwnership()) {
+      if (this.sessionState !== SESSION_STATES.ACTIVE || !this.owns(ownership) || this.questionState !== QUESTION_STATES.RESOLVED_CORRECT && this.questionState !== QUESTION_STATES.RESOLVED_INCORRECT) {
+        return false;
+      }
       this.transitionSession(SESSION_STATES.COMPLETED);
       return true;
     }
@@ -6398,6 +6453,176 @@
       },
       get pending() {
         return pending;
+      }
+    });
+  }
+
+  // src/core/session-finalization.js
+  var RESOLVED_QUESTION_STATES = Object.freeze({
+    correct: QUESTION_STATES.RESOLVED_CORRECT,
+    incorrect: QUESTION_STATES.RESOLVED_INCORRECT
+  });
+  function ownershipKey(ownership) {
+    return `${ownership.sessionGeneration}:${ownership.questionGeneration}`;
+  }
+  function isValidProgress(progress) {
+    return Number.isInteger(progress?.current) && Number.isInteger(progress?.total) && progress.total > 0 && progress.current >= 1 && progress.current <= progress.total;
+  }
+  function response(accepted, reason, extra = {}) {
+    return Object.freeze({ accepted, reason, ...extra });
+  }
+  function createSessionFinalizationController({
+    lifecycle: lifecycle2,
+    summaryDelayMs = 800,
+    isCompletionCurrent = () => true,
+    onQuestionCompleted = () => {
+    },
+    onSessionCompleted = () => {
+    },
+    onShowSummary = () => {
+    }
+  } = {}) {
+    if (!lifecycle2?.captureOwnership || !lifecycle2?.owns || !lifecycle2?.complete) {
+      throw new TypeError("Session finalization requires a lifecycle controller");
+    }
+    if (!Number.isFinite(summaryDelayMs) || summaryDelayMs < 0) {
+      throw new RangeError("Summary delay must be a nonnegative duration");
+    }
+    const completedOwnerships = /* @__PURE__ */ new Set();
+    let status = "active";
+    let finalCompletion = null;
+    let cancelSummaryTimer = null;
+    let finalizationToken = 0;
+    let summaryShown = false;
+    function clearSummaryTimer() {
+      cancelSummaryTimer?.();
+      cancelSummaryTimer = null;
+    }
+    function scheduleSummary(completion) {
+      clearSummaryTimer();
+      cancelSummaryTimer = lifecycle2.sessionScope?.setTimeout(() => {
+        cancelSummaryTimer = null;
+        if (status !== "completed" || summaryShown || finalCompletion !== completion || completion.token !== finalizationToken || lifecycle2.sessionState !== SESSION_STATES.COMPLETED || !lifecycle2.owns(completion.ownership) || !isCompletionCurrent(completion)) {
+          return;
+        }
+        summaryShown = true;
+        onShowSummary(completion);
+      }, summaryDelayMs);
+    }
+    function recordResolvedQuestion({
+      ownership = lifecycle2.captureOwnership(),
+      questionIdentity = ownership?.questionId,
+      progress,
+      resolution
+    } = {}) {
+      if (status === "disposed") return response(false, "disposed");
+      if (!ownership || !questionIdentity || !lifecycle2.owns(ownership)) {
+        return response(false, "stale-owner");
+      }
+      if (ownership.questionId !== questionIdentity) {
+        return response(false, "identity-mismatch");
+      }
+      if (!isValidProgress(progress)) return response(false, "invalid-progress");
+      if (RESOLVED_QUESTION_STATES[resolution] !== lifecycle2.questionState) {
+        return response(false, "question-not-resolved");
+      }
+      const key = ownershipKey(ownership);
+      const counted = !completedOwnerships.has(key);
+      if (counted) {
+        completedOwnerships.add(key);
+        onQuestionCompleted({ ownership, questionIdentity, progress, resolution });
+      }
+      if (progress.current !== progress.total) {
+        return response(true, counted ? "question-counted" : "duplicate-resolution", {
+          counted,
+          sessionCompleted: false
+        });
+      }
+      if (status === "completed") {
+        const sameFinalQuestion = finalCompletion?.ownership.sessionGeneration === ownership.sessionGeneration && finalCompletion?.ownership.questionGeneration === ownership.questionGeneration && finalCompletion?.logicalQuestionIdentity === questionIdentity;
+        return response(
+          sameFinalQuestion,
+          sameFinalQuestion ? "already-complete" : "completed",
+          {
+            counted,
+            sessionCompleted: sameFinalQuestion
+          }
+        );
+      }
+      if (!lifecycle2.complete(ownership)) {
+        return response(false, "lifecycle-rejected-completion", { counted });
+      }
+      finalizationToken += 1;
+      const completion = Object.freeze({
+        ownership,
+        logicalQuestionIdentity: questionIdentity,
+        resolution,
+        progress: Object.freeze({ current: progress.current, total: progress.total }),
+        token: finalizationToken
+      });
+      finalCompletion = completion;
+      status = "completed";
+      summaryShown = false;
+      onSessionCompleted(completion);
+      scheduleSummary(completion);
+      return response(true, "session-completed", {
+        counted,
+        sessionCompleted: true,
+        completion
+      });
+    }
+    function reopenQuestion(ownership = lifecycle2.captureOwnership()) {
+      if (status === "disposed" || !ownership) return false;
+      completedOwnerships.delete(ownershipKey(ownership));
+      const ownsFinal = finalCompletion?.ownership.sessionGeneration === ownership.sessionGeneration && finalCompletion?.ownership.questionGeneration === ownership.questionGeneration;
+      if (ownsFinal) {
+        clearSummaryTimer();
+        finalizationToken += 1;
+        finalCompletion = null;
+        summaryShown = false;
+        status = "active";
+      }
+      return true;
+    }
+    function cancelPendingSummary2() {
+      if (!cancelSummaryTimer) return false;
+      clearSummaryTimer();
+      return true;
+    }
+    function isFinalizedQuestion({
+      ownership = lifecycle2.captureOwnership(),
+      questionIdentity = ownership?.questionId
+    } = {}) {
+      return Boolean(
+        status === "completed" && finalCompletion && ownership && finalCompletion.ownership.sessionGeneration === ownership.sessionGeneration && finalCompletion.ownership.questionGeneration === ownership.questionGeneration && finalCompletion.logicalQuestionIdentity === questionIdentity
+      );
+    }
+    function cleanup2() {
+      if (status === "disposed") return;
+      clearSummaryTimer();
+      completedOwnerships.clear();
+      finalCompletion = null;
+      summaryShown = false;
+      finalizationToken += 1;
+      status = "disposed";
+    }
+    return Object.freeze({
+      recordResolvedQuestion,
+      reopenQuestion,
+      cancelPendingSummary: cancelPendingSummary2,
+      isFinalizedQuestion,
+      cleanup: cleanup2,
+      get isComplete() {
+        return status === "completed";
+      },
+      get summaryShown() {
+        return summaryShown;
+      },
+      get completedQuestionCount() {
+        return completedOwnerships.size;
+      },
+      get finalCompletion() {
+        return finalCompletion;
       }
     });
   }
@@ -7308,6 +7533,144 @@
     });
   }
 
+  // src/gameplay/answer-timer-ownership.js
+  function result(ok, reason, context = null, extra = {}) {
+    return Object.freeze({ ok, reason, context, ...extra });
+  }
+  function normalizeResolutions(allowedResolutions) {
+    if (allowedResolutions === null) return null;
+    const resolutions = Array.isArray(allowedResolutions) ? allowedResolutions : [allowedResolutions ?? DOM_RESOLUTION.UNRESOLVED];
+    return new Set(resolutions);
+  }
+  function createAnswerTimerOwnershipController({ lifecycle: lifecycle2, dom, clock } = {}) {
+    if (!lifecycle2?.captureOwnership || !lifecycle2?.owns) {
+      throw new TypeError("Answer timer ownership requires a lifecycle controller");
+    }
+    if (!dom?.readQuestionContext) {
+      throw new TypeError("Answer timer ownership requires atomic DOM question context");
+    }
+    const readClock = typeof clock === "function" ? clock : () => performance.now();
+    let generation = 0;
+    let current = null;
+    function arm({ durationMs, deadline = null, armedAt = null } = {}) {
+      if (!Number.isFinite(durationMs) || durationMs <= 0) {
+        throw new RangeError("Answer timer durationMs must be greater than zero");
+      }
+      const context = dom.readQuestionContext();
+      const lifecycleOwnership = lifecycle2.captureOwnership();
+      if (!context || context.resolution !== DOM_RESOLUTION.UNRESOLVED || lifecycle2.sessionState !== SESSION_STATES.ACTIVE || !lifecycle2.owns(lifecycleOwnership) || lifecycleOwnership.questionId !== context.logicalQuestionIdentity) {
+        return null;
+      }
+      const now = readClock();
+      const resolvedDeadline = Number.isFinite(deadline) ? deadline : now + durationMs;
+      const resolvedArmedAt = Number.isFinite(armedAt) ? armedAt : resolvedDeadline - durationMs;
+      if (resolvedDeadline <= resolvedArmedAt) {
+        throw new RangeError("Answer timer deadline must follow its arm time");
+      }
+      generation += 1;
+      current = Object.freeze({
+        kind: "answer-timer",
+        timerGeneration: generation,
+        sessionGeneration: lifecycleOwnership.sessionGeneration,
+        questionGeneration: lifecycleOwnership.questionGeneration,
+        logicalQuestionIdentity: context.logicalQuestionIdentity,
+        identityKind: context.identityKind,
+        domGeneration: context.domGeneration,
+        rootGeneration: context.rootGeneration,
+        wrapperGeneration: context.wrapperGeneration,
+        reviewRoot: context.root,
+        wrapper: context.wrapper,
+        lifecycleOwnership,
+        armedAt: resolvedArmedAt,
+        deadline: resolvedDeadline,
+        durationMs
+      });
+      return current;
+    }
+    function validate(ownership, {
+      allowedResolutions = DOM_RESOLUTION.UNRESOLVED,
+      requireExactDom = true,
+      requireExpired = false
+    } = {}) {
+      if (!ownership || ownership.kind !== "answer-timer") {
+        return result(false, "missing-ownership");
+      }
+      if (current !== ownership || ownership.timerGeneration !== generation) {
+        return result(false, "stale-timer-generation");
+      }
+      if (ownership.sessionGeneration !== lifecycle2.sessionGeneration || ownership.questionGeneration !== lifecycle2.questionGeneration || ownership.logicalQuestionIdentity !== lifecycle2.questionId || !lifecycle2.owns(ownership.lifecycleOwnership)) {
+        return result(false, "stale-lifecycle-owner");
+      }
+      const context = dom.readQuestionContext();
+      if (!context) return result(false, "missing-question-context");
+      if (context.root !== ownership.reviewRoot) {
+        return result(false, "review-root-changed", context);
+      }
+      if (context.logicalQuestionIdentity !== ownership.logicalQuestionIdentity) {
+        return result(false, "logical-question-changed", context);
+      }
+      if (requireExactDom && (context.domGeneration !== ownership.domGeneration || context.wrapper !== ownership.wrapper)) {
+        return result(false, "dom-generation-changed", context);
+      }
+      const acceptedResolutions = normalizeResolutions(allowedResolutions);
+      if (acceptedResolutions && !acceptedResolutions.has(context.resolution)) {
+        return result(false, "unexpected-resolution", context);
+      }
+      if (requireExpired && readClock() + Number.EPSILON < ownership.deadline) {
+        return result(false, "deadline-not-reached", context);
+      }
+      return result(true, "current", context);
+    }
+    function rearmForCurrentDom(ownership, { restartIfExpired = true } = {}) {
+      const validation = validate(ownership, {
+        allowedResolutions: DOM_RESOLUTION.UNRESOLVED,
+        requireExactDom: false
+      });
+      if (!validation.ok) return result(false, validation.reason, validation.context);
+      if (validation.context.domGeneration === ownership.domGeneration) {
+        return result(true, "dom-unchanged", validation.context, { ownership });
+      }
+      const now = readClock();
+      const expired = now >= ownership.deadline;
+      if (expired && !restartIfExpired) {
+        invalidate(ownership);
+        return result(false, "replacement-after-deadline", validation.context);
+      }
+      const replacement = arm({
+        durationMs: ownership.durationMs,
+        deadline: expired ? now + ownership.durationMs : ownership.deadline,
+        armedAt: expired ? now : ownership.armedAt
+      });
+      return replacement ? result(
+        true,
+        expired ? "restarted-after-replacement" : "rearmed-replacement",
+        validation.context,
+        {
+          ownership: replacement,
+          restartedDeadline: expired
+        }
+      ) : result(false, "replacement-rearm-rejected", validation.context);
+    }
+    function invalidate(ownership = current) {
+      if (!ownership || ownership !== current) return false;
+      generation += 1;
+      current = null;
+      return true;
+    }
+    return Object.freeze({
+      arm,
+      validate,
+      rearmForCurrentDom,
+      invalidate,
+      get current() {
+        return current;
+      },
+      get generation() {
+        return generation;
+      }
+    });
+  }
+
   // src/gameplay/grades.js
   var GRADES = Object.freeze(
     [
@@ -7525,7 +7888,7 @@
 
   // src/gameplay/rewind.js
   var RESOLVED_STATES = /* @__PURE__ */ new Set([DOM_RESOLUTION.CORRECT, DOM_RESOLUTION.INCORRECT]);
-  function result(ok, status, reason, source) {
+  function result2(ok, status, reason, source) {
     return Object.freeze({ ok, status, reason, source });
   }
   function createTransactionalRewind({
@@ -7596,10 +7959,10 @@
         });
         lifecycle2.confirmRewind?.();
         captured = null;
-        outcome5 = result(true, "committed", "confirmed-unresolved", transaction.source);
+        outcome5 = result2(true, "committed", "confirmed-unresolved", transaction.source);
       } catch (error) {
         outcome5 = Object.freeze({
-          ...result(false, "failed", "snapshot-restore-failed", transaction.source),
+          ...result2(false, "failed", "snapshot-restore-failed", transaction.source),
           error
         });
       }
@@ -7611,7 +7974,7 @@
       const transaction = pending;
       if (!transaction || transaction.settled) return false;
       if (!lifecycle2.owns(transaction.ownership)) {
-        settle(transaction, result(false, "cancelled", "stale-owner", transaction.source), {
+        settle(transaction, result2(false, "cancelled", "stale-owner", transaction.source), {
           discard: true
         });
         return false;
@@ -7619,7 +7982,7 @@
       if (dom.getQuestionIdentity() !== transaction.questionIdentity) {
         settle(
           transaction,
-          result(false, "cancelled", "question-changed", transaction.source),
+          result2(false, "cancelled", "question-changed", transaction.source),
           { discard: true }
         );
         return false;
@@ -7632,7 +7995,7 @@
         if (resolution === DOM_RESOLUTION.UNKNOWN) return false;
         settle(
           transaction,
-          result(false, "failed", "unexpected-resolution", transaction.source)
+          result2(false, "failed", "unexpected-resolution", transaction.source)
         );
         return false;
       }
@@ -7642,16 +8005,16 @@
     function begin({ source, invokeNative }) {
       if (pending) return pending.promise;
       if (!isCaptureCurrent()) {
-        return Promise.resolve(result(false, "failed", "snapshot-not-current", source));
+        return Promise.resolve(result2(false, "failed", "snapshot-not-current", source));
       }
       const capability = invokeNative ? dom.getNativeRewindCapability?.() : null;
       if (invokeNative && !capability) {
-        const outcome5 = result(false, "failed", "native-rewind-unavailable", source);
+        const outcome5 = result2(false, "failed", "native-rewind-unavailable", source);
         onFailure(outcome5);
         return Promise.resolve(outcome5);
       }
       if (!lifecycle2.beginRewind?.()) {
-        const outcome5 = result(false, "failed", "lifecycle-not-resolved", source);
+        const outcome5 = result2(false, "failed", "lifecycle-not-resolved", source);
         onFailure(outcome5);
         return Promise.resolve(outcome5);
       }
@@ -7677,7 +8040,7 @@
       transaction.stopObserving = dom.observeResolution?.(reconcile) ?? (() => {
       });
       transaction.removeOwnershipCleanup = lifecycle2.questionScope?.defer(() => {
-        settle(transaction, result(false, "cancelled", "stale-owner", source), {
+        settle(transaction, result2(false, "cancelled", "stale-owner", source), {
           discard: true
         });
       }) ?? (() => {
@@ -7685,7 +8048,7 @@
       transaction.cancelTimeout = lifecycle2.questionScope?.setTimeout(() => {
         reconcile();
         if (pending === transaction) {
-          settle(transaction, result(false, "failed", "confirmation-timeout", source));
+          settle(transaction, result2(false, "failed", "confirmation-timeout", source));
         }
       }, timeoutMs);
       if (!invokeNative) return promise;
@@ -7697,7 +8060,7 @@
         programmaticInvocationDepth -= 1;
       }
       if (!invoked) {
-        settle(transaction, result(false, "failed", "native-invocation-failed", source));
+        settle(transaction, result2(false, "failed", "native-invocation-failed", source));
         return promise;
       }
       reconcile();
@@ -7715,7 +8078,7 @@
       reconcile,
       discard() {
         if (pending) {
-          settle(pending, result(false, "cancelled", "discarded", pending.source), {
+          settle(pending, result2(false, "cancelled", "discarded", pending.source), {
             discard: true
           });
         } else {
@@ -7741,33 +8104,65 @@
   function createTimeoutFailureController({
     lifecycle: lifecycle2,
     dom,
+    validateTimerOwnership,
     invalidValue = () => `__mm_timeout_${Date.now()}__`,
     resolutionTimeoutMs = 1200,
     advanceDelayMs = 150,
+    canAdvance = () => true,
     onIncorrectConfirmed = () => {
     },
     onUnresolvedFailure = () => {
     },
     onFailure = () => {
+    },
+    onSettled = () => {
     }
   } = {}) {
-    if (!lifecycle2?.captureOwnership || !lifecycle2?.owns) {
+    if (!lifecycle2?.owns) {
       throw new TypeError("Timeout failure requires a lifecycle controller");
     }
-    if (!dom?.getResolvedState || !dom?.getQuestionIdentity) {
-      throw new TypeError("Timeout failure requires a MaruMori DOM adapter");
+    if (!dom?.readQuestionContext) {
+      throw new TypeError("Timeout failure requires atomic MaruMori DOM context");
+    }
+    if (typeof validateTimerOwnership !== "function") {
+      throw new TypeError("Timeout failure requires timer ownership validation");
     }
     let pending = null;
+    let nextTransactionGeneration = 1;
+    function getAdvanceContext(transaction) {
+      return Object.freeze({
+        transactionGeneration: transaction.generation,
+        timerOwnership: transaction.timerOwnership,
+        ownership: transaction.ownership,
+        questionIdentity: transaction.questionIdentity,
+        domGeneration: transaction.domGeneration,
+        reviewRoot: transaction.reviewRoot,
+        wrapper: transaction.wrapper,
+        source: transaction.source,
+        strategy: transaction.strategy
+      });
+    }
+    function validateTransaction(transaction, allowedResolutions) {
+      const validation = validateTimerOwnership(transaction.timerOwnership, {
+        allowedResolutions,
+        requireExactDom: true
+      });
+      if (!validation?.ok) return validation ?? { ok: false, reason: "timer-owner-rejected" };
+      const { context } = validation;
+      if (!context || !lifecycle2.owns(transaction.ownership) || transaction.timerOwnership.lifecycleOwnership !== transaction.ownership || context.logicalQuestionIdentity !== transaction.questionIdentity || context.domGeneration !== transaction.domGeneration || context.root !== transaction.reviewRoot || context.wrapper !== transaction.wrapper) {
+        return Object.freeze({ ok: false, reason: "transaction-owner-mismatch", context });
+      }
+      return validation;
+    }
     function restoreInjectedInput(transaction) {
       const injected = transaction.injectedInput;
       if (!injected) return false;
       transaction.injectedInput = null;
-      if (!lifecycle2.owns(transaction.ownership) || dom.getQuestionIdentity() !== transaction.questionIdentity || dom.getResolvedState() !== DOM_RESOLUTION.UNRESOLVED || dom.getAnswerInput?.() !== injected.input) {
-        return false;
-      }
+      const validation = validateTransaction(transaction, DOM_RESOLUTION.UNRESOLVED);
+      if (!validation.ok || dom.getAnswerInput?.() !== injected.input) return false;
       return dom.setAnswerValue?.(injected.input, injected.originalValue) ?? false;
     }
-    function settle(transaction, result2, { restore = false } = {}) {
+    function settle(transaction, result3, { restore = false } = {}) {
       if (pending !== transaction || transaction.settled) return;
       transaction.settled = true;
       transaction.cancelResolutionTimeout?.();
@@ -7776,27 +8171,47 @@
       transaction.removeOwnershipCleanup?.();
       const restoredInput = restore ? restoreInjectedInput(transaction) : false;
       pending = null;
-      const originStillUnresolved = Boolean(
-        !result2.ok && lifecycle2.owns(transaction.ownership) && dom.getQuestionIdentity() === transaction.questionIdentity && dom.getResolvedState() === DOM_RESOLUTION.UNRESOLVED
-      );
+      const unresolvedValidation = !result3.ok ? validateTransaction(transaction, DOM_RESOLUTION.UNRESOLVED) : null;
+      const originStillUnresolved = unresolvedValidation?.ok === true;
       const finalResult = Object.freeze({
-        ...result2,
+        ...result3,
+        transactionGeneration: transaction.generation,
+        timerGeneration: transaction.timerOwnership.timerGeneration,
         ...restoredInput ? { restoredInput: true } : {},
         ...originStillUnresolved ? { originStillUnresolved: true } : {}
       });
       transaction.resolve(finalResult);
       if (originStillUnresolved) onUnresolvedFailure(finalResult);
       if (!finalResult.ok) onFailure(finalResult);
+      onSettled(finalResult, getAdvanceContext(transaction));
+    }
+    function suppressAdvance(transaction) {
+      settle(
+        transaction,
+        outcome4(true, "completed", "automatic-advance-suppressed", transaction.source, {
+          strategy: transaction.strategy
+        })
+      );
     }
     function advance(transaction) {
-      if (pending !== transaction || transaction.settled || transaction.advanced) {
+      if (pending !== transaction || transaction.settled || transaction.advanceState !== "scheduled") {
         return;
       }
-      if (!lifecycle2.owns(transaction.ownership) || dom.getQuestionIdentity() !== transaction.questionIdentity || dom.getResolvedState() !== DOM_RESOLUTION.INCORRECT) {
+      const validation = validateTransaction(transaction, DOM_RESOLUTION.INCORRECT);
+      if (!validation.ok) {
         settle(
           transaction,
-          outcome4(false, "cancelled", "stale-before-advance", transaction.source)
+          outcome4(
+            false,
+            "cancelled",
+            `stale-before-advance:${validation.reason}`,
+            transaction.source
+          )
         );
+        return;
+      }
+      if (!canAdvance(getAdvanceContext(transaction))) {
+        suppressAdvance(transaction);
         return;
       }
       const next = dom.getCapability?.("next");
@@ -7804,7 +8219,7 @@
         settle(transaction, outcome4(false, "failed", "next-unavailable", transaction.source));
         return;
       }
-      transaction.advanced = true;
+      transaction.advanceState = "invoking";
       transaction.committingAdvance = true;
       const invoked = next.invoke();
       transaction.committingAdvance = false;
@@ -7815,6 +8230,7 @@
         );
         return;
       }
+      transaction.advanceState = "done";
       settle(
         transaction,
         outcome4(true, "advanced", "incorrect-confirmed", transaction.source, {
@@ -7824,36 +8240,69 @@
     }
     function confirmIncorrect(transaction) {
       if (transaction.incorrectConfirmed) return;
+      const validation = validateTransaction(transaction, DOM_RESOLUTION.INCORRECT);
+      if (!validation.ok) {
+        settle(
+          transaction,
+          outcome4(
+            false,
+            "cancelled",
+            `stale-before-confirm:${validation.reason}`,
+            transaction.source
+          )
+        );
+        return;
+      }
       transaction.incorrectConfirmed = true;
       transaction.injectedInput = null;
       transaction.cancelResolutionTimeout?.();
       transaction.cancelResolutionTimeout = null;
       lifecycle2.resolve?.("incorrect");
+      onIncorrectConfirmed(getAdvanceContext(transaction));
+      const afterCallback = validateTransaction(transaction, DOM_RESOLUTION.INCORRECT);
+      if (!afterCallback.ok) {
+        settle(
+          transaction,
+          outcome4(
+            false,
+            "cancelled",
+            `stale-after-confirm:${afterCallback.reason}`,
+            transaction.source
+          )
+        );
+        return;
+      }
+      if (!canAdvance(getAdvanceContext(transaction))) {
+        suppressAdvance(transaction);
+        return;
+      }
+      transaction.advanceState = "scheduled";
       transaction.cancelAdvance = lifecycle2.questionScope?.setTimeout(
         () => advance(transaction),
         advanceDelayMs
       );
-      onIncorrectConfirmed({
-        source: transaction.source,
-        ownership: transaction.ownership,
-        strategy: transaction.strategy
-      });
     }
     function reconcile() {
       const transaction = pending;
       if (!transaction || transaction.settled) return false;
-      if (!lifecycle2.owns(transaction.ownership)) {
-        settle(transaction, outcome4(false, "cancelled", "stale-owner", transaction.source));
-        return false;
-      }
-      if (dom.getQuestionIdentity() !== transaction.questionIdentity) {
+      const validation = validateTransaction(transaction, [
+        DOM_RESOLUTION.UNRESOLVED,
+        DOM_RESOLUTION.INCORRECT,
+        DOM_RESOLUTION.CORRECT
+      ]);
+      if (!validation.ok) {
         settle(
           transaction,
-          outcome4(false, "cancelled", "question-changed", transaction.source)
+          outcome4(
+            false,
+            "cancelled",
+            `ownership-rejected:${validation.reason}`,
+            transaction.source
+          )
         );
         return false;
       }
-      const resolution = dom.getResolvedState();
+      const resolution = validation.context.resolution;
       if (resolution === DOM_RESOLUTION.INCORRECT) {
         confirmIncorrect(transaction);
         return true;
@@ -7861,26 +8310,31 @@
       if (resolution === DOM_RESOLUTION.CORRECT) {
         settle(
           transaction,
-          outcome4(false, "failed", "unexpected-correct-resolution", transaction.source)
+          outcome4(false, "cancelled", "natural-answer-won-race", transaction.source)
         );
       }
       return false;
     }
-    function createTransaction(source) {
+    function createTransaction(source, timerOwnership) {
       let resolvePromise;
       const promise = new Promise((resolve) => {
         resolvePromise = resolve;
       });
       const transaction = {
+        generation: nextTransactionGeneration++,
         source,
         promise,
         resolve: resolvePromise,
-        ownership: lifecycle2.captureOwnership(),
-        questionIdentity: dom.getQuestionIdentity(),
+        timerOwnership,
+        ownership: timerOwnership.lifecycleOwnership,
+        questionIdentity: timerOwnership.logicalQuestionIdentity,
+        domGeneration: timerOwnership.domGeneration,
+        reviewRoot: timerOwnership.reviewRoot,
+        wrapper: timerOwnership.wrapper,
         strategy: null,
         injectedInput: null,
         incorrectConfirmed: false,
-        advanced: false,
+        advanceState: "idle",
         committingAdvance: false,
         settled: false,
         cancelResolutionTimeout: null,
@@ -7891,15 +8345,38 @@
       pending = transaction;
       return transaction;
     }
-    function start(source = "timeout") {
-      if (pending) return pending.promise;
-      if (dom.getResolvedState() !== DOM_RESOLUTION.UNRESOLVED || !dom.getQuestionIdentity()) {
-        const result2 = outcome4(false, "failed", "question-not-unresolved", source);
-        onFailure(result2);
-        return Promise.resolve(result2);
+    function immediateFailure(source, reason, timerOwnership = null) {
+      const failure = outcome4(false, "failed", reason, source, {
+        ...timerOwnership ? { timerGeneration: timerOwnership.timerGeneration } : {}
+      });
+      onFailure(failure);
+      onSettled(failure, null);
+      return Promise.resolve(failure);
+    }
+    function start(source = "timeout", timerOwnership = null) {
+      if (pending) {
+        if (pending.timerOwnership === timerOwnership) return pending.promise;
+        settle(
+          pending,
+          outcome4(false, "cancelled", "superseded-by-new-timer", pending.source),
+          { restore: true }
+        );
       }
-      const transaction = createTransaction(source);
-      if (!lifecycle2.owns(transaction.ownership)) {
+      if (!timerOwnership) return immediateFailure(source, "missing-timer-ownership");
+      const initialValidation = validateTimerOwnership(timerOwnership, {
+        allowedResolutions: DOM_RESOLUTION.UNRESOLVED,
+        requireExactDom: true,
+        requireExpired: true
+      });
+      if (!initialValidation?.ok) {
+        return immediateFailure(
+          source,
+          `timer-owner-rejected:${initialValidation?.reason ?? "unknown"}`,
+          timerOwnership
+        );
+      }
+      const transaction = createTransaction(source, timerOwnership);
+      if (!validateTransaction(transaction, DOM_RESOLUTION.UNRESOLVED).ok) {
         settle(transaction, outcome4(false, "cancelled", "stale-owner", source));
         return transaction.promise;
       }
@@ -7907,7 +8384,9 @@
       });
       transaction.removeOwnershipCleanup = lifecycle2.questionScope?.defer(() => {
         if (transaction.committingAdvance) return;
-        settle(transaction, outcome4(false, "cancelled", "stale-owner", source));
+        settle(transaction, outcome4(false, "cancelled", "stale-owner", source), {
+          restore: true
+        });
       }) ?? (() => {
       });
       transaction.cancelResolutionTimeout = lifecycle2.questionScope?.setTimeout(() => {
@@ -7918,10 +8397,24 @@
           });
         }
       }, resolutionTimeoutMs);
+      let validation = validateTransaction(transaction, DOM_RESOLUTION.UNRESOLVED);
+      if (!validation.ok) {
+        settle(
+          transaction,
+          outcome4(false, "cancelled", `stale-before-failure:${validation.reason}`, source)
+        );
+        return transaction.promise;
+      }
       const wrong = dom.getCapability?.("wrong");
       if (wrong) {
         transaction.strategy = "wrong-control";
-        if (!wrong.invoke()) {
+        validation = validateTransaction(transaction, DOM_RESOLUTION.UNRESOLVED);
+        if (!validation.ok) {
+          settle(
+            transaction,
+            outcome4(false, "cancelled", `stale-before-wrong:${validation.reason}`, source)
+          );
+        } else if (!wrong.invoke()) {
           settle(transaction, outcome4(false, "failed", "wrong-invocation-failed", source));
         } else {
           reconcile();
@@ -7935,12 +8428,21 @@
         return transaction.promise;
       }
       transaction.strategy = "invalid-answer";
-      transaction.injectedInput = {
-        input,
-        originalValue: input.value
-      };
+      transaction.injectedInput = { input, originalValue: input.value };
+      validation = validateTransaction(transaction, DOM_RESOLUTION.UNRESOLVED);
+      if (!validation.ok || dom.getAnswerInput?.() !== input) {
+        settle(transaction, outcome4(false, "cancelled", "stale-before-input", source));
+        return transaction.promise;
+      }
       if (!dom.setAnswerValue(input, invalidValue())) {
         settle(transaction, outcome4(false, "failed", "input-injection-failed", source), {
+          restore: true
+        });
+        return transaction.promise;
+      }
+      validation = validateTransaction(transaction, DOM_RESOLUTION.UNRESOLVED);
+      if (!validation.ok || dom.getAnswerInput?.() !== input) {
+        settle(transaction, outcome4(false, "cancelled", "stale-before-submit", source), {
           restore: true
         });
         return transaction.promise;
@@ -8142,6 +8644,7 @@
       this.generation = 0;
       this.expirationNotified = false;
       this.visualsEnabled = true;
+      this.ownership = null;
       this.initialStyle = Object.freeze({
         transform: bar.style.transform,
         transformOrigin: bar.style.transformOrigin,
@@ -8155,7 +8658,13 @@
       bar.style.transformOrigin = "left center";
       bar.style.willChange = "transform";
     }
-    start({ durationMs, remainingPct = 1, inactive = false, visualsEnabled = true } = {}) {
+    start({
+      durationMs,
+      remainingPct = 1,
+      inactive = false,
+      visualsEnabled = true,
+      ownership = null
+    } = {}) {
       __privateMethod(this, _ComboTimerCompositor_instances, assertUsable_fn).call(this);
       if (!Number.isFinite(durationMs) || durationMs <= 0) {
         throw new RangeError("Combo timer durationMs must be greater than zero");
@@ -8168,6 +8677,7 @@
       this.status = COMBO_TIMER_STATUS.RUNNING;
       this.expirationNotified = false;
       this.visualsEnabled = Boolean(visualsEnabled);
+      this.ownership = ownership;
       __privateMethod(this, _ComboTimerCompositor_instances, setInactive_fn).call(this, inactive);
       if (this.visualsEnabled) {
         __privateMethod(this, _ComboTimerCompositor_instances, present_fn).call(this, this.anchorRemainingPct, { updateTransform: true });
@@ -8240,6 +8750,7 @@
       this.anchorRemainingPct = finalRemainingPct;
       this.anchorTime = this.clock();
       this.status = COMBO_TIMER_STATUS.STOPPED;
+      this.ownership = null;
       __privateMethod(this, _ComboTimerCompositor_instances, setInactive_fn).call(this, inactive);
       if (clearTier) {
         this.bar.classList.remove(...this.tierClasses);
@@ -8265,7 +8776,8 @@
         remainingPct,
         tierKey: __privateMethod(this, _ComboTimerCompositor_instances, getTier_fn).call(this, remainingPct).key,
         animationMode: this.activeAnimationMode,
-        visualsEnabled: this.visualsEnabled
+        visualsEnabled: this.visualsEnabled,
+        ownership: this.ownership
       });
     }
     dispose() {
@@ -8274,6 +8786,7 @@
       this.generation += 1;
       this.status = COMBO_TIMER_STATUS.DISPOSED;
       this.visibleTierKey = null;
+      this.ownership = null;
       this.bar.style.transform = this.initialStyle.transform;
       this.bar.style.transformOrigin = this.initialStyle.transformOrigin;
       this.bar.style.transition = this.initialStyle.transition;
@@ -8404,6 +8917,7 @@
   };
   expire_fn = function() {
     if (this.status === COMBO_TIMER_STATUS.DISPOSED) return;
+    const ownership = this.ownership;
     __privateMethod(this, _ComboTimerCompositor_instances, cancelScheduledWork_fn).call(this);
     this.generation += 1;
     this.anchorRemainingPct = 0;
@@ -8412,7 +8926,7 @@
     __privateMethod(this, _ComboTimerCompositor_instances, present_fn).call(this, 0, { updateTransform: true });
     if (this.expirationNotified) return;
     this.expirationNotified = true;
-    this.onExpire(this.getSnapshot());
+    this.onExpire(this.getSnapshot(), ownership);
   };
   cancelScheduledWork_fn = function() {
     if (this.boundaryTimerId !== null) {
@@ -9126,9 +9640,9 @@
     return getRollingRecords(records);
   }
   function updateRollingRecords2() {
-    const result2 = updateRollingRecords(records, state);
-    records = result2.records;
-    if (result2.changed) scheduleRecordsSave();
+    const result3 = updateRollingRecords(records, state);
+    records = result3.records;
+    if (result3.changed) scheduleRecordsSave();
   }
   var initialized = false;
   var gamifyActive = false;
@@ -9143,12 +9657,16 @@
   var documentClickHandler = null;
   var documentKeyHandler = null;
   var domSyncRaf = null;
-  var summaryTimer = null;
   var previewAllTimer = null;
   var sessionRemountPending = false;
   var els = {};
   var marumoriDom = createMaruMoriDomAdapter({ document });
   var lifecycle = createLifecycleController();
+  var answerTimerOwnership = createAnswerTimerOwnershipController({
+    lifecycle,
+    dom: marumoriDom,
+    clock: () => performance.now()
+  });
   var crtController = createCrtController({ document });
   var transientEffects = createTransientEffectsController({
     document,
@@ -9192,6 +9710,7 @@
   var reviewReconciler = null;
   var rewindController = null;
   var timeoutFailureController = null;
+  var sessionFinalizationController = null;
   var activeReviewRoot = null;
   var activeReviewUrl = null;
   var activeReviewSessionIdentity = null;
@@ -9202,7 +9721,8 @@
     expired: false,
     running: false,
     currentQuestionId: 0,
-    awardedForQuestionId: null
+    awardedForQuestionId: null,
+    ownership: null
   };
   var lastAudioWarnAt = 0;
   var sfxToneScheduler = createToneScheduler({ onError: warnAudioError });
@@ -9481,10 +10001,7 @@
     }
   }
   function cancelPendingSummary() {
-    if (summaryTimer) {
-      clearTimeout(summaryTimer);
-      summaryTimer = null;
-    }
+    sessionFinalizationController?.cancelPendingSummary();
     document.getElementById("mm-summary")?.classList.remove("open");
   }
   function restoreRewindSnapshot(snapshot, { source = "unknown" } = {}) {
@@ -9632,42 +10149,64 @@
       bar: els.bar,
       wrapper: els.barWrap,
       reducedMotion: prefersReducedMotion,
-      onTierChange({ remainingPct }) {
+      onTierChange({ remainingPct, snapshot }) {
+        if (snapshot.ownership !== timerState.ownership) return;
         timerState.remainingPct = remainingPct;
         syncXpBonusDisplay(remainingPct);
       },
-      onExpire() {
-        if (!timerState.running) return;
-        timerState.remainingPct = 0;
-        timerState.expired = true;
-        timerState.running = false;
-        handleAnswerTimeout();
+      onExpire(_snapshot, ownership) {
+        if (!ownership || ownership !== timerState.ownership) return;
+        const validation = answerTimerOwnership.validate(ownership, {
+          requireExpired: true
+        });
+        if (!validation.ok) {
+          handleRejectedTimerExpiration(ownership, validation);
+          return;
+        }
+        handleAnswerTimeout(ownership);
       }
     });
     return comboTimerCompositor;
   }
-  function startComboBar() {
+  function startComboBar({ ownership = null } = {}) {
     const compositor = ensureComboTimerCompositor();
     if (!compositor) return false;
-    timerState.startedAt = performance.now();
-    timerState.durationMs = getTimerDurationMs();
-    timerState.remainingPct = 1;
+    const durationMs = ownership?.durationMs ?? getTimerDurationMs();
+    const nextOwnership = ownership ?? answerTimerOwnership.arm({ durationMs });
+    if (!nextOwnership) return false;
+    const remainingPct = clamp(
+      (nextOwnership.deadline - performance.now()) / nextOwnership.durationMs,
+      0,
+      1,
+      0
+    );
+    timerState.startedAt = nextOwnership.armedAt;
+    timerState.durationMs = nextOwnership.durationMs;
+    timerState.remainingPct = remainingPct;
     timerState.expired = false;
     timerState.running = true;
-    timerState.currentQuestionId++;
+    timerState.currentQuestionId = nextOwnership.timerGeneration;
     timerState.awardedForQuestionId = null;
+    timerState.ownership = nextOwnership;
     compositor.start({
       durationMs: timerState.durationMs,
-      remainingPct: 1,
-      visualsEnabled: settings.hudEnabled
+      remainingPct,
+      visualsEnabled: settings.hudEnabled,
+      ownership: nextOwnership
     });
     return true;
   }
   function stopComboBar({ remainingPct = 0, inactive = false, clearTier = true } = {}) {
     ensureComboTimerCompositor()?.stop({ remainingPct, inactive, clearTier });
   }
-  function stopAnswerTimer() {
+  function invalidateAnswerTimerOwnership(ownership = timerState.ownership) {
+    const invalidated = answerTimerOwnership.invalidate(ownership);
+    if (timerState.ownership === ownership) timerState.ownership = null;
+    return invalidated;
+  }
+  function stopAnswerTimer({ preserveOwnership = false } = {}) {
     timerState.running = false;
+    if (!preserveOwnership) invalidateAnswerTimerOwnership();
     stopComboBar();
     syncXpBonusDisplay();
   }
@@ -9678,6 +10217,7 @@
     timerState.running = false;
     timerState.expired = false;
     timerState.remainingPct = 1;
+    invalidateAnswerTimerOwnership();
     stopComboBar({ remainingPct: 1, clearTier: false });
     syncXpBonusDisplay();
   }
@@ -9709,6 +10249,7 @@
       return;
     }
     timerState.running = false;
+    invalidateAnswerTimerOwnership();
     if (!settings.timerEnabled) {
       timerState.remainingPct = 1;
       timerState.expired = false;
@@ -9731,8 +10272,42 @@
     state.multiplier = 1;
     updateHUD();
   }
-  function handleAnswerTimeout() {
-    if (isAnswerResolved()) return;
+  function handleRejectedTimerExpiration(ownership, validation) {
+    if (answerTimerOwnership.current !== ownership) return false;
+    if (validation.reason === "deadline-not-reached") {
+      return startComboBar({ ownership });
+    }
+    const rearmed = answerTimerOwnership.rearmForCurrentDom(ownership);
+    if (rearmed.ok && rearmed.ownership) {
+      return startComboBar({ ownership: rearmed.ownership });
+    }
+    invalidateAnswerTimerOwnership(ownership);
+    timerState.running = false;
+    timerState.expired = false;
+    timerState.remainingPct = 1;
+    stopComboBar({ remainingPct: 1, inactive: true, clearTier: true });
+    syncXpBonusDisplay();
+    reviewReconciler?.request("timer-owner-rejected");
+    return false;
+  }
+  function reconcileAnswerTimerDomOwnership() {
+    const ownership = timerState.ownership;
+    if (!timerState.running || !ownership) return false;
+    const validation = answerTimerOwnership.validate(ownership);
+    if (validation.ok) return false;
+    if (validation.reason !== "dom-generation-changed") return false;
+    const rearmed = answerTimerOwnership.rearmForCurrentDom(ownership);
+    if (!rearmed.ok || !rearmed.ownership || rearmed.ownership === ownership) return false;
+    return startComboBar({ ownership: rearmed.ownership });
+  }
+  function handleAnswerTimeout(ownership) {
+    const validation = answerTimerOwnership.validate(ownership, {
+      requireExpired: true
+    });
+    if (!validation.ok || ownership !== timerState.ownership) {
+      handleRejectedTimerExpiration(ownership, validation);
+      return false;
+    }
     timerState.remainingPct = 0;
     timerState.expired = true;
     timerState.running = false;
@@ -9743,10 +10318,12 @@
     triggerAnswerBoxAccent("timeout");
     spawnThemeParticles("timeout", getInputWrapper());
     if (settings.timeoutFailureEnabled && timeoutFailureController) {
-      timeoutFailureController.start("answer-timeout");
-      return;
+      timeoutFailureController.start("answer-timeout", ownership);
+      return true;
     }
     applyTimeoutPenalty();
+    invalidateAnswerTimerOwnership(ownership);
+    return true;
   }
   var THEME_PREVIEW_EVENTS = [
     "correct",
@@ -9976,7 +10553,7 @@
     pulseElement(els.hud);
     if (state.answerStreak % 10 === 0) shakeScreen(true);
   }
-  function handleIncorrect() {
+  function handleIncorrect({ preserveTimerOwnership = false } = {}) {
     firstInputGate.markStarted();
     removeFirstAnswerInputGate();
     setRewindSnapshot(makeRewindSnapshot("incorrect"));
@@ -9986,7 +10563,7 @@
     state.multiplier = 1;
     const penalty = calcIncorrectPenalty(state.score, lostStreak);
     state.score = Math.max(0, state.score - penalty);
-    stopAnswerTimer();
+    stopAnswerTimer({ preserveOwnership: preserveTimerOwnership });
     updateHUD();
     if (lostStreak > 0) showHudMicro("COMBO RESET", "fail");
     playFailSound();
@@ -10045,38 +10622,39 @@
     spawnThemeParticles("sessionComplete", overlay.querySelector("#mm-summary-inner"));
     spawnCelebrationBurst("sessionComplete", overlay.querySelector("#mm-summary-inner"));
   }
-  function processResolvedAnswer(resolution, { lifecycleAlreadyResolved = false } = {}) {
+  function processResolvedAnswer(resolution, {
+    lifecycleAlreadyResolved = false,
+    preserveTimerOwnership = false,
+    ownership = lifecycle.captureOwnership(),
+    questionIdentity = ownership?.questionId,
+    progress = marumoriDom.getProgress()
+  } = {}) {
     if (resolution !== DOM_RESOLUTION.CORRECT && resolution !== DOM_RESOLUTION.INCORRECT) {
       return false;
     }
-    if (lastAnswerState === resolution) return false;
-    if (!lifecycleAlreadyResolved && !lifecycle.resolve(resolution)) return false;
-    lastAnswerState = resolution;
-    if (resolution === DOM_RESOLUTION.CORRECT) handleCorrect();
-    else handleIncorrect();
-    return true;
+    let processed = false;
+    if (lastAnswerState !== resolution) {
+      if (!lifecycleAlreadyResolved && !lifecycle.resolve(resolution)) return false;
+      lastAnswerState = resolution;
+      if (resolution === DOM_RESOLUTION.CORRECT) handleCorrect();
+      else handleIncorrect({ preserveTimerOwnership });
+      processed = true;
+    }
+    sessionFinalizationController?.recordResolvedQuestion({
+      ownership,
+      questionIdentity,
+      progress,
+      resolution
+    });
+    return processed;
   }
-  function processCounterChange(progress, { allowCompletion = true } = {}) {
+  function processCounterChange(progress) {
     if (!progress) return;
-    const { current, total: max } = progress;
+    const { current } = progress;
     if (current > state.lastCompleted) {
       state.lastCompleted = current;
-      handleWordComplete();
       applyFontChallenge();
       refreshAnswerTimerForCurrentQuestion();
-    }
-    const summary = document.getElementById("mm-summary");
-    if (allowCompletion && current === max && max > 0 && state.sessionActive && summary && !summary.classList.contains("open")) {
-      state.sessionActive = false;
-      lifecycle.complete();
-      const ownership = lifecycle.captureOwnership();
-      if (summaryTimer) clearTimeout(summaryTimer);
-      summaryTimer = setTimeout(() => {
-        summaryTimer = null;
-        if (initialized && lifecycle.sessionState === SESSION_STATES.COMPLETED && lifecycle.owns(ownership, { requireQuestion: false })) {
-          showSummary();
-        }
-      }, 800);
     }
   }
   function scheduleSessionRemount() {
@@ -10091,16 +10669,11 @@
       init();
     });
   }
-  function reconcileReviewDom(reasons = []) {
+  function reconcileReviewDom() {
     if (!initialized) return;
-    const root = marumoriDom.getActiveReviewRoot();
-    const wrapper = marumoriDom.getInputWrapper();
-    const questionId = marumoriDom.getQuestionIdentity();
-    const progress = marumoriDom.getProgress();
-    const resolution = marumoriDom.getResolvedState();
-    if (!root || !wrapper || !questionId || !progress || resolution === DOM_RESOLUTION.UNKNOWN) {
-      return;
-    }
+    const questionContext = marumoriDom.readQuestionContext();
+    if (!questionContext) return;
+    const { root, logicalQuestionIdentity: questionId, progress, resolution } = questionContext;
     if (root !== activeReviewRoot) {
       scheduleSessionRemount();
       return;
@@ -10127,7 +10700,7 @@
       scheduleSessionRemount();
       return;
     }
-    if (lifecycle.sessionState === SESSION_STATES.ACTIVE && resolution === DOM_RESOLUTION.UNRESOLVED && questionId !== lifecycle.questionId) {
+    if (lifecycle.sessionState === SESSION_STATES.ACTIVE && questionId !== lifecycle.questionId) {
       timeoutFailureController?.cancel("question-changed");
       rewindController?.discard();
       lastAnswerState = null;
@@ -10135,15 +10708,19 @@
       updateRewindButton();
       applyFontChallenge();
       refreshAnswerTimerForCurrentQuestion();
+    } else {
+      reconcileAnswerTimerDomOwnership();
     }
     timeoutFailureController?.reconcile();
     rewindController?.reconcile();
     if (resolution === DOM_RESOLUTION.CORRECT || resolution === DOM_RESOLUTION.INCORRECT) {
-      processResolvedAnswer(resolution);
+      processResolvedAnswer(resolution, {
+        ownership: lifecycle.captureOwnership(),
+        questionIdentity: questionId,
+        progress
+      });
     }
-    processCounterChange(progress, {
-      allowCompletion: resolution !== DOM_RESOLUTION.UNRESOLVED || reasons.includes("counter")
-    });
+    processCounterChange(progress);
     syncArcadePresentation();
   }
   function observeCorrectness() {
@@ -10167,12 +10744,24 @@
     counterObserver.observe(counter, { childList: true, subtree: true, characterData: true });
   }
   function setupReviewControllers() {
+    sessionFinalizationController = createSessionFinalizationController({
+      lifecycle,
+      isCompletionCurrent(completion) {
+        return initialized && marumoriDom.getActiveReviewRoot() === activeReviewRoot && marumoriDom.getQuestionIdentity() === completion.logicalQuestionIdentity && marumoriDom.getResolvedState() === completion.resolution;
+      },
+      onQuestionCompleted: handleWordComplete,
+      onSessionCompleted() {
+        state.sessionActive = false;
+      },
+      onShowSummary: showSummary
+    });
     rewindController = createTransactionalRewind({
       lifecycle,
       dom: marumoriDom,
       restoreSnapshot: restoreRewindSnapshot,
       cancelSummary: cancelPendingSummary,
       onCommit() {
+        sessionFinalizationController?.reopenQuestion(lifecycle.captureOwnership());
         lastAnswerState = null;
         state.sessionActive = true;
         if (settings.musicEnabled) startMusic();
@@ -10192,9 +10781,22 @@
     timeoutFailureController = createTimeoutFailureController({
       lifecycle,
       dom: marumoriDom,
-      onIncorrectConfirmed() {
+      validateTimerOwnership: (ownership, options) => answerTimerOwnership.validate(ownership, options),
+      canAdvance({ ownership, questionIdentity }) {
+        return Boolean(
+          state.sessionActive && lifecycle.sessionState === SESSION_STATES.ACTIVE && lifecycle.owns(ownership) && !sessionFinalizationController?.isFinalizedQuestion({
+            ownership,
+            questionIdentity
+          })
+        );
+      },
+      onIncorrectConfirmed({ ownership, questionIdentity }) {
         processResolvedAnswer(DOM_RESOLUTION.INCORRECT, {
-          lifecycleAlreadyResolved: true
+          lifecycleAlreadyResolved: true,
+          preserveTimerOwnership: true,
+          ownership,
+          questionIdentity,
+          progress: marumoriDom.getProgress()
         });
         reviewReconciler?.request("timeout-incorrect");
       },
@@ -10205,14 +10807,17 @@
         if (outcome5.status === "failed") {
           console.warn("[MMGamify] Timeout auto-fail stopped:", outcome5.reason);
         }
+      },
+      onSettled(_outcome, context) {
+        const ownership = context?.timerOwnership;
+        if (ownership) invalidateAnswerTimerOwnership(ownership);
       }
     });
   }
   function init() {
-    const root = marumoriDom.getActiveReviewRoot();
-    const questionId = marumoriDom.getQuestionIdentity();
-    const progress = marumoriDom.getProgress();
-    if (initialized || !root || !questionId || !progress) return;
+    const questionContext = marumoriDom.readQuestionContext();
+    if (initialized || !questionContext) return;
+    const { root, logicalQuestionIdentity: questionId, progress } = questionContext;
     ThemeManager.applyTheme(settings.pinnedBackgroundTheme, { persist: true });
     resetState();
     lifecycle.mount();
@@ -10259,6 +10864,8 @@
     timeoutFailureController = null;
     rewindController?.discard();
     rewindController = null;
+    sessionFinalizationController?.cleanup();
+    sessionFinalizationController = null;
     lifecycle.cleanup();
     activeReviewRoot = null;
     activeReviewUrl = null;
@@ -10269,10 +10876,6 @@
     hudController = null;
     settingsPanelController?.cleanup();
     settingsPanelController = null;
-    if (summaryTimer) {
-      clearTimeout(summaryTimer);
-      summaryTimer = null;
-    }
     if (previewAllTimer) {
       clearTimeout(previewAllTimer);
       previewAllTimer = null;

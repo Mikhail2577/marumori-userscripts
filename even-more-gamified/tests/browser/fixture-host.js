@@ -84,9 +84,20 @@
 
     globalThis.__mmHost = Object.freeze({
         replaceQuestion,
-        resetSession(sessionId = 'fixture-session-2') {
+        repeatSignals() {
+            const activeWrapper = wrapper();
+            activeWrapper?.setAttribute('class', activeWrapper.getAttribute('class') || '');
+            counter.textContent = counter.textContent;
+        },
+        resetSession(sessionId = 'fixture-session-2', total = state.total) {
+            state.checks = 0;
             state.current = 1;
+            state.nextClicks = 0;
             state.nextResult = 'correct';
+            state.resolutions = 0;
+            state.rewinds = 0;
+            state.total = Math.max(1, Number(total) || state.total);
+            state.wrongClicks = 0;
             root.dataset.sessionId = sessionId;
             updateCounter();
             replaceQuestion(1);
