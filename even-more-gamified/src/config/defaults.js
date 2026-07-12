@@ -1,0 +1,49 @@
+export const SETTINGS_VERSION = 2;
+
+export const DEFAULT_SETTINGS = Object.freeze({
+    settingsVersion: SETTINGS_VERSION,
+    sfxEnabled: true,
+    visualsEnabled: true,
+    hudEnabled: true,
+    shakeEnabled: true,
+    floatEnabled: true,
+    flashEnabled: true,
+    failureFlashEnabled: true,
+    crtEnabled: true,
+    timerEnabled: true,
+    timerSeconds: 15,
+    timedXpBonusEnabled: true,
+    timeoutFailureEnabled: false,
+    fontChallengeEnabled: false,
+    performanceProfile: 'balanced',
+    musicEnabled: false,
+    musicStyle: 'lofi',
+    musicVolume: 0.16,
+    backgroundTheme: 'default',
+    pinnedBackgroundTheme: 'default',
+    volume: 0.5,
+    hudPosition: null,
+    hudCollapsed: false,
+});
+
+// Kept as an export alias to make the initial legacy integration mechanical.
+export const DEFAULTS = DEFAULT_SETTINGS;
+
+export const BOOLEAN_SETTING_KEYS = Object.freeze([
+    'sfxEnabled',
+    'visualsEnabled',
+    'hudEnabled',
+    'shakeEnabled',
+    'floatEnabled',
+    'flashEnabled',
+    'failureFlashEnabled',
+    'crtEnabled',
+    'timerEnabled',
+    'timedXpBonusEnabled',
+    'timeoutFailureEnabled',
+    'fontChallengeEnabled',
+    'musicEnabled',
+    'hudCollapsed',
+]);
+
+export const BOOL_SETTINGS = BOOLEAN_SETTING_KEYS;

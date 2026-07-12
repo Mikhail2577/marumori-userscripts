@@ -1,0 +1,238 @@
+/* ── PHOSPHOR PALETTE SHIFT ── */
+body.mm-arcade:not([data-mm-bg='default']) {
+    background-color: #02040a !important;
+}
+
+body.mm-arcade:not([data-mm-bg='default']) #__nuxt,
+body.mm-arcade:not([data-mm-bg='default']) #app,
+body.mm-arcade:not([data-mm-bg='default']) [data-v-app],
+body.mm-arcade:not([data-mm-bg='default']) main,
+body.mm-arcade:not([data-mm-bg='default']) #main {
+    background-color: transparent !important;
+}
+
+body.mm-arcade #__nuxt,
+body.mm-arcade #app,
+body.mm-arcade [data-v-app] {
+    position: relative;
+    z-index: 1;
+}
+
+body.mm-arcade.mm-arcade-resolved:not([data-mm-bg='default']) {
+    color: rgba(245, 248, 255, 0.9);
+}
+
+body.mm-arcade.mm-arcade-resolved:not([data-mm-bg='default']) #__nuxt,
+body.mm-arcade.mm-arcade-resolved:not([data-mm-bg='default']) #app,
+body.mm-arcade.mm-arcade-resolved:not([data-mm-bg='default']) [data-v-app],
+body.mm-arcade.mm-arcade-resolved:not([data-mm-bg='default']) main,
+body.mm-arcade.mm-arcade-resolved:not([data-mm-bg='default']) #main,
+body.mm-arcade.mm-arcade-resolved:not([data-mm-bg='default']) [class*='page'],
+body.mm-arcade.mm-arcade-resolved:not([data-mm-bg='default']) [class*='layout'],
+body.mm-arcade.mm-arcade-resolved:not([data-mm-bg='default']) [class*='content'],
+body.mm-arcade.mm-arcade-resolved:not([data-mm-bg='default']) [class*='review'] {
+    background-color: transparent !important;
+    color: rgba(245, 248, 255, 0.9) !important;
+}
+
+body.mm-arcade.mm-arcade-resolved:not([data-mm-bg='default']) h1,
+body.mm-arcade.mm-arcade-resolved:not([data-mm-bg='default']) h2,
+body.mm-arcade.mm-arcade-resolved:not([data-mm-bg='default']) h3,
+body.mm-arcade.mm-arcade-resolved:not([data-mm-bg='default']) h4 {
+    color: rgba(245, 248, 255, 0.94) !important;
+}
+
+body.mm-arcade.mm-arcade-resolved #mm-starfield {
+    opacity: 0.5;
+}
+
+body.mm-arcade.mm-arcade-resolved[data-mm-bg='default'] #mm-starfield,
+body.mm-arcade.mm-arcade-resolved[data-mm-bg='void'] #mm-starfield {
+    display: none !important;
+}
+
+/* Phosphor tint + subtle bloom on the whole viewport */
+#mm-crt-tint {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9990;
+    background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 10, 30, 0.55) 100%);
+    mix-blend-mode: multiply;
+    animation: mmCrtFlicker 8s infinite;
+}
+
+/* Scanlines */
+#mm-scanlines {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9991;
+    opacity: var(--mm-theme-scanline-opacity, 1);
+    background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 2px,
+        var(--mm-theme-scanline-color, rgba(0, 0, 0, 0.18)) 2px,
+        var(--mm-theme-scanline-color, rgba(0, 0, 0, 0.18)) 4px
+    );
+}
+body:not(.mm-crt-enabled) #mm-crt-tint,
+body:not(.mm-crt-enabled) #mm-scanlines {
+    display: none !important;
+}
+
+/* Arcade backdrop sits behind page content */
+#mm-starfield {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* CRT curvature flicker — very subtle brightness pulse */
+@keyframes mmCrtFlicker {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    92% {
+        opacity: 1;
+    }
+    93% {
+        opacity: 0.96;
+    }
+    94% {
+        opacity: 1;
+    }
+    97% {
+        opacity: 0.98;
+    }
+    98% {
+        opacity: 1;
+    }
+}
+body.mm-arcade {
+    isolation: isolate;
+}
+body.mm-arcade.mm-crt-enabled[data-mm-bg='shrine'] #mm-crt-tint,
+body.mm-arcade.mm-crt-enabled[data-mm-bg='nightview'] #mm-crt-tint {
+    animation: none;
+}
+body.mm-performance-mode.mm-arcade #mm-crt-tint {
+    animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+    #mm-crt-tint {
+        animation: none !important;
+    }
+}
+
+/* ── PHOSPHOR GLOW on the main card area ── */
+body.mm-arcade.mm-crt-enabled .input-wrapper,
+body.mm-arcade.mm-crt-enabled [class*='question'],
+body.mm-arcade.mm-crt-enabled [class*='card'],
+body.mm-arcade.mm-crt-enabled [class*='review'] {
+    box-shadow:
+        0 0 24px var(--mm-theme-field-glow, rgba(0, 220, 255, 0.12)),
+        0 0 2px var(--mm-theme-field-glow, rgba(0, 220, 255, 0.08)) !important;
+}
+body.mm-performance-mode.mm-arcade .input-wrapper,
+body.mm-performance-mode.mm-arcade [class*='question'],
+body.mm-performance-mode.mm-arcade [class*='card'],
+body.mm-performance-mode.mm-arcade [class*='review'] {
+    box-shadow: none !important;
+}
+
+/* Glow on text inputs */
+body.mm-arcade input[type='text'],
+body.mm-arcade input:not([type]) {
+    color: var(--mm-theme-secondary, #00ffcc) !important;
+    caret-color: var(--mm-theme-secondary, #00ffcc) !important;
+    background: var(--mm-theme-field-bg, rgba(0, 0, 0, 0.6)) !important;
+    border-color: var(--mm-theme-field-border, rgba(0, 200, 255, 0.4)) !important;
+}
+body.mm-arcade.mm-crt-enabled input[type='text'],
+body.mm-arcade.mm-crt-enabled input:not([type]) {
+    text-shadow: 0 0 8px var(--mm-theme-field-glow, rgba(0, 255, 200, 0.6)) !important;
+}
+body.mm-arcade input[type='text']::placeholder,
+body.mm-arcade input:not([type])::placeholder {
+    color: var(--mm-theme-secondary, rgba(0, 200, 255, 0.35)) !important;
+}
+body.mm-performance-mode.mm-arcade input[type='text'],
+body.mm-performance-mode.mm-arcade input:not([type]) {
+    text-shadow: none !important;
+}
+
+/* ── CORNER BRACKETS on the main card ── */
+body.mm-arcade .input-wrapper::before,
+body.mm-arcade .input-wrapper::after {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-color: var(--mm-theme-field-border, rgba(0, 220, 255, 0.55));
+    border-style: solid;
+    pointer-events: none;
+    z-index: 2;
+}
+body.mm-arcade .input-wrapper {
+    position: relative;
+}
+body.mm-arcade .input-wrapper::before {
+    top: -4px;
+    left: -4px;
+    border-width: 2px 0 0 2px;
+}
+body.mm-arcade .input-wrapper::after {
+    bottom: -4px;
+    right: -4px;
+    border-width: 0 2px 2px 0;
+}
+
+/* ── PROGRESS BAR — phosphor green ── */
+body.mm-arcade [role='progressbar'] > *,
+body.mm-arcade .progress-bar,
+body.mm-arcade .progress > * {
+    background: var(--mm-theme-progress, linear-gradient(90deg, #00cc88, #00ffcc)) !important;
+}
+body.mm-arcade.mm-crt-enabled [role='progressbar'] > *,
+body.mm-arcade.mm-crt-enabled .progress-bar,
+body.mm-arcade.mm-crt-enabled .progress > * {
+    box-shadow: 0 0 8px var(--mm-theme-success, rgba(0, 255, 180, 0.5)) !important;
+}
+
+/* ── TOP COUNTER — arcade colour ── */
+body.mm-arcade .top_middle {
+    font-family: var(--mm-arcade-font) !important;
+    color: var(--mm-theme-notification, #ffe066) !important;
+    letter-spacing: 2px !important;
+}
+body.mm-arcade.mm-crt-enabled .top_middle {
+    text-shadow: var(--mm-theme-counter-shadow, 0 0 8px rgba(255, 220, 0, 0.6)) !important;
+}
+
+/* ── CORRECT / INCORRECT state tints ── */
+body.mm-arcade .input-wrapper.correct {
+    box-shadow:
+        0 0 32px var(--mm-theme-field-glow, rgba(0, 255, 150, 0.35)),
+        0 0 4px var(--mm-theme-success, rgba(0, 255, 150, 0.2)) !important;
+}
+body.mm-arcade .input-wrapper.incorrect {
+    box-shadow:
+        0 0 32px var(--mm-theme-failure, rgba(255, 40, 80, 0.4)),
+        0 0 4px var(--mm-theme-failure, rgba(255, 40, 80, 0.2)) !important;
+}
+body.mm-performance-mode.mm-arcade .input-wrapper.correct,
+body.mm-performance-mode.mm-arcade .input-wrapper.incorrect,
+body.mm-performance-mode.mm-arcade [role='progressbar'] > *,
+body.mm-performance-mode.mm-arcade .progress-bar,
+body.mm-performance-mode.mm-arcade .progress > * {
+    box-shadow: none !important;
+}
+body.mm-performance-mode.mm-arcade .top_middle {
+    text-shadow: none !important;
+}
