@@ -413,6 +413,71 @@ async function rewindContract(driver, baseUrl) {
     assert.equal(await count(driver, '#mm-summary.open'), 1);
 }
 
+async function rewindReplacementProgressContract(driver, baseUrl) {
+    await openFixture(driver, baseUrl, { total: 2 });
+    await (await waitForElement(driver, '#answer')).sendKeys('answer one');
+    await (await waitForElement(driver, "[data-action='check']")).click();
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-hud-score')?.textContent !== '0'",
+        'First answer was not recorded',
+    );
+    const firstScore = await text(driver, '#mm-hud-score');
+    await (await waitForElement(driver, "[data-action='next']")).click();
+    await waitForElement(driver, "[data-question-id='fixture-question-2']");
+
+    await driver.executeScript("globalThis.__mmHost.setRewindMode('replace-progress');");
+    await (await waitForElement(driver, '#answer')).sendKeys('answer two');
+    await (await waitForElement(driver, "[data-action='check']")).click();
+    await waitForScript(
+        driver,
+        "!document.getElementById('mm-hud-rewind-btn')?.disabled",
+        'Final rewind snapshot did not become available',
+    );
+    await (await waitForElement(driver, '#mm-hud-rewind-btn')).click();
+    await waitForScript(
+        driver,
+        `document.querySelector(
+            "[data-question-id='fixture-question-2']:not(.correct):not(.incorrect)"
+        ) && document.querySelector('.top_middle')?.textContent.trim() === '1 / 2'`,
+        'Wrapper-replacing progress rewind did not settle',
+    );
+    await waitForScript(
+        driver,
+        `document.getElementById('mm-hud-score')?.textContent === ${JSON.stringify(firstScore)}`,
+        'Wrapper-replacing rewind did not restore the prior score',
+    );
+    await driver.sleep(950);
+    assert.equal(await count(driver, '#mm-summary.open'), 0);
+    assert.equal((await hostSnapshot(driver)).rewinds, 1);
+}
+
+async function delayedRewindRecoveryContract(driver, baseUrl) {
+    await openFixture(driver, baseUrl, { total: 1 });
+    await driver.executeScript("globalThis.__mmHost.setRewindMode('delayed', 900);");
+    await (await waitForElement(driver, '#answer')).sendKeys('answer');
+    await (await waitForElement(driver, "[data-action='check']")).click();
+    await waitForScript(
+        driver,
+        "!document.getElementById('mm-hud-rewind-btn')?.disabled",
+        'Delayed rewind snapshot did not become available',
+    );
+    await (await waitForElement(driver, '#mm-hud-rewind-btn')).click();
+    await waitForScript(
+        driver,
+        "document.querySelector('.input-wrapper:not(.correct):not(.incorrect)')",
+        'Delayed host rewind never reached unresolved state',
+    );
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-hud-score')?.textContent === '0'",
+        'Bounded late recovery did not restore local state',
+    );
+    await driver.sleep(250);
+    assert.equal(await count(driver, '#mm-summary.open'), 0);
+    assert.equal((await hostSnapshot(driver)).rewinds, 1);
+}
+
 async function remountAndPersistenceContract(driver, baseUrl) {
     await openFixture(driver, baseUrl);
     await (await waitForElement(driver, '#mm-hud-collapse-btn')).click();
@@ -461,6 +526,8 @@ const CONTRACTS = Object.freeze([
     ['final timeout without automatic advance', finalTimeoutContract],
     ['summary cancellation on cleanup', summaryCleanupContract],
     ['transactional final-answer rewind', rewindContract],
+    ['rewind across wrapper and progress replacement', rewindReplacementProgressContract],
+    ['bounded delayed rewind recovery', delayedRewindRecoveryContract],
     ['same-route second-session finalization', sameRouteSecondSessionContract],
     ['settings persistence and same-root remount', remountAndPersistenceContract],
     ['serialized timeout advancement', timeoutContract],

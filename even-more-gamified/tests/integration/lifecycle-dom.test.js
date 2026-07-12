@@ -29,6 +29,7 @@ describe('session and question lifecycle', () => {
         expect(lifecycle.questionState).toBe(QUESTION_STATES.AWAITING_FIRST_INPUT);
         expect(lifecycle.markFirstInput()).toBe(true);
         expect(lifecycle.resolve('correct')).toBe(true);
+        expect(lifecycle.answerGeneration).toBe(1);
         expect(lifecycle.complete()).toBe(true);
         expect(lifecycle.sessionState).toBe(SESSION_STATES.COMPLETED);
 
@@ -37,6 +38,8 @@ describe('session and question lifecycle', () => {
         expect(lifecycle.confirmRewind()).toBe(true);
         expect(lifecycle.questionState).toBe(QUESTION_STATES.AWAITING_ANSWER);
         expect(lifecycle.sessionState).toBe(SESSION_STATES.ACTIVE);
+        expect(lifecycle.resolve('correct')).toBe(true);
+        expect(lifecycle.answerGeneration).toBe(2);
     });
 
     it('rejects session completion while the current question is unresolved', () => {

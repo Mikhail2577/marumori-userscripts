@@ -10,6 +10,8 @@
         nextClicks: 0,
         nextResult: 'correct',
         resolutions: 0,
+        rewindDelayMs: 900,
+        rewindMode: 'in-place',
         rewinds: 0,
         total: Math.max(1, Number(parameters.total) || 3),
         wrongClicks: 0,
@@ -60,9 +62,27 @@
         replaceQuestion();
     }
 
+    function applyRewind() {
+        const activeWrapper = wrapper();
+        const logicalQuestionId = activeWrapper?.dataset.questionId;
+        if (state.rewindMode === 'replace-progress') {
+            state.current = Math.max(1, state.current - 1);
+            updateCounter();
+            const replacement = createWrapper();
+            if (logicalQuestionId) replacement.dataset.questionId = logicalQuestionId;
+            activeWrapper?.replaceWith(replacement);
+            return;
+        }
+        activeWrapper?.classList.remove('correct', 'incorrect');
+    }
+
     function rewind() {
         state.rewinds += 1;
-        wrapper()?.classList.remove('correct', 'incorrect');
+        if (state.rewindMode === 'delayed') {
+            setTimeout(applyRewind, state.rewindDelayMs);
+            return;
+        }
+        applyRewind();
     }
 
     root.addEventListener('click', (event) => {
@@ -95,6 +115,8 @@
             state.nextClicks = 0;
             state.nextResult = 'correct';
             state.resolutions = 0;
+            state.rewindDelayMs = 900;
+            state.rewindMode = 'in-place';
             state.rewinds = 0;
             state.total = Math.max(1, Number(total) || state.total);
             state.wrongClicks = 0;
@@ -104,6 +126,10 @@
         },
         setNextResult(result) {
             state.nextResult = result === 'incorrect' ? 'incorrect' : 'correct';
+        },
+        setRewindMode(mode, delayMs = 900) {
+            state.rewindMode = ['delayed', 'replace-progress'].includes(mode) ? mode : 'in-place';
+            state.rewindDelayMs = Math.max(0, Number(delayMs) || 0);
         },
         snapshot() {
             return {

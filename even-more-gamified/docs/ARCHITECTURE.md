@@ -109,10 +109,20 @@ inside it; `#main` must not be treated as the review root.
 ## Owned transactions
 
 Transactional rewind stores the pre-answer local snapshot and its session,
-question, identity, and resolution. It invokes a verified native capability and
-commits the snapshot only after the same question changes from resolved to
-unresolved. Failure, timeout, ownership loss, or navigation cancels without
-claiming success.
+question, answer generation, logical identity, DOM generation, root, progress,
+and resolution. It invokes a verified native capability and commits the snapshot
+only after the same logical question changes from resolved to unresolved. A
+stable host ID permits wrapper replacement and progress regression; strict
+fallback identity does not.
+
+The normal confirmation window is 750 ms. On timeout, local state stays answered
+and the lifecycle returns to resolved, but one guarded recovery candidate remains
+for a further bounded 2 seconds. It can restore exactly once only for the same
+session, question, answer generation, root, and logical identity. Different
+questions/sessions, newer resolution, cleanup, fallback ambiguity, or the recovery
+deadline discard it. A transition after that deadline never restores the stale
+snapshot; reconciliation instead fails closed and may remount the live review to
+avoid a permanent resolved/unresolved mismatch.
 
 Timeout auto-failure is one serialized controller. It chooses a scoped Wrong
 control or a scoped invalid-answer/Submit fallback, waits for confirmed incorrect

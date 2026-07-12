@@ -1394,6 +1394,10 @@ function reconcileReviewDom() {
         activeReviewSessionIdentity = currentSessionIdentity;
     }
 
+    // Rewind reconciliation precedes progress-boundary handling so a confirmed
+    // same-question regression restores its owned snapshot instead of remounting.
+    const rewindCommitted = rewindController?.reconcile() === true;
+
     const sessionBoundaryReason = getReviewSessionBoundaryReason({
         activeUrl: activeReviewUrl,
         currentUrl: location.href,
@@ -1404,7 +1408,7 @@ function reconcileReviewDom() {
         unresolved:
             lifecycle.sessionState === SESSION_STATES.ACTIVE &&
             resolution === DOM_RESOLUTION.UNRESOLVED,
-        rewindPending: rewindController?.isPending === true,
+        rewindPending: rewindController?.isPending === true || rewindCommitted,
     });
     if (sessionBoundaryReason) {
         scheduleSessionRemount();
@@ -1414,7 +1418,20 @@ function reconcileReviewDom() {
     if (
         lifecycle.sessionState === SESSION_STATES.COMPLETED &&
         resolution === DOM_RESOLUTION.UNRESOLVED &&
-        (questionId !== lifecycle.questionId || progress.current < progress.total)
+        !rewindCommitted &&
+        rewindController?.isPending !== true
+    ) {
+        scheduleSessionRemount();
+        return;
+    }
+
+    if (
+        lifecycle.sessionState === SESSION_STATES.ACTIVE &&
+        resolution === DOM_RESOLUTION.UNRESOLVED &&
+        questionId === lifecycle.questionId &&
+        lastAnswerState &&
+        !rewindCommitted &&
+        rewindController?.isPending !== true
     ) {
         scheduleSessionRemount();
         return;
@@ -1433,7 +1450,6 @@ function reconcileReviewDom() {
     }
 
     timeoutFailureController?.reconcile();
-    rewindController?.reconcile();
     if (resolution === DOM_RESOLUTION.CORRECT || resolution === DOM_RESOLUTION.INCORRECT) {
         processResolvedAnswer(resolution, {
             ownership: lifecycle.captureOwnership(),
@@ -1490,8 +1506,15 @@ function setupReviewControllers() {
         dom: marumoriDom,
         restoreSnapshot: restoreRewindSnapshot,
         cancelSummary: cancelPendingSummary,
-        onCommit() {
+        onCommit(outcome) {
             sessionFinalizationController?.reopenQuestion(lifecycle.captureOwnership());
+            const rewindProgress = outcome.progress ?? marumoriDom.getProgress();
+            if (
+                Number.isFinite(rewindProgress?.current) &&
+                rewindProgress.current < state.lastCompleted
+            ) {
+                state.lastCompleted = rewindProgress.current;
+            }
             lastAnswerState = null;
             state.sessionActive = true;
             if (settings.musicEnabled) startMusic();

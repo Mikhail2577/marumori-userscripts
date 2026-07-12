@@ -23,7 +23,7 @@
 - [x] Phase 0 — Baseline and safety
 - [x] Phase 1 — Final-question completion
 - [x] Phase 2 — Timer and timeout ownership
-- [ ] Phase 3 — Rewind identity and late recovery
+- [x] Phase 3 — Rewind identity and late recovery
 - [ ] Manual Checkpoint A
 - [ ] Phase 4 — Storage, records, and HUD recovery
 - [ ] Phase 5 — Canvas cadence and lifecycle
@@ -58,6 +58,12 @@
 - Same-logical wrapper replacement is explicitly rearmed with a new timer generation. A live deadline is preserved; a replacement first observed after expiry gets one fresh full deadline instead of being failed by the stale timer.
 - Timeout failure now requires the originating timer owner and validates it before every host-facing stage. Its `idle → scheduled → invoking → done` advance state is the sole Next owner; final completion, natural answers, cleanup, question/session changes, and DOM-generation changes cancel safely.
 - The DOM adapter allows only the two known userscript-applied host decoration classes (`mm-bounce` and `mm-progress-glow`) when reading host context; other `mm-*`, `data-mm-owned`, and `mm-*` IDs remain excluded.
+- Phase 3 completes logical/DOM/progress separation for rewind: stable host logical identity survives wrapper/progress changes, DOM generation identifies mounted instances, and strict fallback identity remains replacement-sensitive.
+- Rewind capture and transactions now record transaction, snapshot, session, question, answer, logical, DOM, root, progress, start-time, and confirmation-deadline ownership. Programmatic native clicks remain deduplicated from the document capture listener, and overlapping HUD/native/keyboard intents serialize to one transaction.
+- A normal rewind commits only on the owned same-logical resolved → unresolved transition. Stable host identity permits wrapper replacement and progress decrement; fallback ambiguity cancels.
+- The 750 ms request timeout now leaves one explicit recovery candidate for a further 2,000 ms. A slightly late genuine host transition restores once only when session/question/answer/root/logical ownership still matches. The candidate is cleared before restoration and is invalidated by a different question, new session, newer resolution, cleanup, or deadline.
+- After the recovery deadline, a late transition cannot restore the stale snapshot. Controller/app reconciliation clears it and safely remounts an otherwise impossible local-resolved/host-unresolved state.
+- Successful rewind progress regression lowers the local `lastCompleted` boundary marker before the next reconciliation, preventing a confirmed rewind from being misclassified as a new session.
 
 ### Phase 0 subsystem map
 
@@ -91,10 +97,13 @@
 - `tests/regression/timeout-failure.test.js`: original-owner requirement, no host effects on question-two or replacement DOM, natural-answer race, duplicate transaction serialization, exactly-once Next, final suppression, cleanup/question/session cancellation, and exact-input restoration.
 - `tests/unit/combo-timer.test.js`: exact owner delivery at expiration and preservation of a newer timer across a superseded deadline.
 - `tests/integration/lifecycle-dom.test.js`: atomic context, logical/DOM-generation separation, conflicting-ID failure, strict fallback identity, and host-context readability during owned transient decoration.
+- `tests/regression/rewind.test.js`: original-wrapper confirmation, stable-ID wrapper replacement, progress decrement, combined replacement/regression, fallback failure, normal timeout, bounded late recovery, post-window rejection, different question/session rejection, native-click deduplication, HUD/keyboard serialization, final-summary cancellation, failed native capability, and exactly-once commit.
+- `tests/browser/run-browser-contract.js` and `tests/browser/fixture-host.js`: production-bundle wrapper-plus-progress rewind and 900 ms delayed-host recovery contracts. The Firefox/Safari-compatible suite now contains 13 contracts.
+- `tests/integration/lifecycle-dom.test.js`: monotonic answer-generation assertions across resolve, rewind, and re-answer.
 
 ## Manual Validation
 
-- Manual Checkpoint A: not yet presented.
+- Manual Checkpoint A: prepared on 2026-07-12 and awaiting user confirmation. Candidate version `3.9.0`; `.user.js` 459,317 bytes / SHA-256 `dd014b2965500d32bcb73c8622ced6f74cfd21af2318be7f776d42e34a556faf`; `.meta.js` 1,127 bytes / SHA-256 `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
 - Manual Checkpoint B: not yet presented.
 - Manual Checkpoint C: not yet presented.
 
@@ -124,3 +133,11 @@
 - Phase 2 `npm run lint`: passed.
 - Phase 2 `npm run test`: passed, 33 files / 225 tests.
 - Phase 2 `npm run test:browser:firefox`: passed all 11 production-bundle contracts.
+- Phase 3 focused Vitest suites: passed, 4 files / 48 tests before the complete run.
+- Phase 3 `npm run lint`: passed.
+- Phase 3 `npm run test`: passed, 33 files / 235 tests.
+- Phase 3 focused Firefox production-bundle contracts: wrapper/progress replacement passed; bounded delayed recovery passed.
+- Phase 3 `npm run build`: passed and generated the Checkpoint A artifacts.
+- Phase 3 `npm run check`: passed in full, including lint, 33 files / 235 tests, build validation, syntax, and formatting.
+- Phase 3 complete `npm run test:browser:firefox`: passed all 13 production-bundle contracts.
+- Checkpoint A `git diff --check`: passed.

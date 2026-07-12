@@ -11,13 +11,21 @@ import {
     setResolution,
 } from '../fixtures/review-dom.js';
 
-function setup({ includeRewind = true, current = 1, total = 3, onCommit = vi.fn() } = {}) {
+function setup({
+    includeRewind = true,
+    current = 1,
+    total = 3,
+    onCommit = vi.fn(),
+    onFailure = vi.fn(),
+    useFallbackIdentity = false,
+} = {}) {
     const fixture = mountReviewFixture(document, {
         current,
         total,
         resolution: 'correct',
         includeRewind,
     });
+    if (useFallbackIdentity) delete fixture.wrapper.dataset.questionId;
     const dom = createMaruMoriDomAdapter({
         document,
         isVisible: fixtureVisibility,
@@ -35,7 +43,9 @@ function setup({ includeRewind = true, current = 1, total = 3, onCommit = vi.fn(
         restoreSnapshot,
         cancelSummary,
         onCommit,
+        onFailure,
         timeoutMs: 500,
+        recoveryWindowMs: 1_000,
     });
     return {
         fixture,
@@ -45,6 +55,7 @@ function setup({ includeRewind = true, current = 1, total = 3, onCommit = vi.fn(
         restoreSnapshot,
         cancelSummary,
         onCommit,
+        onFailure,
     };
 }
 
@@ -76,6 +87,67 @@ describe('transactional rewind', () => {
         expect(context.cancelSummary).toHaveBeenCalledTimes(1);
         expect(context.onCommit).toHaveBeenCalledTimes(1);
         expect(context.rewind.hasSnapshot).toBe(false);
+    });
+
+    it('commits across same-logical wrapper replacement with a stable host ID', async () => {
+        const context = setup();
+        const before = context.dom.readQuestionContext();
+        context.rewind.capture({ score: 1 });
+        const request = context.rewind.request('hud');
+
+        replaceQuestionWrapper(context.fixture, { questionId: 'question-1' });
+        const after = context.dom.readQuestionContext();
+        expect(after.logicalQuestionIdentity).toBe(before.logicalQuestionIdentity);
+        expect(after.domGeneration).not.toBe(before.domGeneration);
+        context.rewind.reconcile();
+
+        await expect(request).resolves.toMatchObject({ ok: true, status: 'committed' });
+        expect(context.restoreSnapshot).toHaveBeenCalledTimes(1);
+    });
+
+    it('commits when the same logical question rewinds progress', async () => {
+        const context = setup({ current: 2, total: 3 });
+        context.rewind.capture({ score: 1 });
+        const request = context.rewind.request('hud');
+
+        context.fixture.counter.textContent = '1 / 3';
+        setResolution(context.fixture.wrapper, 'unresolved');
+        context.rewind.reconcile();
+
+        await expect(request).resolves.toMatchObject({
+            ok: true,
+            progress: { current: 1, total: 3 },
+        });
+        expect(context.restoreSnapshot).toHaveBeenCalledTimes(1);
+    });
+
+    it('commits with both wrapper replacement and progress decrement', async () => {
+        const context = setup({ current: 2, total: 3 });
+        context.rewind.capture({ score: 1 });
+        const request = context.rewind.request('hud');
+
+        replaceQuestionWrapper(context.fixture, { questionId: 'question-1' });
+        context.fixture.counter.textContent = '1 / 3';
+        context.rewind.reconcile();
+
+        await expect(request).resolves.toMatchObject({ ok: true, status: 'committed' });
+        expect(context.restoreSnapshot).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps strict fallback identity fail-closed across wrapper replacement', async () => {
+        const context = setup({ useFallbackIdentity: true });
+        context.rewind.capture({ score: 1 });
+        const request = context.rewind.request('hud');
+
+        replaceQuestionWrapper(context.fixture, { questionId: 'temporary' });
+        delete context.fixture.wrapper.dataset.questionId;
+        context.rewind.reconcile();
+
+        await expect(request).resolves.toMatchObject({
+            ok: false,
+            status: 'cancelled',
+        });
+        expect(context.restoreSnapshot).not.toHaveBeenCalled();
     });
 
     it('runs the post-confirmation timer restart owner exactly once', async () => {
@@ -117,6 +189,86 @@ describe('transactional rewind', () => {
         });
         expect(context.restoreSnapshot).not.toHaveBeenCalled();
         expect(context.rewind.hasSnapshot).toBe(true);
+        expect(context.rewind.hasRecoveryCandidate).toBe(true);
+        expect(context.rewind.isPending).toBe(true);
+    });
+
+    it('recovers one genuine host confirmation just after the original timeout', async () => {
+        const context = setup();
+        const snapshot = { score: 900, combo: 7 };
+        context.rewind.capture(snapshot);
+        const request = context.rewind.request('hud');
+
+        vi.advanceTimersByTime(500);
+        await expect(request).resolves.toMatchObject({
+            ok: false,
+            reason: 'confirmation-timeout',
+            recoveryPending: true,
+        });
+        vi.advanceTimersByTime(100);
+        setResolution(context.fixture.wrapper, 'unresolved');
+        expect(context.rewind.reconcile()).toBe(true);
+
+        expect(context.restoreSnapshot).toHaveBeenCalledTimes(1);
+        expect(context.restoreSnapshot).toHaveBeenCalledWith(
+            snapshot,
+            expect.objectContaining({ recovered: true }),
+        );
+        expect(context.onCommit).toHaveBeenCalledWith(
+            expect.objectContaining({ status: 'recovered', recovered: true }),
+        );
+        expect(context.rewind.hasRecoveryCandidate).toBe(false);
+        expect(context.rewind.hasSnapshot).toBe(false);
+    });
+
+    it('does not restore a host transition after the bounded recovery deadline', async () => {
+        const context = setup();
+        context.rewind.capture({ score: 1 });
+        const request = context.rewind.request('hud');
+
+        vi.advanceTimersByTime(500);
+        await request;
+        vi.advanceTimersByTime(1_000);
+        setResolution(context.fixture.wrapper, 'unresolved');
+        context.rewind.reconcile();
+
+        expect(context.restoreSnapshot).not.toHaveBeenCalled();
+        expect(context.rewind.hasRecoveryCandidate).toBe(false);
+        expect(context.rewind.hasSnapshot).toBe(false);
+    });
+
+    it('discards late recovery when a different logical question appears', async () => {
+        const context = setup();
+        context.rewind.capture({ score: 1 });
+        const request = context.rewind.request('hud');
+        vi.advanceTimersByTime(500);
+        await request;
+
+        replaceQuestionWrapper(context.fixture, { questionId: 'question-2' });
+        context.fixture.counter.textContent = '2 / 3';
+        context.rewind.reconcile();
+
+        expect(context.restoreSnapshot).not.toHaveBeenCalled();
+        expect(context.rewind.hasRecoveryCandidate).toBe(false);
+        expect(context.rewind.hasSnapshot).toBe(false);
+    });
+
+    it('discards late recovery when a new session generation starts', async () => {
+        const context = setup();
+        context.rewind.capture({ score: 1 });
+        const request = context.rewind.request('hud');
+        vi.advanceTimersByTime(500);
+        await request;
+
+        context.lifecycle.mount();
+        context.lifecycle.start();
+        context.lifecycle.beginQuestion(context.dom.getQuestionIdentity());
+        setResolution(context.fixture.wrapper, 'unresolved');
+        context.rewind.reconcile();
+
+        expect(context.restoreSnapshot).not.toHaveBeenCalled();
+        expect(context.rewind.hasRecoveryCandidate).toBe(false);
+        expect(context.rewind.hasSnapshot).toBe(false);
     });
 
     it('deduplicates capture listeners during a programmatic native click', async () => {
@@ -140,6 +292,20 @@ describe('transactional rewind', () => {
         document.removeEventListener('click', captureListener, true);
     });
 
+    it('serializes overlapping HUD and Backspace/native intent transactions', async () => {
+        const context = setup();
+        context.rewind.capture({ score: 1 });
+
+        const hudRequest = context.rewind.request('hud');
+        const keyboardRequest = context.rewind.trackNativeIntent('keyboard');
+        expect(keyboardRequest).toBe(hudRequest);
+
+        setResolution(context.fixture.wrapper, 'unresolved');
+        context.rewind.reconcile();
+        await hudRequest;
+        expect(context.restoreSnapshot).toHaveBeenCalledTimes(1);
+    });
+
     it('cancels a final-answer summary only after rewind confirmation', async () => {
         const context = setup({ current: 3, total: 3 });
         context.lifecycle.complete();
@@ -153,6 +319,22 @@ describe('transactional rewind', () => {
 
         expect(context.cancelSummary).toHaveBeenCalledTimes(1);
         expect(context.lifecycle.sessionState).toBe('active');
+    });
+
+    it('commits repeated unresolved reconciliation exactly once', async () => {
+        const context = setup();
+        context.rewind.capture({ score: 1 });
+        const request = context.rewind.request('hud');
+        setResolution(context.fixture.wrapper, 'unresolved');
+
+        context.rewind.reconcile();
+        context.rewind.reconcile();
+        context.rewind.reconcile();
+        await request;
+
+        expect(context.restoreSnapshot).toHaveBeenCalledTimes(1);
+        expect(context.cancelSummary).toHaveBeenCalledTimes(1);
+        expect(context.onCommit).toHaveBeenCalledTimes(1);
     });
 
     it('cancels without restoring when the question wrapper is replaced', async () => {

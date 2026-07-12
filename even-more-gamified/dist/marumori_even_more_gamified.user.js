@@ -6251,6 +6251,7 @@
       this.scheduler = scheduler ?? defaultScheduler3();
       this.sessionGeneration = 0;
       this.questionGeneration = 0;
+      this.answerGeneration = 0;
       this.sessionState = SESSION_STATES.INACTIVE;
       this.questionState = QUESTION_STATES.INACTIVE;
       this.questionId = null;
@@ -6288,6 +6289,7 @@
       if (this.sessionState !== SESSION_STATES.INACTIVE) this.cleanup();
       this.sessionGeneration += 1;
       this.questionGeneration = 0;
+      this.answerGeneration = 0;
       this.questionId = null;
       this.previousResolvedState = null;
       this.sessionScope = new LifecycleScope({
@@ -6341,6 +6343,7 @@
         return false;
       }
       if (result3 !== "correct" && result3 !== "incorrect") return false;
+      this.answerGeneration += 1;
       this.transitionQuestion(
         result3 === "correct" ? QUESTION_STATES.RESOLVED_CORRECT : QUESTION_STATES.RESOLVED_INCORRECT
       );
@@ -6382,6 +6385,7 @@
       return Object.freeze({
         sessionGeneration: this.sessionGeneration,
         questionGeneration: this.questionGeneration,
+        answerGeneration: this.answerGeneration,
         questionId: this.questionId
       });
     }
@@ -7888,8 +7892,11 @@
 
   // src/gameplay/rewind.js
   var RESOLVED_STATES = /* @__PURE__ */ new Set([DOM_RESOLUTION.CORRECT, DOM_RESOLUTION.INCORRECT]);
-  function result2(ok, status, reason, source) {
-    return Object.freeze({ ok, status, reason, source });
+  function result2(ok, status, reason, source, extra = {}) {
+    return Object.freeze({ ok, status, reason, source, ...extra });
+  }
+  function defaultClock() {
+    return globalThis.performance?.now?.() ?? Date.now();
   }
   function createTransactionalRewind({
     lifecycle: lifecycle2,
@@ -7901,45 +7908,94 @@
     },
     onFailure = () => {
     },
-    timeoutMs = 750
+    timeoutMs = 750,
+    recoveryWindowMs = 2e3,
+    clock = defaultClock
   } = {}) {
     if (!lifecycle2?.captureOwnership || !lifecycle2?.owns) {
       throw new TypeError("Transactional rewind requires a lifecycle controller");
     }
-    if (!dom?.getResolvedState || !dom?.getQuestionIdentity) {
-      throw new TypeError("Transactional rewind requires a MaruMori DOM adapter");
+    if (!dom?.readQuestionContext) {
+      throw new TypeError("Transactional rewind requires atomic MaruMori DOM context");
     }
     if (typeof restoreSnapshot !== "function") {
       throw new TypeError("Transactional rewind requires snapshot restoration");
     }
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+      throw new RangeError("Rewind confirmation timeout must be positive");
+    }
+    if (!Number.isFinite(recoveryWindowMs) || recoveryWindowMs <= 0) {
+      throw new RangeError("Rewind recovery window must be positive");
+    }
     let captured = null;
     let pending = null;
+    let recentRecovery = null;
     let programmaticInvocationDepth = 0;
+    let nextSnapshotGeneration = 1;
+    let nextTransactionGeneration = 1;
+    function readOwnedContext(record) {
+      if (!record || !lifecycle2.owns(record.ownership) || lifecycle2.answerGeneration !== record.answerGeneration) {
+        return { ok: false, reason: "stale-owner", context: null };
+      }
+      const context = dom.readQuestionContext();
+      if (!context) return { ok: false, reason: "missing-question-context", context: null };
+      if (context.root !== record.reviewRoot) {
+        return { ok: false, reason: "review-root-changed", context };
+      }
+      if (context.logicalQuestionIdentity !== record.sourceLogicalQuestionIdentity) {
+        return { ok: false, reason: "question-changed", context };
+      }
+      if (record.identityKind === "fallback" && context.domGeneration !== record.sourceDomGeneration) {
+        return { ok: false, reason: "fallback-dom-changed", context };
+      }
+      return { ok: true, reason: "current", context };
+    }
     function capture(snapshot) {
       if (pending) return false;
-      const resolution = dom.getResolvedState();
-      const questionIdentity = dom.getQuestionIdentity();
+      if (recentRecovery) {
+        clearRecoveryCandidate("superseded-by-new-answer", { discard: true, notify: false });
+      }
+      const context = dom.readQuestionContext();
       const ownership = lifecycle2.captureOwnership();
-      if (!RESOLVED_STATES.has(resolution) || !questionIdentity || !lifecycle2.owns(ownership)) {
+      if (!context || !RESOLVED_STATES.has(context.resolution) || !lifecycle2.owns(ownership) || ownership.questionId !== context.logicalQuestionIdentity) {
         return false;
       }
+      const snapshotIdentity = `${ownership.sessionGeneration}:${ownership.questionGeneration}:${nextSnapshotGeneration++}`;
       captured = Object.freeze({
         snapshot,
-        resolution,
-        questionIdentity,
-        ownership
+        snapshotIdentity,
+        resolution: context.resolution,
+        sourceLogicalQuestionIdentity: context.logicalQuestionIdentity,
+        sourceDomGeneration: context.domGeneration,
+        identityKind: context.identityKind,
+        reviewRoot: context.root,
+        wrapper: context.wrapper,
+        progress: Object.freeze({
+          current: context.progress.current,
+          total: context.progress.total
+        }),
+        ownership,
+        answerGeneration: lifecycle2.answerGeneration
       });
       return true;
     }
     function isCaptureCurrent() {
-      return captured && lifecycle2.owns(captured.ownership) && dom.getQuestionIdentity() === captured.questionIdentity && dom.getResolvedState() === captured.resolution;
+      if (!captured) return false;
+      const validation = readOwnedContext(captured);
+      return validation.ok && validation.context.resolution === captured.resolution;
+    }
+    function cleanupPending(transaction) {
+      transaction.cancelTimeout?.();
+      transaction.stopObserving?.();
+      transaction.removeOwnershipCleanup?.();
+      transaction.cancelTimeout = null;
+      transaction.stopObserving = null;
+      transaction.removeOwnershipCleanup = null;
     }
     function settle(transaction, outcome5, { discard = false } = {}) {
       if (pending !== transaction || transaction.settled) return;
       transaction.settled = true;
-      transaction.cancelTimeout?.();
-      transaction.stopObserving?.();
-      transaction.removeOwnershipCleanup?.();
+      cleanupPending(transaction);
       pending = null;
       if (!outcome5.ok && lifecycle2.owns(transaction.ownership)) {
         lifecycle2.cancelRewind?.();
@@ -7948,51 +8004,176 @@
       transaction.resolve(outcome5);
       if (!outcome5.ok) onFailure(outcome5);
     }
-    function commit(transaction) {
-      if (pending !== transaction || transaction.settled) return false;
+    function performRestore(record, source, { recovered = false, context } = {}) {
       let outcome5;
       try {
         cancelSummary();
-        restoreSnapshot(transaction.snapshot, {
-          source: transaction.source,
-          ownership: transaction.ownership
+        const restored = restoreSnapshot(record.snapshot, {
+          source,
+          ownership: record.ownership,
+          snapshotIdentity: record.snapshotIdentity,
+          recovered
         });
-        lifecycle2.confirmRewind?.();
+        if (restored === false) throw new Error("Snapshot restoration was rejected");
+        if (!lifecycle2.confirmRewind?.()) {
+          throw new Error("Lifecycle rejected rewind confirmation");
+        }
         captured = null;
-        outcome5 = result2(true, "committed", "confirmed-unresolved", transaction.source);
+        outcome5 = result2(
+          true,
+          recovered ? "recovered" : "committed",
+          recovered ? "late-confirmed-unresolved" : "confirmed-unresolved",
+          source,
+          {
+            transactionGeneration: record.transactionGeneration,
+            snapshotIdentity: record.snapshotIdentity,
+            recovered,
+            progress: context ? Object.freeze({
+              current: context.progress.current,
+              total: context.progress.total
+            }) : null
+          }
+        );
       } catch (error) {
+        lifecycle2.cancelRewind?.();
         outcome5 = Object.freeze({
-          ...result2(false, "failed", "snapshot-restore-failed", transaction.source),
+          ...result2(false, "failed", "snapshot-restore-failed", source, {
+            transactionGeneration: record.transactionGeneration,
+            snapshotIdentity: record.snapshotIdentity,
+            recovered
+          }),
           error
         });
       }
-      settle(transaction, outcome5, { discard: outcome5.ok });
       if (outcome5.ok) onCommit(outcome5);
+      else onFailure(outcome5);
+      return outcome5;
+    }
+    function commit(transaction, context) {
+      if (pending !== transaction || transaction.settled) return false;
+      transaction.settled = true;
+      cleanupPending(transaction);
+      pending = null;
+      const outcome5 = performRestore(transaction, transaction.source, { context });
+      transaction.resolve(outcome5);
       return outcome5.ok;
     }
-    function reconcile() {
+    function clearRecoveryCandidate(reason, { discard = false, notify = true, keepCapture = false } = {}) {
+      const candidate = recentRecovery;
+      if (!candidate) return false;
+      recentRecovery = null;
+      candidate.cancelRecoveryTimeout?.();
+      candidate.removeOwnershipCleanup?.();
+      candidate.cancelRecoveryTimeout = null;
+      candidate.removeOwnershipCleanup = null;
+      if (discard && !keepCapture) captured = null;
+      if (notify) {
+        onFailure(
+          result2(false, "cancelled", reason, candidate.source, {
+            transactionGeneration: candidate.transactionGeneration,
+            snapshotIdentity: candidate.snapshotIdentity,
+            recoveryExpired: reason === "late-recovery-expired"
+          })
+        );
+      }
+      return true;
+    }
+    function expireRecoveryCandidate(candidate) {
+      if (recentRecovery !== candidate) return;
+      const keepCapture = isCaptureCurrent();
+      clearRecoveryCandidate("late-recovery-expired", {
+        discard: !keepCapture,
+        keepCapture
+      });
+    }
+    function enterRecovery(transaction) {
+      if (pending !== transaction || transaction.settled) return;
+      transaction.settled = true;
+      cleanupPending(transaction);
+      pending = null;
+      lifecycle2.cancelRewind?.();
+      const expiredAt = clock();
+      const candidate = {
+        ...transaction,
+        settled: true,
+        expiredAt,
+        recoveryDeadline: expiredAt + recoveryWindowMs,
+        cancelRecoveryTimeout: null,
+        removeOwnershipCleanup: null
+      };
+      recentRecovery = candidate;
+      candidate.removeOwnershipCleanup = lifecycle2.questionScope?.defer(() => {
+        clearRecoveryCandidate("late-recovery-owner-lost", {
+          discard: true,
+          notify: false
+        });
+      }) ?? (() => {
+      });
+      candidate.cancelRecoveryTimeout = lifecycle2.questionScope?.setTimeout(
+        () => expireRecoveryCandidate(candidate),
+        recoveryWindowMs
+      );
+      const outcome5 = result2(false, "failed", "confirmation-timeout", transaction.source, {
+        transactionGeneration: transaction.transactionGeneration,
+        snapshotIdentity: transaction.snapshotIdentity,
+        recoveryPending: true,
+        recoveryDeadline: candidate.recoveryDeadline
+      });
+      transaction.resolve(outcome5);
+      onFailure(outcome5);
+    }
+    function reconcileRecovery() {
+      const candidate = recentRecovery;
+      if (!candidate) return false;
+      if (clock() > candidate.recoveryDeadline) {
+        expireRecoveryCandidate(candidate);
+        return false;
+      }
+      const validation = readOwnedContext(candidate);
+      if (!validation.ok) {
+        if (validation.reason !== "missing-question-context") {
+          clearRecoveryCandidate(`late-recovery-${validation.reason}`, { discard: true });
+        }
+        return false;
+      }
+      const { context } = validation;
+      if (context.resolution === candidate.originResolution) return false;
+      if (context.resolution !== DOM_RESOLUTION.UNRESOLVED) {
+        clearRecoveryCandidate("late-recovery-superseded", { discard: true });
+        return false;
+      }
+      clearRecoveryCandidate("late-recovery-committing", {
+        keepCapture: true,
+        notify: false
+      });
+      if (!lifecycle2.beginRewind?.()) {
+        captured = null;
+        onFailure(
+          result2(false, "failed", "late-recovery-lifecycle-rejected", candidate.source)
+        );
+        return false;
+      }
+      return performRestore(candidate, candidate.source, {
+        recovered: true,
+        context
+      }).ok;
+    }
+    function reconcilePending() {
       const transaction = pending;
       if (!transaction || transaction.settled) return false;
-      if (!lifecycle2.owns(transaction.ownership)) {
-        settle(transaction, result2(false, "cancelled", "stale-owner", transaction.source), {
+      const validation = readOwnedContext(transaction);
+      if (!validation.ok) {
+        if (validation.reason === "missing-question-context") return false;
+        settle(transaction, result2(false, "cancelled", validation.reason, transaction.source), {
           discard: true
         });
         return false;
       }
-      if (dom.getQuestionIdentity() !== transaction.questionIdentity) {
-        settle(
-          transaction,
-          result2(false, "cancelled", "question-changed", transaction.source),
-          { discard: true }
-        );
-        return false;
+      const { context } = validation;
+      if (context.resolution === DOM_RESOLUTION.UNRESOLVED && transaction.sawResolved) {
+        return commit(transaction, context);
       }
-      const resolution = dom.getResolvedState();
-      if (resolution === DOM_RESOLUTION.UNRESOLVED && transaction.sawResolved) {
-        return commit(transaction);
-      }
-      if (resolution !== transaction.originResolution) {
-        if (resolution === DOM_RESOLUTION.UNKNOWN) return false;
+      if (context.resolution !== transaction.originResolution) {
         settle(
           transaction,
           result2(false, "failed", "unexpected-resolution", transaction.source)
@@ -8002,8 +8183,64 @@
       transaction.sawResolved = true;
       return false;
     }
+    function reconcile() {
+      if (pending) return reconcilePending();
+      if (recentRecovery) return reconcileRecovery();
+      if (captured) {
+        const validation = readOwnedContext(captured);
+        if (validation.reason !== "missing-question-context" && (!validation.ok || validation.context.resolution !== captured.resolution)) {
+          const source = "snapshot";
+          const snapshotIdentity = captured.snapshotIdentity;
+          captured = null;
+          onFailure(
+            result2(false, "cancelled", "snapshot-no-longer-current", source, {
+              snapshotIdentity
+            })
+          );
+        }
+      }
+      return false;
+    }
+    function createTransaction(source) {
+      let resolvePromise;
+      const promise = new Promise((resolve) => {
+        resolvePromise = resolve;
+      });
+      const startedAt = clock();
+      const transaction = {
+        transactionGeneration: nextTransactionGeneration++,
+        source,
+        promise,
+        resolve: resolvePromise,
+        ownership: captured.ownership,
+        sessionGeneration: captured.ownership.sessionGeneration,
+        questionGeneration: captured.ownership.questionGeneration,
+        answerGeneration: captured.answerGeneration,
+        sourceLogicalQuestionIdentity: captured.sourceLogicalQuestionIdentity,
+        sourceDomGeneration: captured.sourceDomGeneration,
+        expectedDestinationLogicalQuestionIdentity: captured.sourceLogicalQuestionIdentity,
+        identityKind: captured.identityKind,
+        reviewRoot: captured.reviewRoot,
+        wrapper: captured.wrapper,
+        originResolution: captured.resolution,
+        snapshot: captured.snapshot,
+        snapshotIdentity: captured.snapshotIdentity,
+        startedAt,
+        confirmationDeadline: startedAt + timeoutMs,
+        sawResolved: true,
+        settled: false,
+        cancelTimeout: null,
+        stopObserving: null,
+        removeOwnershipCleanup: null
+      };
+      pending = transaction;
+      return transaction;
+    }
     function begin({ source, invokeNative }) {
       if (pending) return pending.promise;
+      if (recentRecovery) {
+        return Promise.resolve(result2(false, "failed", "late-recovery-pending", source));
+      }
       if (!isCaptureCurrent()) {
         return Promise.resolve(result2(false, "failed", "snapshot-not-current", source));
       }
@@ -8018,25 +8255,7 @@
         onFailure(outcome5);
         return Promise.resolve(outcome5);
       }
-      let resolvePromise;
-      const promise = new Promise((resolve) => {
-        resolvePromise = resolve;
-      });
-      const transaction = {
-        source,
-        promise,
-        resolve: resolvePromise,
-        ownership: captured.ownership,
-        questionIdentity: captured.questionIdentity,
-        originResolution: captured.resolution,
-        snapshot: captured.snapshot,
-        sawResolved: true,
-        settled: false,
-        cancelTimeout: null,
-        stopObserving: null,
-        removeOwnershipCleanup: null
-      };
-      pending = transaction;
+      const transaction = createTransaction(source);
       transaction.stopObserving = dom.observeResolution?.(reconcile) ?? (() => {
       });
       transaction.removeOwnershipCleanup = lifecycle2.questionScope?.defer(() => {
@@ -8047,11 +8266,9 @@
       });
       transaction.cancelTimeout = lifecycle2.questionScope?.setTimeout(() => {
         reconcile();
-        if (pending === transaction) {
-          settle(transaction, result2(false, "failed", "confirmation-timeout", source));
-        }
+        if (pending === transaction) enterRecovery(transaction);
       }, timeoutMs);
-      if (!invokeNative) return promise;
+      if (!invokeNative) return transaction.promise;
       programmaticInvocationDepth += 1;
       let invoked = false;
       try {
@@ -8061,10 +8278,10 @@
       }
       if (!invoked) {
         settle(transaction, result2(false, "failed", "native-invocation-failed", source));
-        return promise;
+        return transaction.promise;
       }
       reconcile();
-      return promise;
+      return transaction.promise;
     }
     return Object.freeze({
       capture,
@@ -8081,15 +8298,18 @@
           settle(pending, result2(false, "cancelled", "discarded", pending.source), {
             discard: true
           });
-        } else {
-          captured = null;
         }
+        clearRecoveryCandidate("discarded", { discard: true, notify: false });
+        captured = null;
       },
       get hasSnapshot() {
         return Boolean(captured);
       },
       get isPending() {
-        return Boolean(pending);
+        return Boolean(pending || recentRecovery);
+      },
+      get hasRecoveryCandidate() {
+        return Boolean(recentRecovery);
       },
       get isInvokingNative() {
         return programmaticInvocationDepth > 0;
@@ -8539,7 +8759,7 @@
     DISPOSED: "disposed"
   });
   var BOUNDARY_EPSILON = 1e-9;
-  function defaultClock() {
+  function defaultClock2() {
     return globalThis.performance?.now?.() ?? Date.now();
   }
   function defaultScheduler6() {
@@ -8602,7 +8822,7 @@
       bar,
       wrapper = null,
       tiers = SPEED_XP_TIERS,
-      clock = defaultClock,
+      clock = defaultClock2,
       scheduler = defaultScheduler6(),
       reducedMotion,
       animationMode = "auto",
@@ -10682,6 +10902,7 @@
     if (!activeReviewSessionIdentity && currentSessionIdentity) {
       activeReviewSessionIdentity = currentSessionIdentity;
     }
+    const rewindCommitted = rewindController?.reconcile() === true;
     const sessionBoundaryReason = getReviewSessionBoundaryReason({
       activeUrl: activeReviewUrl,
       currentUrl: location.href,
@@ -10690,13 +10911,17 @@
       lastCompleted: state.lastCompleted,
       currentProgress: progress.current,
       unresolved: lifecycle.sessionState === SESSION_STATES.ACTIVE && resolution === DOM_RESOLUTION.UNRESOLVED,
-      rewindPending: rewindController?.isPending === true
+      rewindPending: rewindController?.isPending === true || rewindCommitted
     });
     if (sessionBoundaryReason) {
       scheduleSessionRemount();
       return;
     }
-    if (lifecycle.sessionState === SESSION_STATES.COMPLETED && resolution === DOM_RESOLUTION.UNRESOLVED && (questionId !== lifecycle.questionId || progress.current < progress.total)) {
+    if (lifecycle.sessionState === SESSION_STATES.COMPLETED && resolution === DOM_RESOLUTION.UNRESOLVED && !rewindCommitted && rewindController?.isPending !== true) {
+      scheduleSessionRemount();
+      return;
+    }
+    if (lifecycle.sessionState === SESSION_STATES.ACTIVE && resolution === DOM_RESOLUTION.UNRESOLVED && questionId === lifecycle.questionId && lastAnswerState && !rewindCommitted && rewindController?.isPending !== true) {
       scheduleSessionRemount();
       return;
     }
@@ -10712,7 +10937,6 @@
       reconcileAnswerTimerDomOwnership();
     }
     timeoutFailureController?.reconcile();
-    rewindController?.reconcile();
     if (resolution === DOM_RESOLUTION.CORRECT || resolution === DOM_RESOLUTION.INCORRECT) {
       processResolvedAnswer(resolution, {
         ownership: lifecycle.captureOwnership(),
@@ -10760,8 +10984,12 @@
       dom: marumoriDom,
       restoreSnapshot: restoreRewindSnapshot,
       cancelSummary: cancelPendingSummary,
-      onCommit() {
+      onCommit(outcome5) {
         sessionFinalizationController?.reopenQuestion(lifecycle.captureOwnership());
+        const rewindProgress = outcome5.progress ?? marumoriDom.getProgress();
+        if (Number.isFinite(rewindProgress?.current) && rewindProgress.current < state.lastCompleted) {
+          state.lastCompleted = rewindProgress.current;
+        }
         lastAnswerState = null;
         state.sessionActive = true;
         if (settings.musicEnabled) startMusic();

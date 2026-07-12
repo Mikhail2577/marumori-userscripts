@@ -85,6 +85,7 @@ export class LifecycleController {
         this.scheduler = scheduler ?? defaultScheduler();
         this.sessionGeneration = 0;
         this.questionGeneration = 0;
+        this.answerGeneration = 0;
         this.sessionState = SESSION_STATES.INACTIVE;
         this.questionState = QUESTION_STATES.INACTIVE;
         this.questionId = null;
@@ -127,6 +128,7 @@ export class LifecycleController {
         if (this.sessionState !== SESSION_STATES.INACTIVE) this.cleanup();
         this.sessionGeneration += 1;
         this.questionGeneration = 0;
+        this.answerGeneration = 0;
         this.questionId = null;
         this.previousResolvedState = null;
         this.sessionScope = new LifecycleScope({
@@ -194,6 +196,7 @@ export class LifecycleController {
             return false;
         }
         if (result !== 'correct' && result !== 'incorrect') return false;
+        this.answerGeneration += 1;
         this.transitionQuestion(
             result === 'correct'
                 ? QUESTION_STATES.RESOLVED_CORRECT
@@ -250,6 +253,7 @@ export class LifecycleController {
         return Object.freeze({
             sessionGeneration: this.sessionGeneration,
             questionGeneration: this.questionGeneration,
+            answerGeneration: this.answerGeneration,
             questionId: this.questionId,
         });
     }
