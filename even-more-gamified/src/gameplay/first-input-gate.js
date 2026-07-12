@@ -1,9 +1,18 @@
-export function createFirstInputGate({ lifecycle, isResolved, onStart } = {}) {
+export function createFirstInputGate({
+    lifecycle,
+    isCurrentInput = () => true,
+    isResolved,
+    onStart,
+} = {}) {
     if (!lifecycle?.markFirstInput) {
         throw new TypeError('First-input gate requires a lifecycle controller');
     }
-    if (typeof isResolved !== 'function' || typeof onStart !== 'function') {
-        throw new TypeError('First-input gate requires resolution and start callbacks');
+    if (
+        typeof isCurrentInput !== 'function' ||
+        typeof isResolved !== 'function' ||
+        typeof onStart !== 'function'
+    ) {
+        throw new TypeError('First-input gate requires input, resolution, and start callbacks');
     }
 
     let input = null;
@@ -30,10 +39,19 @@ export function createFirstInputGate({ lifecycle, isResolved, onStart } = {}) {
         input = nextInput;
         handler = (event) => {
             const value = event.target?.value ?? '';
-            if (started || isResolved() || String(value).length === 0) return;
+            if (
+                started ||
+                !isCurrentInput(event.target) ||
+                isResolved() ||
+                String(value).length === 0
+            ) {
+                return;
+            }
+            // Starting is transactional: a transient ownership/DOM rejection
+            // must not consume the session's only first-input listener.
+            if (onStart() !== true) return;
             lifecycle.markFirstInput();
             markStarted();
-            onStart();
         };
         input.addEventListener('input', handler, true);
         return true;

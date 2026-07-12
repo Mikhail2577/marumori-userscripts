@@ -180,6 +180,18 @@
     state.layoutIndex = 0;
     reuseWrapperForLayout();
     updateCounter();
+    if (parameters.replaceInitialInput === '1') {
+        setTimeout(() => {
+            const initialInput = wrapper()?.querySelector('#answer');
+            if (!initialInput) return;
+            initialInput.id = 'stale-answer';
+            initialInput.hidden = true;
+            const replacement = initialInput.cloneNode();
+            replacement.id = 'answer';
+            replacement.hidden = false;
+            initialInput.after(replacement);
+        }, 50);
+    }
 
     globalThis.__mmHost = Object.freeze({
         repeatSignals() {

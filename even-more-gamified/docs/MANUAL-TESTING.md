@@ -5,10 +5,10 @@ cannot prove compatibility with MaruMori's authenticated live DOM, userscript
 manager injection, Web Audio activation, or visual output. Complete this checklist
 against the generated production artifact before claiming browser parity.
 
-Thirteen production-bundle contracts now automate route cleanup, answer/wrapper
+Fourteen production-bundle contracts now automate route cleanup, answer/wrapper
 processing, multi-layout word completion, finalization, rewind,
-persistence/session remount, and serialized timeout in installed Firefox and
-Safari without contacting MaruMori. Run
+persistence/session remount, first-input/per-prompt timer ownership, and serialized
+timeout in installed Firefox and Safari without contacting MaruMori. Run
 `npm run test:browser` as described in
 [Local browser testing](./BROWSER-TESTING.md). The matching checklist entries below
 still require a short live-manager smoke check, but no longer need destructive edge
@@ -152,8 +152,9 @@ covered.
 
 - [ ] On the first prompt, wait without typing and confirm the timer remains gated.
 - [ ] Type the first character and confirm the timer starts once.
-- [ ] On every later prompt, confirm the timer starts immediately whether the prior
-      first attempt was correct or incorrect.
+- [ ] On every later reading or meaning prompt, confirm a fresh timer starts
+      immediately when Next reveals it—before typing and regardless of whether the
+      completed-item counter advanced. Confirm the same after an incorrect retry.
 - [ ] Exercise 10, 15, 30, 45, 60, and 90-second presets.
 - [ ] Submit correct answers in `Lightning`, `Fast`, `Steady`, `Close`, and `Barely`
       tiers; verify label/color and timestamp-based multiplier.

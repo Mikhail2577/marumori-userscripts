@@ -53,6 +53,8 @@
 - Stable host item identity is combined with the known prompt layout (`reading`, `meaning`, `unscramble`, or `fill-in-the-blank`). Without one unambiguous host ID, wrapper generation plus layout is the strict fallback. It survives progress changes on the same prompt, distinguishes sibling layouts on a reused wrapper, and still fails closed across wrapper replacement.
 - A resolved-incorrect → unresolved transition for the same wrapper/layout is a legitimate retry and forcibly starts a new question generation instead of remounting and resetting the session.
 - Timeout incorrect confirmation updates finalization before deciding whether to schedule Next. The single advance path consults the active/finalized predicate before scheduling and invocation. An incomplete final item remains below `N / N`, so timeout Wrong/Next may requeue it; only confirmed host completion suppresses advancement.
+- The first timer is the only input-gated timer in a session. Its gate now commits only after `resetComboTimer(true)` successfully creates immutable timer ownership; a rejected start retains its input listener. After that gate commits or the first prompt resolves, every reading/meaning/retry prompt starts immediately on its prompt transition, independent of completed-item progress.
+- First-input reconciliation compares the bound input with the adapter's current visible input rather than checking only connectivity, so a stale connected input cannot strand the initial timer gate.
 - The browser-contract runner accepts `MM_BROWSER_CONTRACT` for focused account-free diagnostics while retaining the complete default suite.
 - Phase 2 adds an atomic DOM question-context read containing logical identity, identity kind, root/wrapper generations, combined DOM generation, progress, resolution, and node ownership from one adapter sample.
 - Every answer timer now carries immutable `TimerOwnership`: session generation, question generation, logical identity, identity kind, root/wrapper/DOM generations, exact nodes, timer generation, arm time, duration, and monotonic deadline.
@@ -102,11 +104,14 @@
 - `tests/regression/rewind.test.js`: original-wrapper confirmation, stable-ID wrapper replacement, progress decrement, combined replacement/regression, fallback failure, normal timeout, bounded late recovery, post-window rejection, different question/session rejection, native-click deduplication, HUD/keyboard serialization, final-summary cancellation, failed native capability, and exactly-once commit.
 - `tests/browser/run-browser-contract.js` and `tests/browser/fixture-host.js`: production-bundle wrapper-plus-progress rewind and 900 ms delayed-host recovery contracts. The Firefox/Safari-compatible suite now contains 13 contracts.
 - `tests/integration/lifecycle-dom.test.js`: monotonic answer-generation assertions across resolve, rewind, and re-answer.
+- `tests/integration/first-input-gate.test.js`: a rejected first timer start leaves both gate and lifecycle awaiting first input, a later event can commit it exactly once, and an event from a stale connected input is ignored.
+- `tests/browser/run-browser-contract.js` and `tests/browser/fixture-host.js`: the production bundle keeps the initial timer dormant before input, survives replacement by a new active input while the stale one stays connected, starts from first input, and restarts a sibling meaning timer before any input or completed-item edge. The Firefox/Safari-compatible suite now contains 14 contracts.
 
 ## Manual Validation
 
-- Manual Checkpoint A: the first candidate was withdrawn on 2026-07-12 after the user questioned word-streak tracking. Diagnosis confirmed that its one-prompt/one-word, one-based fixture was incompatible with live MaruMori multi-layout semantics. Corrected candidate version `3.9.0`; `.user.js` 460,051 bytes / SHA-256 `74b8c36369774acdd28fb452b6ad5e79d5e46cae8720d3f0d18ca5d46084f6fa`; `.meta.js` 1,127 bytes / SHA-256 `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
+- Manual Checkpoint A: the first candidate was withdrawn on 2026-07-12 after the user questioned word-streak tracking. Diagnosis confirmed that its one-prompt/one-word, one-based fixture was incompatible with live MaruMori multi-layout semantics. The word-streak-only candidate (`74b8c363…`) was then superseded after the timer feedback below. Current corrected candidate version `3.9.0`; `.user.js` 460,329 bytes / SHA-256 `632b8853d077bc5de976de0af77e5f31c688851abf9497c0e8312f5b12086d7b`; `.meta.js` 1,127 bytes / SHA-256 `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
 - Revised Checkpoint A semantics: live progress begins at `0 / N`; sibling prompts do not advance word streak; the last sibling plus host advancement produces one word edge; final summary follows the resolved `N / N` host transition; incorrect/timeout attempts below `N / N` requeue without a word or summary; rewind after final completion restores the prior completed-item count.
+- Manual Checkpoint A received a second correction on 2026-07-12: only the session's first timer waits for a keystroke; all later reading/meaning prompt timers must start immediately on Next. The first candidate could consume that gate even when ownership failed to arm, and input retargeting considered disconnection but not a still-connected stale node.
 - Manual Checkpoint B: not yet presented.
 - Manual Checkpoint C: not yet presented.
 
@@ -152,3 +157,8 @@
 - Corrected `npm run check`: passed in full, including 33 Vitest files / 238 tests, build validation, syntax, lint, and formatting.
 - Final corrected `npm run test:browser:firefox`: passed all 13 production-bundle contracts after the reconciliation-order check.
 - Corrected candidate hashes: `.user.js` `74b8c36369774acdd28fb452b6ad5e79d5e46cae8720d3f0d18ca5d46084f6fa`; `.meta.js` `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
+- Checkpoint A timer correction focused Vitest suites: passed, 4 files / 40 tests after the final fail-closed gate assertions.
+- `MM_BROWSER_CONTRACT=first-input npm run test:browser:firefox`: passed the transactional first-input and immediate sibling-prompt timer contract.
+- Checkpoint A timer correction `npm run check`: passed in full, including 33 Vitest files / 240 tests, build validation, syntax, lint, and formatting.
+- Final timer-corrected `npm run test:browser:firefox`: passed all 14 production-bundle contracts.
+- Current Checkpoint A candidate hashes: `.user.js` `632b8853d077bc5de976de0af77e5f31c688851abf9497c0e8312f5b12086d7b`; `.meta.js` `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.

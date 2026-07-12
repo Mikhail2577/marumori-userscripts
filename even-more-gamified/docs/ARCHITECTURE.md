@@ -147,6 +147,14 @@ the original deadline is preserved while still live, while a replacement first
 seen after expiry receives a fresh deadline rather than allowing the stale owner
 to fail it.
 
+Only the first timer in a mounted session is input-gated. Its listener is consumed
+only after immutable timer ownership is successfully armed; a transient DOM or
+ownership rejection leaves the gate available for retry. Once that first timer has
+started—or the first prompt has resolved—every later reading, meaning, retry, or
+next-item prompt receives a fresh timer immediately on its prompt transition,
+without waiting for another keystroke or completed-item counter edge. A connected
+but no-longer-current input is replaced as the gate target.
+
 The timeout-failure transaction must be created from that original timer owner; it
 does not recapture whichever question happens to be current. Ownership is checked
 before Wrong, input injection, Submit, incorrect confirmation, Next scheduling,

@@ -53,6 +53,20 @@ unresolved question. When no trustworthy capability exists, it fails closed.
 Coverage:
 [`tests/regression/timeout-failure.test.js`](../tests/regression/timeout-failure.test.js).
 
+### Transactional first-input timer gate
+
+Only the first session timer waits for non-empty input. The gate is now consumed
+only after an immutable timer owner and compositor start successfully; transient
+DOM rejection leaves it armed for another input event. Gate reconciliation also
+retargets a newly current input even when MaruMori leaves the previous input
+connected but hidden. After the first timer starts or the first prompt resolves,
+every subsequent reading/meaning/retry prompt starts its timer immediately on the
+prompt transition.
+
+Coverage:
+[`tests/integration/first-input-gate.test.js`](../tests/integration/first-input-gate.test.js)
+and the production-bundle timer contract under [`tests/browser/`](../tests/browser/).
+
 ### Explicit lifecycle and same-route remount
 
 Session and question states now have monotonic generations and cleanup scopes.

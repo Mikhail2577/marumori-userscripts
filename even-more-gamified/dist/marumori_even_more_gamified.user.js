@@ -7710,12 +7710,17 @@
   }
 
   // src/gameplay/first-input-gate.js
-  function createFirstInputGate({ lifecycle: lifecycle2, isResolved, onStart } = {}) {
+  function createFirstInputGate({
+    lifecycle: lifecycle2,
+    isCurrentInput = () => true,
+    isResolved,
+    onStart
+  } = {}) {
     if (!lifecycle2?.markFirstInput) {
       throw new TypeError("First-input gate requires a lifecycle controller");
     }
-    if (typeof isResolved !== "function" || typeof onStart !== "function") {
-      throw new TypeError("First-input gate requires resolution and start callbacks");
+    if (typeof isCurrentInput !== "function" || typeof isResolved !== "function" || typeof onStart !== "function") {
+      throw new TypeError("First-input gate requires input, resolution, and start callbacks");
     }
     let input = null;
     let handler = null;
@@ -7738,10 +7743,12 @@
       input = nextInput;
       handler = (event) => {
         const value = event.target?.value ?? "";
-        if (started || isResolved() || String(value).length === 0) return;
+        if (started || !isCurrentInput(event.target) || isResolved() || String(value).length === 0) {
+          return;
+        }
+        if (onStart() !== true) return;
         lifecycle2.markFirstInput();
         markStarted();
-        onStart();
       };
       input.addEventListener("input", handler, true);
       return true;
@@ -9935,6 +9942,7 @@
   });
   var firstInputGate = createFirstInputGate({
     lifecycle,
+    isCurrentInput: (input) => getAnswerInput() === input,
     isResolved: isAnswerResolved,
     onStart: () => resetComboTimer(true)
   });
@@ -10455,29 +10463,26 @@
   function armFirstAnswerTimer() {
     if (!settings.timerEnabled) {
       removeFirstAnswerInputGate();
-      resetComboTimer(true);
-      return;
+      return resetComboTimer(true);
     }
     if (firstInputGate.hasStarted || isAnswerResolved()) {
-      resetComboTimer();
-      return;
+      return resetComboTimer();
     }
     const input = getAnswerInput();
-    if (!input) return;
-    if (firstInputGate.input === input) return;
+    if (!input) return false;
+    if (firstInputGate.input === input) return true;
     pauseFirstAnswerTimer();
-    firstInputGate.arm(input);
+    return firstInputGate.arm(input);
   }
   function refreshAnswerTimerForCurrentQuestion(force = false) {
     if (!firstInputGate.hasStarted) {
-      armFirstAnswerTimer();
-      return;
+      return armFirstAnswerTimer();
     }
-    resetComboTimer(force);
+    return resetComboTimer(force);
   }
   function resetComboTimer(force = false) {
     if (!force && timerState.running && !isAnswerResolved()) {
-      return;
+      return true;
     }
     timerState.running = false;
     invalidateAnswerTimerOwnership();
@@ -10486,12 +10491,13 @@
       timerState.expired = false;
       stopComboBar({ remainingPct: 1, inactive: true, clearTier: true });
       syncXpBonusDisplay();
-      return;
+      return true;
     }
     if (state.sessionActive && getInputWrapper() && !isAnswerResolved()) {
-      startComboBar();
+      return startComboBar();
     } else {
       stopAnswerTimer();
+      return false;
     }
   }
   function applyTimeoutPenalty() {
@@ -11174,7 +11180,7 @@
       observeCorrectness();
       observeCounter();
       reviewReconciler?.request("dom-sync");
-      if (!firstInputGate.hasStarted && !firstInputGate.input?.isConnected) {
+      if (!firstInputGate.hasStarted && firstInputGate.input !== getAnswerInput()) {
         armFirstAnswerTimer();
       }
       if (settings.fontChallengeEnabled) applyFontChallenge();

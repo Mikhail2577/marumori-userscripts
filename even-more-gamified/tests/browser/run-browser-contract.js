@@ -104,7 +104,14 @@ async function waitForElement(driver, selector, timeout = DEFAULT_TIMEOUT_MS) {
 async function openFixture(
     driver,
     baseUrl,
-    { hostIds = false, layouts = 1, mode = 'quiet', timerSeconds = null, total = 3 } = {},
+    {
+        hostIds = false,
+        layouts = 1,
+        mode = 'quiet',
+        replaceInitialInput = false,
+        timerSeconds = null,
+        total = 3,
+    } = {},
 ) {
     const url = new URL('/study-lists/reviews', baseUrl);
     url.searchParams.set('case', `${Date.now()}-${Math.random()}`);
@@ -113,6 +120,7 @@ async function openFixture(
     url.searchParams.set('total', String(total));
     url.searchParams.set('layouts', String(layouts));
     if (hostIds) url.searchParams.set('hostIds', '1');
+    if (replaceInitialInput) url.searchParams.set('replaceInitialInput', '1');
     if (timerSeconds !== null) url.searchParams.set('timerSeconds', String(timerSeconds));
     await driver.get(url.href);
     const fixtureShape = await driver.executeScript(`
@@ -325,6 +333,66 @@ async function multiQuestionFinalizationContract(driver, baseUrl) {
     assert.equal(summary.stats['WORDS DONE'], '2');
     assert.equal(await text(driver, '#mm-hud-streak'), '2');
     assert.equal(await count(driver, '#mm-summary.open'), 1);
+}
+
+async function promptTimerRestartContract(driver, baseUrl) {
+    await openFixture(driver, baseUrl, {
+        layouts: 2,
+        mode: 'timeout',
+        replaceInitialInput: true,
+        timerSeconds: 5,
+        total: 2,
+    });
+
+    await driver.sleep(5_500);
+    let snapshot = await hostSnapshot(driver);
+    assert.equal(snapshot.wrongClicks, 0);
+    assert.equal(snapshot.nextClicks, 0);
+    assert.equal(snapshot.current, 0);
+
+    await (await waitForElement(driver, '#answer')).sendKeys('start first timer');
+    await waitForScript(
+        driver,
+        'globalThis.__mmHost.snapshot().nextClicks === 1',
+        'The session timer did not start from the first non-empty input',
+        10_000,
+    );
+    snapshot = await hostSnapshot(driver);
+    assert.equal(snapshot.wrongClicks, 1);
+    assert.equal(snapshot.layout, 'reading');
+    assert.equal(snapshot.current, 0);
+
+    await (await waitForElement(driver, '#answer')).sendKeys('correct retry');
+    await (await waitForElement(driver, "[data-action='check']")).click();
+    await waitForElement(driver, '.input-wrapper.correct');
+    await (await waitForElement(driver, "[data-action='next']")).click();
+    await waitForElement(
+        driver,
+        "[data-fixture-item='1'][data-fixture-layout='meaning']:not(.correct):not(.incorrect)",
+    );
+    snapshot = await hostSnapshot(driver);
+    assert.equal(snapshot.wrapperReplacements, 0);
+    assert.equal(snapshot.nextClicks, 2);
+    assert.equal(snapshot.current, 0);
+    assert.equal(await text(driver, '.top_middle'), '0 / 2');
+    assert.equal(
+        await driver.executeScript("return document.querySelector('#answer')?.value;"),
+        '',
+    );
+
+    await waitForScript(
+        driver,
+        'globalThis.__mmHost.snapshot().nextClicks === 3',
+        'The sibling meaning timer did not restart before input',
+        10_000,
+    );
+    snapshot = await hostSnapshot(driver);
+    assert.equal(snapshot.wrongClicks, 2);
+    assert.equal(snapshot.layout, 'meaning');
+    assert.equal(snapshot.current, 0);
+    assert.equal(await text(driver, '.top_middle'), '0 / 2');
+    assert.equal(await text(driver, '#mm-hud-streak'), '0');
+    assert.equal(await count(driver, '#mm-summary.open'), 0);
 }
 
 async function oneQuestionFinalizationContract(driver, baseUrl) {
@@ -616,6 +684,7 @@ const CONTRACTS = Object.freeze([
     ['bundle boot and exact-route cleanup', bootAndRouteContract],
     ['answer processing and wrapper replacement', answerAndWrapperContract],
     ['multi-question finalization ownership', multiQuestionFinalizationContract],
+    ['first-input gate and per-prompt timer restart', promptTimerRestartContract],
     ['one-question finalization', oneQuestionFinalizationContract],
     ['incorrect attempt does not complete an item', finalIncorrectContract],
     ['incomplete-item timeout requeues without finalizing', finalTimeoutContract],

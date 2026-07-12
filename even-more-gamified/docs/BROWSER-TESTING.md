@@ -10,11 +10,12 @@ wrapping, reload persistence, and timer behavior.
 
 ## Contracts
 
-The same 13 scenarios run in both browsers. They cover bundle boot and exact-route
+The same 14 scenarios run in both browsers. They cover bundle boot and exact-route
 cleanup, correct/incorrect scoring, multi-layout item completion, one-item
 finalization, incomplete-item incorrect/timeout behavior, summary cleanup,
 in-place and wrapper-replacing rewind, delayed rewind recovery, same-route second
-sessions, HUD persistence, and exactly-once timeout advancement.
+sessions, HUD persistence, transactional first-input gating, immediate sibling
+prompt timer restart, and exactly-once timeout advancement.
 
 The fixture disables audio, remote fonts, and nonessential visuals. Actual
 userscript-manager APIs, audible output, live MaruMori markup, resource loading,
@@ -22,7 +23,9 @@ and subjective visual quality remain part of the short manual smoke pass.
 The fixture mirrors the live review containment and progress contracts: `#time-me`
 owns a completed-item counter starting at `0 / N`; `#main` and `.input-wrapper` are
 sibling branches; and reading/meaning layouts reuse one wrapper while the counter
-stays fixed. The final completed-item edge also exposes a host-style done modal.
+stays fixed. It can also retain a stale connected input while replacing the active
+one, covering gate retargeting. The final completed-item edge exposes a host-style
+done modal.
 
 ## Run Firefox
 
