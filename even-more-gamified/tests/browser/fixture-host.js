@@ -1,7 +1,7 @@
 (() => {
     'use strict';
 
-    const root = document.getElementById('main');
+    const root = document.getElementById('time-me');
     const counter = root.querySelector('.top_middle');
     const parameters = globalThis.__mmBrowserContractParameters || {};
     const state = {
@@ -87,7 +87,7 @@
         resetSession(sessionId = 'fixture-session-2') {
             state.current = 1;
             state.nextResult = 'correct';
-            root.dataset.reviewSession = sessionId;
+            root.dataset.sessionId = sessionId;
             updateCounter();
             replaceQuestion(1);
         },

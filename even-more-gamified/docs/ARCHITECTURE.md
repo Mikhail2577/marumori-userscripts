@@ -91,6 +91,10 @@ The adapter returns `unknown` or `null` when its contract cannot be proven. This
 can temporarily disable timer auto-failure or rewind after a MaruMori DOM change,
 but it prevents clicking an unrelated global button.
 
+On the current review page, `#time-me` is the session container. The question
+prompt under `#main` and the `.input-wrapper` answer control are sibling branches
+inside it; `#main` must not be treated as the review root.
+
 ## Owned transactions
 
 Transactional rewind stores the pre-answer local snapshot and its session,

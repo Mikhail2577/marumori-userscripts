@@ -90,8 +90,14 @@ describe('fail-closed MaruMori DOM adapter', () => {
 
     it('identifies only controls and answer input owned by the active review', () => {
         document.body.classList.add('mm-arcade', 'mm-crt-enabled');
+        expect(fixture.root.id).toBe('time-me');
+        expect(fixture.main.parentElement).toBe(fixture.topWrap);
+        expect(fixture.wrapper.parentElement).toBe(fixture.topWrap);
+        expect(fixture.main.contains(fixture.wrapper)).toBe(false);
+        expect(fixture.wrapper.closest('#main')).toBeNull();
         expect(adapter.getActiveReviewRoot()).toBe(fixture.root);
         expect(adapter.getInputWrapper()).toBe(fixture.wrapper);
+        expect(adapter.getQuestionPrompt()).toBe(fixture.prompt);
         expect(adapter.getAnswerInput()).toBe(fixture.input);
         expect(adapter.getControl('next')).toBe(fixture.next);
         expect(adapter.getControl('next')).not.toBe(document.querySelector('#outside-next'));
@@ -103,6 +109,15 @@ describe('fail-closed MaruMori DOM adapter', () => {
         expect(adapter.getSessionIdentity()).toBeNull();
         fixture.root.dataset.reviewSession = 'session-42';
         expect(adapter.getSessionIdentity()).toBe('data-review-session:session-42');
+    });
+
+    it('resolves either live question-prompt variant only when it is unambiguous', () => {
+        fixture.main.innerHTML = '<div class="main_form">質問</div>';
+        const formPrompt = fixture.main.querySelector('.main_form');
+        expect(adapter.getQuestionPrompt()).toBe(formPrompt);
+
+        fixture.main.append(formPrompt.cloneNode(true));
+        expect(adapter.getQuestionPrompt()).toBeNull();
     });
 
     it('rejects range sliders, unrelated input types, and ambiguous answers', () => {

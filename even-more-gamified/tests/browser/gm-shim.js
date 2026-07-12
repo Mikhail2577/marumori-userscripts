@@ -34,6 +34,22 @@
         );
     }
 
+    if (parameters.get('mode') === 'font') {
+        setValue(
+            'mmSettings',
+            JSON.stringify({
+                fontChallengeEnabled: true,
+                musicEnabled: false,
+                sfxEnabled: false,
+                timedXpBonusEnabled: false,
+                timerEnabled: false,
+                timeoutFailureEnabled: false,
+                visualsEnabled: false,
+            }),
+        );
+        setValue('mmLockedChallengeFont', 'MS Gothic');
+    }
+
     if (parameters.get('mode') === 'timeout') {
         setValue(
             'mmSettings',

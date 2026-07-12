@@ -12,7 +12,8 @@ wrapping, reload persistence, and timer behavior.
 
 The same five scenarios run in both browsers:
 
-1. bundle boot, one HUD, and exact-route cleanup/remount;
+1. bundle boot, scoped Font Challenge prompt discovery, one HUD, and exact-route
+   cleanup/remount;
 2. correct/incorrect processing across question-wrapper replacement;
 3. confirmed final-answer rewind and summary cancellation;
 4. HUD-setting persistence and same-root host-session remount;
@@ -21,6 +22,8 @@ The same five scenarios run in both browsers:
 The fixture disables audio, remote fonts, and nonessential visuals. Actual
 userscript-manager APIs, audible output, live MaruMori markup, resource loading,
 and subjective visual quality remain part of the short manual smoke pass.
+The fixture does mirror the live review containment contract: `#time-me` owns the
+counter and page content, while `#main` and `.input-wrapper` are sibling branches.
 
 ## Run Firefox
 

@@ -4217,7 +4217,8 @@
     INCORRECT: "incorrect"
   });
   var DEFAULT_SELECTORS = Object.freeze({
-    reviewRoot: "[data-review-session], [data-review-root], [data-testid='review-session'], #main",
+    reviewRoot: "[data-review-session], [data-review-root], [data-testid='review-session'], #time-me",
+    questionPrompt: "#main .main_form, #main > span",
     inputWrapper: ".input-wrapper",
     counter: ".top_middle",
     progress: "progress, [role='progressbar']"
@@ -4328,6 +4329,11 @@
     }
     function getInputWrapper2() {
       return resolveContext()?.wrapper ?? null;
+    }
+    function getQuestionPrompt() {
+      const context = resolveContext();
+      if (!context) return null;
+      return unique(visibleSiteElements(context.root, resolvedSelectors.questionPrompt));
     }
     function getSessionIdentity() {
       const root = resolveContext()?.root;
@@ -4499,6 +4505,7 @@
       getActiveReviewRoot,
       getSessionIdentity,
       getInputWrapper: getInputWrapper2,
+      getQuestionPrompt,
       getAnswerInput: getAnswerInput2,
       getCounterElement: getCounterElement2,
       getProgress,
@@ -9916,13 +9923,7 @@
     return marumoriDom.getCounterElement();
   }
   function getFontChallengeTarget() {
-    const root = marumoriDom.getActiveReviewRoot();
-    if (!root) return null;
-    const candidates = [
-      ...root.querySelectorAll(".main_form"),
-      ...[...root.children].filter((child) => child.localName === "span")
-    ].filter((target) => target.isConnected && !marumoriDom.isUserscriptOwned(target));
-    return candidates.length === 1 ? candidates[0] : null;
+    return marumoriDom.getQuestionPrompt();
   }
   function applyFontChallenge() {
     fontChallengeController.setEnabled(settings.fontChallengeEnabled);

@@ -2,6 +2,18 @@
 
 All notable changes to `MaruMori Even More Gamified - Updated` are documented here.
 
+## Unreleased
+
+### Fixed
+
+- Restored mounting on the live review page by recognizing `#time-me` as the
+  review-session container instead of incorrectly requiring the sibling answer
+  wrapper to be inside the `#main` question prompt.
+- Kept Font Challenge prompt discovery scoped to the active review while
+  supporting both current `#main > span` and `#main .main_form` prompt variants.
+- Updated the DOM and real-browser fixtures to preserve the live sibling layout
+  and prevent the incorrect nesting from passing regression tests again.
+
 ## 2026-07-10 - v3.9.0
 
 ### Added

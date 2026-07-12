@@ -1108,13 +1108,7 @@ function getCounterElement() {
 }
 
 function getFontChallengeTarget() {
-    const root = marumoriDom.getActiveReviewRoot();
-    if (!root) return null;
-    const candidates = [
-        ...root.querySelectorAll('.main_form'),
-        ...[...root.children].filter((child) => child.localName === 'span'),
-    ].filter((target) => target.isConnected && !marumoriDom.isUserscriptOwned(target));
-    return candidates.length === 1 ? candidates[0] : null;
+    return marumoriDom.getQuestionPrompt();
 }
 
 function applyFontChallenge() {

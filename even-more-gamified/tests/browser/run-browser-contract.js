@@ -108,6 +108,29 @@ async function openFixture(driver, baseUrl, { mode = 'quiet', total = 3 } = {}) 
     url.searchParams.set('reset', '1');
     url.searchParams.set('total', String(total));
     await driver.get(url.href);
+    const fixtureShape = await driver.executeScript(`
+        const root = document.getElementById('time-me');
+        const main = document.getElementById('main');
+        const topWrap = document.querySelector('.top_wrap');
+        const wrapper = document.querySelector('.input-wrapper');
+        const counter = document.querySelector('.top_middle');
+        return {
+            counterInsideRoot: Boolean(root?.contains(counter)),
+            counterInsideTopWrap: Boolean(topWrap?.contains(counter)),
+            mainAndWrapperAreSiblings: Boolean(
+                main?.parentElement && main.parentElement === wrapper?.parentElement
+            ),
+            rootId: wrapper?.closest('#time-me')?.id ?? null,
+            wrapperInsideMain: Boolean(main?.contains(wrapper)),
+        };
+    `);
+    assert.deepEqual(fixtureShape, {
+        counterInsideRoot: true,
+        counterInsideTopWrap: false,
+        mainAndWrapperAreSiblings: true,
+        rootId: 'time-me',
+        wrapperInsideMain: false,
+    });
     await waitForElement(driver, '#mm-hud');
     await assertNoPageErrors(driver);
 }
@@ -132,9 +155,18 @@ async function assertNoPageErrors(driver) {
 }
 
 async function bootAndRouteContract(driver, baseUrl) {
-    await openFixture(driver, baseUrl);
+    await openFixture(driver, baseUrl, { mode: 'font' });
     assert.equal(await count(driver, '#mm-hud'), 1);
     assert.equal(await text(driver, '#mm-hud-score'), '0');
+    const promptFont = await driver.executeScript(`
+            const prompt = document.querySelector('#main > span');
+            return {
+                priority: prompt?.style.getPropertyPriority('font-family') ?? null,
+                value: prompt?.style.getPropertyValue('font-family') ?? null,
+            };
+        `);
+    assert.equal(promptFont.priority, 'important');
+    assert.match(promptFont.value, /MS Gothic.*sans-serif/u);
 
     await driver.executeScript("history.pushState({}, '', '/study-lists/reviews-archive');");
     await waitForScript(driver, "!document.getElementById('mm-hud')", 'HUD did not clean up');

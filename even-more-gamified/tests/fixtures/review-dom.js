@@ -22,16 +22,23 @@ export function mountReviewFixture(
     const resolutionClass = resolution === 'unresolved' ? '' : ` ${resolution}`;
     document.body.className = '';
     document.body.innerHTML = `
-    <main id="main" data-review-session>
+    <section id="time-me">
       <div class="top_middle">${current} / ${total}</div>
-      <section class="input-wrapper${resolutionClass}" data-question-id="${questionId}">
-        <label>Answer <input id="answer" type="text" value="original"></label>
-        <button type="button" data-action="check">Check</button>
-        ${includeWrong ? '<button type="button" data-action="wrong">Wrong</button>' : ''}
-        ${includeNext ? '<button type="button" data-action="next">Next</button>' : ''}
-        ${includeRewind ? '<button type="button" data-action="undo">Undo</button>' : ''}
-      </section>
-    </main>
+      <div class="quiz_progress"><div class="quiz_progress_bar"></div></div>
+      <div class="page_wrapper">
+        <div class="top_wrap">
+          <main id="main"><span>問</span></main>
+          <div class="item_types"></div>
+          <section class="input-wrapper${resolutionClass}" data-question-id="${questionId}">
+            <label>Answer <input id="answer" type="text" value="original"></label>
+            <button type="button" data-action="check">Check</button>
+            ${includeWrong ? '<button type="button" data-action="wrong">Wrong</button>' : ''}
+            ${includeNext ? '<button type="button" data-action="next">Next</button>' : ''}
+            ${includeRewind ? '<button type="button" data-action="undo">Undo</button>' : ''}
+          </section>
+        </div>
+      </div>
+    </section>
     <button id="outside-next" type="button">Next</button>
     <aside id="mm-settings" data-mm-owned>
       <input id="mm-range" type="range" value="50">
@@ -40,7 +47,10 @@ export function mountReviewFixture(
   `;
 
     return {
-        root: document.querySelector('#main'),
+        root: document.querySelector('#time-me'),
+        main: document.querySelector('#main'),
+        prompt: document.querySelector('#main > span'),
+        topWrap: document.querySelector('.top_wrap'),
         wrapper: document.querySelector('.input-wrapper'),
         counter: document.querySelector('.top_middle'),
         input: document.querySelector('#answer'),

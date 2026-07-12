@@ -6,7 +6,9 @@ export const DOM_RESOLUTION = Object.freeze({
 });
 
 const DEFAULT_SELECTORS = Object.freeze({
-    reviewRoot: "[data-review-session], [data-review-root], [data-testid='review-session'], #main",
+    reviewRoot:
+        "[data-review-session], [data-review-root], [data-testid='review-session'], #time-me",
+    questionPrompt: '#main .main_form, #main > span',
     inputWrapper: '.input-wrapper',
     counter: '.top_middle',
     progress: "progress, [role='progressbar']",
@@ -145,6 +147,12 @@ export function createMaruMoriDomAdapter({
 
     function getInputWrapper() {
         return resolveContext()?.wrapper ?? null;
+    }
+
+    function getQuestionPrompt() {
+        const context = resolveContext();
+        if (!context) return null;
+        return unique(visibleSiteElements(context.root, resolvedSelectors.questionPrompt));
     }
 
     function getSessionIdentity() {
@@ -346,6 +354,7 @@ export function createMaruMoriDomAdapter({
         getActiveReviewRoot,
         getSessionIdentity,
         getInputWrapper,
+        getQuestionPrompt,
         getAnswerInput,
         getCounterElement,
         getProgress,
