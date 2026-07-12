@@ -117,7 +117,6 @@
 
 ## Deferred Items
 
-- Safari account-free browser contracts: attempted again on 2026-07-12 after the word-streak correction, but Safari still reported that “Allow remote automation” is disabled. No persistent browser setting was changed.
 - Release-check redesign, version unification, and public distribution verification remain in their ordered later phases.
 - Matrix rendering, reconciliation duplication, broad arcade selectors, and CRT GPU behavior remain evidence-gated for Phase 11.
 
@@ -161,4 +160,5 @@
 - `MM_BROWSER_CONTRACT=first-input npm run test:browser:firefox`: passed the transactional first-input and immediate sibling-prompt timer contract.
 - Checkpoint A timer correction `npm run check`: passed in full, including 33 Vitest files / 240 tests, build validation, syntax, lint, and formatting.
 - Final timer-corrected `npm run test:browser:firefox`: passed all 14 production-bundle contracts.
+- Final timer-corrected `npm run test:browser:safari`: passed all 14 production-bundle contracts after Safari Remote Automation was enabled.
 - Current Checkpoint A candidate hashes: `.user.js` `632b8853d077bc5de976de0af77e5f31c688851abf9497c0e8312f5b12086d7b`; `.meta.js` `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
