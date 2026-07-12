@@ -4241,6 +4241,12 @@
     "data-item-id",
     "data-item-key"
   ]);
+  var QUESTION_LAYOUT_CLASSES = Object.freeze([
+    "reading",
+    "meaning",
+    "unscramble",
+    "fill-in-the-blank"
+  ]);
   var SESSION_ID_ATTRIBUTES = Object.freeze(["data-review-session", "data-session-id"]);
   var HOST_DECORATION_CLASSES = /* @__PURE__ */ new Set(["mm-bounce", "mm-progress-glow"]);
   function normalizeText(value) {
@@ -4413,6 +4419,12 @@
       return context ? getResolvedStateForContext(context) : DOM_RESOLUTION.UNKNOWN;
     }
     function getQuestionIdentityForContext(context, progress) {
+      const layouts = QUESTION_LAYOUT_CLASSES.filter(
+        (className) => context.wrapper.classList.contains(className)
+      );
+      if (layouts.length > 1) return null;
+      const questionLayout = layouts[0] ?? null;
+      const layoutIdentity = questionLayout ? `|layout:${questionLayout}` : "";
       const attributedElements = [context.wrapper, context.root];
       for (const selector of QUESTION_ID_ATTRIBUTES.map((attribute) => `[${attribute}]`)) {
         attributedElements.push(...context.root.querySelectorAll(selector));
@@ -4430,14 +4442,16 @@
       if (distinctSiteIds.length === 1) {
         return Object.freeze({
           identityKind: "host",
-          logicalQuestionIdentity: `host:${distinctSiteIds[0]}`
+          logicalQuestionIdentity: `host:${distinctSiteIds[0]}${layoutIdentity}`,
+          questionLayout
         });
       }
       if (!progress) return null;
       const wrapperId = getGenerationId(context.wrapper, wrapperIds, () => nextWrapperId++);
       return Object.freeze({
         identityKind: "fallback",
-        logicalQuestionIdentity: `fallback:progress:${progress.current}/${progress.total}|wrapper:${wrapperId}`
+        logicalQuestionIdentity: `fallback:wrapper:${wrapperId}${layoutIdentity}`,
+        questionLayout
       });
     }
     function getDomGenerationForContext(context) {
@@ -6305,12 +6319,12 @@
       this.transitionSession(SESSION_STATES.ACTIVE);
       return true;
     }
-    beginQuestion(questionId, { awaitingFirstInput = false } = {}) {
+    beginQuestion(questionId, { awaitingFirstInput = false, force = false } = {}) {
       if (this.sessionState !== SESSION_STATES.ACTIVE) return null;
       if (questionId === null || questionId === void 0 || questionId === "") {
         return null;
       }
-      if (this.questionId === questionId && this.questionState !== QUESTION_STATES.INACTIVE) {
+      if (!force && this.questionId === questionId && this.questionState !== QUESTION_STATES.INACTIVE) {
         return this.captureOwnership();
       }
       this.questionScope?.dispose();
@@ -6470,7 +6484,7 @@
     return `${ownership.sessionGeneration}:${ownership.questionGeneration}`;
   }
   function isValidProgress(progress) {
-    return Number.isInteger(progress?.current) && Number.isInteger(progress?.total) && progress.total > 0 && progress.current >= 1 && progress.current <= progress.total;
+    return Number.isInteger(progress?.current) && Number.isInteger(progress?.total) && progress.total > 0 && progress.current >= 0 && progress.current <= progress.total;
   }
   function response(accepted, reason, extra = {}) {
     return Object.freeze({ accepted, reason, ...extra });
@@ -6479,8 +6493,6 @@
     lifecycle: lifecycle2,
     summaryDelayMs = 800,
     isCompletionCurrent = () => true,
-    onQuestionCompleted = () => {
-    },
     onSessionCompleted = () => {
     },
     onShowSummary = () => {
@@ -6534,7 +6546,6 @@
       const counted = !completedOwnerships.has(key);
       if (counted) {
         completedOwnerships.add(key);
-        onQuestionCompleted({ ownership, questionIdentity, progress, resolution });
       }
       if (progress.current !== progress.total) {
         return response(true, counted ? "question-counted" : "duplicate-resolution", {
@@ -10873,6 +10884,7 @@
     const { current } = progress;
     if (current > state.lastCompleted) {
       state.lastCompleted = current;
+      handleWordComplete();
       applyFontChallenge();
       refreshAnswerTimerForCurrentQuestion();
     }
@@ -10922,8 +10934,18 @@
       return;
     }
     if (lifecycle.sessionState === SESSION_STATES.ACTIVE && resolution === DOM_RESOLUTION.UNRESOLVED && questionId === lifecycle.questionId && lastAnswerState && !rewindCommitted && rewindController?.isPending !== true) {
-      scheduleSessionRemount();
-      return;
+      if (lastAnswerState === DOM_RESOLUTION.INCORRECT) {
+        timeoutFailureController?.cancel("question-retried");
+        rewindController?.discard();
+        lastAnswerState = null;
+        lifecycle.beginQuestion(questionId, { force: true });
+        updateRewindButton();
+        applyFontChallenge();
+        refreshAnswerTimerForCurrentQuestion();
+      } else {
+        scheduleSessionRemount();
+        return;
+      }
     }
     if (lifecycle.sessionState === SESSION_STATES.ACTIVE && questionId !== lifecycle.questionId) {
       timeoutFailureController?.cancel("question-changed");
@@ -10973,7 +10995,6 @@
       isCompletionCurrent(completion) {
         return initialized && marumoriDom.getActiveReviewRoot() === activeReviewRoot && marumoriDom.getQuestionIdentity() === completion.logicalQuestionIdentity && marumoriDom.getResolvedState() === completion.resolution;
       },
-      onQuestionCompleted: handleWordComplete,
       onSessionCompleted() {
         state.sessionActive = false;
       },

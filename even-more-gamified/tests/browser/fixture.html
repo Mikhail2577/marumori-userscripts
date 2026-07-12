@@ -73,13 +73,17 @@
     </head>
     <body>
         <section id="time-me" data-session-id="fixture-session-1">
-            <div class="top_middle">1 / 3</div>
+            <div class="top_middle">0 / 3</div>
             <div class="quiz_progress"><div class="quiz_progress_bar"></div></div>
             <div class="page_wrapper">
                 <div class="top_wrap">
                     <main id="main"><span>問</span></main>
                     <div class="item_types"></div>
-                    <section class="input-wrapper" data-question-id="fixture-question-1">
+                    <section
+                        class="input-wrapper meaning"
+                        data-fixture-item="1"
+                        data-fixture-layout="meaning"
+                    >
                         <label>
                             Answer
                             <input id="answer" type="text" autocomplete="off" />
@@ -94,6 +98,7 @@
                 </div>
             </div>
         </section>
+        <div id="modals"></div>
         <script src="/browser-fixture/gm-shim.js"></script>
         <script src="/browser-fixture/fixture-host.js"></script>
         <script src="/browser-fixture/userscript.js"></script>

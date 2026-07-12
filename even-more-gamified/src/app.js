@@ -1360,6 +1360,7 @@ function processCounterChange(progress) {
     const { current } = progress;
     if (current > state.lastCompleted) {
         state.lastCompleted = current;
+        handleWordComplete();
         applyFontChallenge();
         refreshAnswerTimerForCurrentQuestion();
     }
@@ -1433,8 +1434,18 @@ function reconcileReviewDom() {
         !rewindCommitted &&
         rewindController?.isPending !== true
     ) {
-        scheduleSessionRemount();
-        return;
+        if (lastAnswerState === DOM_RESOLUTION.INCORRECT) {
+            timeoutFailureController?.cancel('question-retried');
+            rewindController?.discard();
+            lastAnswerState = null;
+            lifecycle.beginQuestion(questionId, { force: true });
+            updateRewindButton();
+            applyFontChallenge();
+            refreshAnswerTimerForCurrentQuestion();
+        } else {
+            scheduleSessionRemount();
+            return;
+        }
     }
 
     if (lifecycle.sessionState === SESSION_STATES.ACTIVE && questionId !== lifecycle.questionId) {
@@ -1495,7 +1506,6 @@ function setupReviewControllers() {
                 marumoriDom.getResolvedState() === completion.resolution
             );
         },
-        onQuestionCompleted: handleWordComplete,
         onSessionCompleted() {
             state.sessionActive = false;
         },

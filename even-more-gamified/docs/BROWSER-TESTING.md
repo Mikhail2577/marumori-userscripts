@@ -10,20 +10,19 @@ wrapping, reload persistence, and timer behavior.
 
 ## Contracts
 
-The same five scenarios run in both browsers:
-
-1. bundle boot, scoped Font Challenge prompt discovery, one HUD, and exact-route
-   cleanup/remount;
-2. correct/incorrect processing across question-wrapper replacement;
-3. confirmed final-answer rewind and summary cancellation;
-4. HUD-setting persistence and same-root host-session remount;
-5. real ten-second timeout failure with exactly one Wrong and one Next action.
+The same 13 scenarios run in both browsers. They cover bundle boot and exact-route
+cleanup, correct/incorrect scoring, multi-layout item completion, one-item
+finalization, incomplete-item incorrect/timeout behavior, summary cleanup,
+in-place and wrapper-replacing rewind, delayed rewind recovery, same-route second
+sessions, HUD persistence, and exactly-once timeout advancement.
 
 The fixture disables audio, remote fonts, and nonessential visuals. Actual
 userscript-manager APIs, audible output, live MaruMori markup, resource loading,
 and subjective visual quality remain part of the short manual smoke pass.
-The fixture does mirror the live review containment contract: `#time-me` owns the
-counter and page content, while `#main` and `.input-wrapper` are sibling branches.
+The fixture mirrors the live review containment and progress contracts: `#time-me`
+owns a completed-item counter starting at `0 / N`; `#main` and `.input-wrapper` are
+sibling branches; and reading/meaning layouts reuse one wrapper while the counter
+stays fixed. The final completed-item edge also exposes a host-style done modal.
 
 ## Run Firefox
 

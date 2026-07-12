@@ -59,13 +59,19 @@ Each mount increments `sessionGeneration`; each accepted question identity
 increments `questionGeneration`. `LifecycleScope` owns listeners, timeouts, and
 cleanup callbacks. A callback runs only while its captured generation is current.
 
-Session completion is resolution-gated. The counter's final position is progress
-metadata, not a completion signal by itself. The session-finalization controller
-deduplicates confirmed resolved question ownership, counts the final question,
-and calls the lifecycle's guarded `complete()` transition only when that resolved
-question is also at the final progress position. Its delayed summary callback is
-owned by the session generation, final question ownership, and a finalization
-token; cleanup or confirmed rewind invalidates it.
+MaruMori's counter is a completed-item counter that starts at `0 / N`. Reading and
+meaning are separate answer prompts, but the counter advances only after the last
+remaining sibling layout for an item is cleared. A positive counter edge is
+therefore the sole word-completion trigger. This keeps answer streak and word
+streak ownership separate and counts each completed item, including the last one,
+exactly once.
+
+Session completion remains resolution-gated. `N / N` is a trustworthy host
+item-completion signal, but the session-finalization controller also requires the
+currently owned prompt to be confirmed as resolved before calling the lifecycle's
+guarded `complete()` transition. Its delayed summary callback is owned by the
+session generation, final prompt ownership, and a finalization token; cleanup or
+confirmed rewind invalidates it.
 
 The runtime flow is:
 
@@ -79,13 +85,15 @@ The runtime flow is:
    do not mutate score independently.
 5. Reconciliation samples root, identity, progress, and resolution together,
    advances lifecycle state, then applies the answer once.
-6. A new logical question starts a new question generation. Stable host question
-   IDs exclude wrapper instance and mutable progress; when no unambiguous host ID
-   exists, the adapter uses a strict wrapper/progress fallback that intentionally
-   fails closed across replacement. A changed review URL, review root, host session
-   token, or unresolved backwards progress causes cleanup and a fresh session
-   mount. URL/root/token boundaries remain authoritative even while rewind is
-   pending.
+6. A new answer prompt starts a new question generation. Stable host item IDs are
+   combined with MaruMori's known layout class. When no unambiguous host ID exists,
+   wrapper generation plus layout provides a strict fallback. It survives a
+   completed-item counter change on the same prompt but fails closed across wrapper
+   replacement. A reading-to-meaning transition on one reused wrapper is therefore
+   a new prompt, while an incorrect same-layout retry explicitly starts a new
+   attempt generation. A changed review URL, review root, host session token, or
+   unresolved backwards progress causes cleanup and a fresh session mount.
+   URL/root/token boundaries remain authoritative even while rewind is pending.
 7. Route exit, visibility/session teardown, or remount disposes observers,
    transactions, timers, audio scheduling, Font Challenge styling, transient
    effects, and HUD state owned by that session.
@@ -109,11 +117,12 @@ inside it; `#main` must not be treated as the review root.
 ## Owned transactions
 
 Transactional rewind stores the pre-answer local snapshot and its session,
-question, answer generation, logical identity, DOM generation, root, progress,
+question, answer generation, prompt identity, DOM generation, root, progress,
 and resolution. It invokes a verified native capability and commits the snapshot
 only after the same logical question changes from resolved to unresolved. A
 stable host ID permits wrapper replacement and progress regression; strict
-fallback identity does not.
+fallback identity permits progress regression on the same wrapper but not wrapper
+replacement.
 
 The normal confirmation window is 750 ms. On timeout, local state stays answered
 and the lifecycle returns to resolved, but one guarded recovery candidate remains

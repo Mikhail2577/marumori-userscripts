@@ -5,9 +5,10 @@ cannot prove compatibility with MaruMori's authenticated live DOM, userscript
 manager injection, Web Audio activation, or visual output. Complete this checklist
 against the generated production artifact before claiming browser parity.
 
-Five production-bundle contracts now automate route cleanup, answer/wrapper
-processing, final rewind, persistence/session remount, and serialized timeout in
-installed Firefox and Safari without contacting MaruMori. Run
+Thirteen production-bundle contracts now automate route cleanup, answer/wrapper
+processing, multi-layout word completion, finalization, rewind,
+persistence/session remount, and serialized timeout in installed Firefox and
+Safari without contacting MaruMori. Run
 `npm run test:browser` as described in
 [Local browser testing](./BROWSER-TESTING.md). The matching checklist entries below
 still require a short live-manager smoke check, but no longer need destructive edge
@@ -124,8 +125,13 @@ covered.
       timed XP, sounds, float, flash, shake, and HUD text with the reference.
 - [ ] Submit an incorrect answer and compare penalty, combo reset, accuracy, no timed
       bonus, warning sound/tint/float/shake, and optional failure flash.
-- [ ] Complete both parts of a multi-part word and verify word streak, word-complete
-      sound, celebrations, and counters.
+- [ ] On a multi-part word, confirm reading/meaning answers update answer metrics but
+      do not advance word streak individually. Complete the last sibling and advance
+      until MaruMori's completed-item counter changes; verify word streak,
+      word-complete sound, celebrations, and `WORDS DONE` advance exactly once.
+- [ ] Answer a prompt incorrectly and confirm accuracy/combo change while word streak
+      and the completed-item counter remain unchanged; retry/requeue must not reset
+      the session HUD.
 - [ ] Cross every multiplier milestone and verify multiplier calculation, banner,
       particles, and sound are emitted once.
 - [ ] Cross word/answer milestones and verify the intended celebration variant and

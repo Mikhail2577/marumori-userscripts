@@ -46,11 +46,13 @@
 - Preserve the root-level legacy userscript as a read-only behavioral reference. Source changes belong under `src/`; generated artifacts are updated only with npm build scripts.
 - Do not approve the pending `esbuild@0.28.1` or `fsevents@2.3.3` install scripts merely to remove npm warnings.
 - Use targeted controller/integration tests for deterministic lifecycle races and production-bundle Firefox contracts for whole-application finalization behavior. Safari results remain unclaimed while Remote Automation is disabled.
-- Phase 1 uses `src/core/session-finalization.js` as the single resolution-gated completion owner. Confirmed question ownership is counted once; `current === total` alone cannot complete; the final resolved question is counted before completion; and the session-scoped summary token is invalidated by cleanup or confirmed rewind.
+- Phase 1 uses `src/core/session-finalization.js` as the single resolution-gated session-completion owner. The controller requires both MaruMori's authoritative `N / N` completed-item signal and resolved current-prompt ownership; the session-scoped summary token is invalidated by cleanup or confirmed rewind.
 - `LifecycleController.complete()` now rejects unresolved or stale question ownership, making the lifecycle transition itself enforce the completion contract.
-- Word completion moved from raw counter increments to confirmed logical answer resolution. Counter changes now maintain progress/timer/font reconciliation only.
-- Stable host question identity no longer includes mutable progress or wrapper instance. When the adapter lacks one unambiguous host ID, it uses a strict wrapper/progress fallback that intentionally fails closed. Explicit DOM-generation ownership is completed in Phases 2–3.
-- Timeout incorrect confirmation now updates finalization before deciding whether to schedule Next. The single advance path consults the active/finalized predicate both before scheduling and before invocation; confirmed final timeouts settle without Next.
+- Checkpoint A diagnosis used MaruMori's current public review bundle (`/_app/immutable/nodes/81.CkWlGNB9.js`) to correct the fixture model: `.top_middle` starts at `0 / N` and counts completed items, while vocabulary/kanji items expand into reading/meaning sibling prompts. The counter advances only after the last remaining sibling is cleared.
+- Prompt resolution and word completion now have separate ownership. Correct/incorrect answer metrics are applied per prompt; word streak, `sessionWords`, and word-clear feedback run exactly once on a positive completed-item counter edge. This preserves the legacy semantic and includes the final `N-1 → N` edge.
+- Stable host item identity is combined with the known prompt layout (`reading`, `meaning`, `unscramble`, or `fill-in-the-blank`). Without one unambiguous host ID, wrapper generation plus layout is the strict fallback. It survives progress changes on the same prompt, distinguishes sibling layouts on a reused wrapper, and still fails closed across wrapper replacement.
+- A resolved-incorrect → unresolved transition for the same wrapper/layout is a legitimate retry and forcibly starts a new question generation instead of remounting and resetting the session.
+- Timeout incorrect confirmation updates finalization before deciding whether to schedule Next. The single advance path consults the active/finalized predicate before scheduling and invocation. An incomplete final item remains below `N / N`, so timeout Wrong/Next may requeue it; only confirmed host completion suppresses advancement.
 - The browser-contract runner accepts `MM_BROWSER_CONTRACT` for focused account-free diagnostics while retaining the complete default suite.
 - Phase 2 adds an atomic DOM question-context read containing logical identity, identity kind, root/wrapper generations, combined DOM generation, progress, resolution, and node ownership from one adapter sample.
 - Every answer timer now carries immutable `TimerOwnership`: session generation, question generation, logical identity, identity kind, root/wrapper/DOM generations, exact nodes, timer generation, arm time, duration, and monotonic deadline.
@@ -58,7 +60,7 @@
 - Same-logical wrapper replacement is explicitly rearmed with a new timer generation. A live deadline is preserved; a replacement first observed after expiry gets one fresh full deadline instead of being failed by the stale timer.
 - Timeout failure now requires the originating timer owner and validates it before every host-facing stage. Its `idle → scheduled → invoking → done` advance state is the sole Next owner; final completion, natural answers, cleanup, question/session changes, and DOM-generation changes cancel safely.
 - The DOM adapter allows only the two known userscript-applied host decoration classes (`mm-bounce` and `mm-progress-glow`) when reading host context; other `mm-*`, `data-mm-owned`, and `mm-*` IDs remain excluded.
-- Phase 3 completes logical/DOM/progress separation for rewind: stable host logical identity survives wrapper/progress changes, DOM generation identifies mounted instances, and strict fallback identity remains replacement-sensitive.
+- Phase 3 completes prompt/DOM/progress separation for rewind: stable host prompt identity survives wrapper/progress changes, DOM generation identifies mounted instances, and strict fallback identity remains replacement-sensitive while surviving progress changes on the same wrapper.
 - Rewind capture and transactions now record transaction, snapshot, session, question, answer, logical, DOM, root, progress, start-time, and confirmation-deadline ownership. Programmatic native clicks remain deduplicated from the document capture listener, and overlapping HUD/native/keyboard intents serialize to one transaction.
 - A normal rewind commits only on the owned same-logical resolved → unresolved transition. Stable host identity permits wrapper replacement and progress decrement; fallback ambiguity cancels.
 - The 750 ms request timeout now leaves one explicit recovery candidate for a further 2,000 ms. A slightly late genuine host transition restores once only when session/question/answer/root/logical ownership still matches. The candidate is cleared before restoration and is invalidated by a different question, new session, newer resolution, cleanup, or deadline.
@@ -89,27 +91,28 @@
 ## Tests Added
 
 - None in Phase 0; this phase established the pre-change evidence baseline.
-- `tests/unit/session-finalization.test.js`: unresolved final position, multi-question deduplication, final correct/incorrect, one-question completion, summary ownership, cleanup, rewind/re-answer, stale ownership, and same-route second-session isolation.
+- `tests/unit/session-finalization.test.js`: valid zero-completed-item progress, prompt deduplication, same-owner promotion only after host `N / N`, final correct/incorrect host signals, summary ownership, cleanup, rewind/re-answer, stale ownership, and same-route second-session isolation.
 - `tests/integration/lifecycle-dom.test.js`: unresolved lifecycle completion is rejected.
 - `tests/regression/timeout-failure.test.js`: finalization suppresses automatic Next after confirmed incorrect resolution.
-- `tests/browser/run-browser-contract.js` and browser fixtures: production-bundle coverage for unresolved `1/2`, unresolved `2/2`, final correct, one-question finalization, final incorrect, final timeout without Next, cleanup cancellation, final rewind/re-answer, duplicate observer signals, and a clean same-route second session. The suite now has 11 Firefox/Safari-compatible contracts.
+- `tests/browser/run-browser-contract.js` and browser fixtures: production-bundle coverage now models MaruMori's `0 / N` completed-item counter, two sibling layouts on the same wrapper, one word edge after both prompts, final completion only after host Next reaches `N / N`, incorrect/timeout requeue without word completion, cleanup, rewind/re-answer, duplicate observer signals, and clean same-route sessions.
 - `tests/regression/answer-timer-ownership.test.js`: immutable owner contents, DOM-before-lifecycle rejection, question/session generation changes, cleanup immediately before expiry, early/natural resolution, same-logical replacement rearm, post-deadline replacement policy, and stale-owner isolation.
 - `tests/regression/timeout-failure.test.js`: original-owner requirement, no host effects on question-two or replacement DOM, natural-answer race, duplicate transaction serialization, exactly-once Next, final suppression, cleanup/question/session cancellation, and exact-input restoration.
 - `tests/unit/combo-timer.test.js`: exact owner delivery at expiration and preservation of a newer timer across a superseded deadline.
-- `tests/integration/lifecycle-dom.test.js`: atomic context, logical/DOM-generation separation, conflicting-ID failure, strict fallback identity, and host-context readability during owned transient decoration.
+- `tests/integration/lifecycle-dom.test.js`: atomic context, prompt-layout/DOM-generation separation, conflicting-ID failure, wrapper/layout fallback identity, same-prompt forced retry, and host-context readability during owned transient decoration.
 - `tests/regression/rewind.test.js`: original-wrapper confirmation, stable-ID wrapper replacement, progress decrement, combined replacement/regression, fallback failure, normal timeout, bounded late recovery, post-window rejection, different question/session rejection, native-click deduplication, HUD/keyboard serialization, final-summary cancellation, failed native capability, and exactly-once commit.
 - `tests/browser/run-browser-contract.js` and `tests/browser/fixture-host.js`: production-bundle wrapper-plus-progress rewind and 900 ms delayed-host recovery contracts. The Firefox/Safari-compatible suite now contains 13 contracts.
 - `tests/integration/lifecycle-dom.test.js`: monotonic answer-generation assertions across resolve, rewind, and re-answer.
 
 ## Manual Validation
 
-- Manual Checkpoint A: prepared on 2026-07-12 and awaiting user confirmation. Candidate version `3.9.0`; `.user.js` 459,317 bytes / SHA-256 `dd014b2965500d32bcb73c8622ced6f74cfd21af2318be7f776d42e34a556faf`; `.meta.js` 1,127 bytes / SHA-256 `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
+- Manual Checkpoint A: the first candidate was withdrawn on 2026-07-12 after the user questioned word-streak tracking. Diagnosis confirmed that its one-prompt/one-word, one-based fixture was incompatible with live MaruMori multi-layout semantics. Corrected candidate version `3.9.0`; `.user.js` 460,051 bytes / SHA-256 `74b8c36369774acdd28fb452b6ad5e79d5e46cae8720d3f0d18ca5d46084f6fa`; `.meta.js` 1,127 bytes / SHA-256 `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
+- Revised Checkpoint A semantics: live progress begins at `0 / N`; sibling prompts do not advance word streak; the last sibling plus host advancement produces one word edge; final summary follows the resolved `N / N` host transition; incorrect/timeout attempts below `N / N` requeue without a word or summary; rewind after final completion restores the prior completed-item count.
 - Manual Checkpoint B: not yet presented.
 - Manual Checkpoint C: not yet presented.
 
 ## Deferred Items
 
-- Safari account-free browser contracts: attempted on 2026-07-12, but Safari reported that “Allow remote automation” is disabled. No persistent browser setting was changed.
+- Safari account-free browser contracts: attempted again on 2026-07-12 after the word-streak correction, but Safari still reported that “Allow remote automation” is disabled. No persistent browser setting was changed.
 - Release-check redesign, version unification, and public distribution verification remain in their ordered later phases.
 - Matrix rendering, reconciliation duplication, broad arcade selectors, and CRT GPU behavior remain evidence-gated for Phase 11.
 
@@ -141,3 +144,11 @@
 - Phase 3 `npm run check`: passed in full, including lint, 33 files / 235 tests, build validation, syntax, and formatting.
 - Phase 3 complete `npm run test:browser:firefox`: passed all 13 production-bundle contracts.
 - Checkpoint A `git diff --check`: passed.
+- Checkpoint A word-streak correction focused Vitest suites: passed, 5 files / 63 tests.
+- Checkpoint A word-streak correction `npm run test`: passed, 33 files / 238 tests.
+- Corrected `MM_BROWSER_CONTRACT=multi-question npm run test:browser:firefox`: passed the realistic multi-layout production-bundle contract.
+- Corrected `npm run test:browser:firefox`: passed all 13 production-bundle contracts.
+- Corrected `npm run test:browser:safari`: attempted; unavailable because Safari Remote Automation is still disabled.
+- Corrected `npm run check`: passed in full, including 33 Vitest files / 238 tests, build validation, syntax, lint, and formatting.
+- Final corrected `npm run test:browser:firefox`: passed all 13 production-bundle contracts after the reconciliation-order check.
+- Corrected candidate hashes: `.user.js` `74b8c36369774acdd28fb452b6ad5e79d5e46cae8720d3f0d18ca5d46084f6fa`; `.meta.js` `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.

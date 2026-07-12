@@ -35,6 +35,15 @@ const QUESTION_ID_ATTRIBUTES = Object.freeze([
     'data-item-key',
 ]);
 
+// These are MaruMori's prompt layouts. A vocabulary/kanji item can keep the
+// same wrapper while moving from one sibling layout to another.
+const QUESTION_LAYOUT_CLASSES = Object.freeze([
+    'reading',
+    'meaning',
+    'unscramble',
+    'fill-in-the-blank',
+]);
+
 const SESSION_ID_ATTRIBUTES = Object.freeze(['data-review-session', 'data-session-id']);
 const HOST_DECORATION_CLASSES = new Set(['mm-bounce', 'mm-progress-glow']);
 
@@ -253,6 +262,12 @@ export function createMaruMoriDomAdapter({
     }
 
     function getQuestionIdentityForContext(context, progress) {
+        const layouts = QUESTION_LAYOUT_CLASSES.filter((className) =>
+            context.wrapper.classList.contains(className),
+        );
+        if (layouts.length > 1) return null;
+        const questionLayout = layouts[0] ?? null;
+        const layoutIdentity = questionLayout ? `|layout:${questionLayout}` : '';
         const attributedElements = [context.wrapper, context.root];
         for (const selector of QUESTION_ID_ATTRIBUTES.map((attribute) => `[${attribute}]`)) {
             attributedElements.push(...context.root.querySelectorAll(selector));
@@ -270,19 +285,20 @@ export function createMaruMoriDomAdapter({
         if (distinctSiteIds.length === 1) {
             return Object.freeze({
                 identityKind: 'host',
-                logicalQuestionIdentity: `host:${distinctSiteIds[0]}`,
+                logicalQuestionIdentity: `host:${distinctSiteIds[0]}${layoutIdentity}`,
+                questionLayout,
             });
         }
 
-        // Without one unambiguous host ID, wrapper and progress form a strict
-        // fallback identity. It intentionally does not survive replacement or
-        // progress changes because treating an unknown question as the same one
-        // would permit stale timeout/rewind actions.
+        // Without one unambiguous host ID, wrapper generation plus the known
+        // layout form a strict prompt identity. It survives completed-item
+        // counter changes on the same prompt, but never wrapper replacement.
         if (!progress) return null;
         const wrapperId = getGenerationId(context.wrapper, wrapperIds, () => nextWrapperId++);
         return Object.freeze({
             identityKind: 'fallback',
-            logicalQuestionIdentity: `fallback:progress:${progress.current}/${progress.total}|wrapper:${wrapperId}`,
+            logicalQuestionIdentity: `fallback:wrapper:${wrapperId}${layoutIdentity}`,
+            questionLayout,
         });
     }
 

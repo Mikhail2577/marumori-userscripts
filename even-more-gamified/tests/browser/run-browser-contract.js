@@ -104,13 +104,15 @@ async function waitForElement(driver, selector, timeout = DEFAULT_TIMEOUT_MS) {
 async function openFixture(
     driver,
     baseUrl,
-    { mode = 'quiet', timerSeconds = null, total = 3 } = {},
+    { hostIds = false, layouts = 1, mode = 'quiet', timerSeconds = null, total = 3 } = {},
 ) {
     const url = new URL('/study-lists/reviews', baseUrl);
     url.searchParams.set('case', `${Date.now()}-${Math.random()}`);
     url.searchParams.set('mode', mode);
     url.searchParams.set('reset', '1');
     url.searchParams.set('total', String(total));
+    url.searchParams.set('layouts', String(layouts));
+    if (hostIds) url.searchParams.set('hostIds', '1');
     if (timerSeconds !== null) url.searchParams.set('timerSeconds', String(timerSeconds));
     await driver.get(url.href);
     const fixtureShape = await driver.executeScript(`
@@ -210,7 +212,7 @@ async function answerAndWrapperContract(driver, baseUrl) {
     assert.equal(await text(driver, '#mm-hud-combo'), 'x1');
 
     await (await waitForElement(driver, "[data-action='next']")).click();
-    await waitForElement(driver, "[data-question-id='fixture-question-2']");
+    await waitForElement(driver, "[data-fixture-item='2']");
     await (await waitForElement(driver, "[data-action='wrong']")).click();
     await waitForElement(driver, '.input-wrapper.incorrect');
     await waitForScript(
@@ -228,21 +230,50 @@ async function answerAndWrapperContract(driver, baseUrl) {
 }
 
 async function multiQuestionFinalizationContract(driver, baseUrl) {
-    await openFixture(driver, baseUrl, { total: 2 });
+    await openFixture(driver, baseUrl, { layouts: 2, total: 2 });
     await driver.sleep(950);
     assert.equal(await count(driver, '#mm-summary.open'), 0);
     assert.equal(await text(driver, '#mm-hud-streak'), '0');
+    assert.equal(await text(driver, '.top_middle'), '0 / 2');
 
-    await (await waitForElement(driver, '#answer')).sendKeys('answer one');
+    await (await waitForElement(driver, '#answer')).sendKeys('word one reading');
     await (await waitForElement(driver, "[data-action='check']")).click();
     await waitForElement(driver, '.input-wrapper.correct');
     await waitForScript(
         driver,
-        "document.getElementById('mm-hud-streak')?.textContent === '1'",
-        'First resolved question was not counted',
+        "document.getElementById('mm-hud-combo')?.textContent === 'x1'",
+        'First sibling prompt was not scored',
     );
+    assert.equal(await text(driver, '#mm-hud-streak'), '0');
+    assert.equal(await count(driver, '#mm-summary.open'), 0);
     await (await waitForElement(driver, "[data-action='next']")).click();
-    await waitForElement(driver, "[data-question-id='fixture-question-2']");
+    await waitForElement(
+        driver,
+        "[data-fixture-item='1'][data-fixture-layout='meaning']:not(.correct):not(.incorrect)",
+    );
+    assert.equal((await hostSnapshot(driver)).wrapperReplacements, 0);
+    assert.equal(await text(driver, '.top_middle'), '0 / 2');
+    assert.equal(await text(driver, '#mm-hud-streak'), '0');
+
+    await (await waitForElement(driver, '#answer')).sendKeys('word one meaning');
+    await (await waitForElement(driver, "[data-action='check']")).click();
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-hud-combo')?.textContent === 'x2'",
+        'Second sibling prompt was not scored independently',
+    );
+    assert.equal(await text(driver, '#mm-hud-streak'), '0');
+    await (await waitForElement(driver, "[data-action='next']")).click();
+    await waitForElement(
+        driver,
+        "[data-fixture-item='2'][data-fixture-layout='reading']:not(.correct):not(.incorrect)",
+    );
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-hud-streak')?.textContent === '1'",
+        'Completed first item did not advance the word streak exactly once',
+    );
+    assert.equal(await text(driver, '.top_middle'), '1 / 2');
     await driver.executeScript('globalThis.__mmHost.repeatSignals();');
     await driver.sleep(950);
 
@@ -250,12 +281,37 @@ async function multiQuestionFinalizationContract(driver, baseUrl) {
     assert.equal(await text(driver, '#mm-hud-streak'), '1');
     assert.equal((await hostSnapshot(driver)).resolution, 'unresolved');
 
-    await (await waitForElement(driver, '#answer')).sendKeys('answer two');
+    await (await waitForElement(driver, '#answer')).sendKeys('word two reading');
     await (await waitForElement(driver, "[data-action='check']")).click();
     await waitForScript(
         driver,
+        "document.getElementById('mm-hud-combo')?.textContent === 'x3'",
+        'Final item reading prompt was not scored',
+    );
+    assert.equal(await text(driver, '#mm-hud-streak'), '1');
+    assert.equal(await count(driver, '#mm-summary.open'), 0);
+    await (await waitForElement(driver, "[data-action='next']")).click();
+    await waitForElement(
+        driver,
+        "[data-fixture-item='2'][data-fixture-layout='meaning']:not(.correct):not(.incorrect)",
+    );
+    assert.equal(await text(driver, '.top_middle'), '1 / 2');
+    assert.equal(await count(driver, '#mm-summary.open'), 0);
+
+    await (await waitForElement(driver, '#answer')).sendKeys('word two meaning');
+    await (await waitForElement(driver, "[data-action='check']")).click();
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-hud-combo')?.textContent === 'x4'",
+        'Final sibling prompt was not scored',
+    );
+    assert.equal(await text(driver, '#mm-hud-streak'), '1');
+    assert.equal(await count(driver, '#mm-summary.open'), 0);
+    await (await waitForElement(driver, "[data-action='next']")).click();
+    await waitForScript(
+        driver,
         "document.getElementById('mm-summary')?.classList.contains('open')",
-        'Resolved final question did not open the summary',
+        'Host N/N completion did not open the summary',
     );
     await driver.executeScript(`
         globalThis.__mmHost.repeatSignals();
@@ -265,8 +321,9 @@ async function multiQuestionFinalizationContract(driver, baseUrl) {
 
     const summary = await summarySnapshot(driver);
     assert.equal(summary.open, true);
-    assert.equal(summary.stats.CORRECT, '2');
+    assert.equal(summary.stats.CORRECT, '4');
     assert.equal(summary.stats['WORDS DONE'], '2');
+    assert.equal(await text(driver, '#mm-hud-streak'), '2');
     assert.equal(await count(driver, '#mm-summary.open'), 1);
 }
 
@@ -277,6 +334,15 @@ async function oneQuestionFinalizationContract(driver, baseUrl) {
 
     await (await waitForElement(driver, '#answer')).sendKeys('answer');
     await (await waitForElement(driver, "[data-action='check']")).click();
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-hud-score')?.textContent !== '0'",
+        'One-item answer was not scored',
+    );
+    await driver.sleep(950);
+    assert.equal(await count(driver, '#mm-summary.open'), 0);
+    assert.equal(await text(driver, '#mm-hud-streak'), '0');
+    await (await waitForElement(driver, "[data-action='next']")).click();
     await waitForScript(
         driver,
         "document.getElementById('mm-summary')?.classList.contains('open')",
@@ -294,18 +360,25 @@ async function finalIncorrectContract(driver, baseUrl) {
     await (await waitForElement(driver, "[data-action='wrong']")).click();
     await waitForScript(
         driver,
-        "document.getElementById('mm-summary')?.classList.contains('open')",
-        'Incorrect final resolution did not complete the session',
+        "document.getElementById('mm-hud-acc')?.textContent === '0%'",
+        'Incorrect attempt was not recorded',
     );
     await driver.executeScript('globalThis.__mmHost.repeatSignals();');
     await driver.sleep(950);
 
-    const summary = await summarySnapshot(driver);
-    assert.equal(summary.stats.CORRECT, '0');
-    assert.equal(summary.stats.INCORRECT, '1');
-    assert.equal(summary.stats['WORDS DONE'], '1');
-    assert.equal((await hostSnapshot(driver)).wrongClicks, 1);
-    assert.equal(await count(driver, '#mm-summary.open'), 1);
+    let snapshot = await hostSnapshot(driver);
+    assert.equal(snapshot.wrongClicks, 1);
+    assert.equal(snapshot.current, 0);
+    assert.equal(snapshot.resolution, 'incorrect');
+    assert.equal(await text(driver, '#mm-hud-streak'), '0');
+    assert.equal(await count(driver, '#mm-summary.open'), 0);
+
+    await (await waitForElement(driver, "[data-action='next']")).click();
+    await waitForElement(driver, '.input-wrapper:not(.correct):not(.incorrect)');
+    snapshot = await hostSnapshot(driver);
+    assert.equal(snapshot.current, 0);
+    assert.equal(snapshot.resolution, 'unresolved');
+    assert.equal(await count(driver, '#mm-summary.open'), 0);
 }
 
 async function finalTimeoutContract(driver, baseUrl) {
@@ -313,20 +386,19 @@ async function finalTimeoutContract(driver, baseUrl) {
     await (await waitForElement(driver, '#answer')).sendKeys('start timer');
     await waitForScript(
         driver,
-        "document.getElementById('mm-summary')?.classList.contains('open')",
-        'Final timeout did not reach the owned summary',
+        'globalThis.__mmHost.snapshot().nextClicks === 1',
+        'Timed-out incomplete item did not requeue exactly once',
         10_000,
     );
     await driver.sleep(500);
 
     const snapshot = await hostSnapshot(driver);
-    const summary = await summarySnapshot(driver);
     assert.equal(snapshot.wrongClicks, 1);
-    assert.equal(snapshot.nextClicks, 0);
-    assert.equal(snapshot.current, 1);
-    assert.equal(snapshot.resolution, 'incorrect');
-    assert.equal(summary.stats.INCORRECT, '1');
-    assert.equal(summary.stats['WORDS DONE'], '1');
+    assert.equal(snapshot.nextClicks, 1);
+    assert.equal(snapshot.current, 0);
+    assert.equal(snapshot.resolution, 'unresolved');
+    assert.equal(await text(driver, '#mm-hud-streak'), '0');
+    assert.equal(await count(driver, '#mm-summary.open'), 0);
 }
 
 async function summaryCleanupContract(driver, baseUrl) {
@@ -337,6 +409,12 @@ async function summaryCleanupContract(driver, baseUrl) {
         driver,
         "document.getElementById('mm-hud-score')?.textContent !== '0'",
         'Final answer was not processed before cleanup',
+    );
+    await (await waitForElement(driver, "[data-action='next']")).click();
+    await waitForScript(
+        driver,
+        "document.querySelector('.top_middle')?.textContent.trim() === '1 / 1'",
+        'Host did not confirm completion before cleanup',
     );
 
     await driver.executeScript("history.pushState({}, '', '/study-lists/reviews-archive');");
@@ -354,6 +432,12 @@ async function sameRouteSecondSessionContract(driver, baseUrl) {
         "document.getElementById('mm-hud-score')?.textContent !== '0'",
         'First session did not process its final answer',
     );
+    await (await waitForElement(driver, "[data-action='next']")).click();
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-hud-streak')?.textContent === '1'",
+        'First session did not record its completed item',
+    );
     await driver.executeScript("globalThis.__mmHost.resetSession('fixture-session-2', 1);");
     await waitForScript(
         driver,
@@ -365,6 +449,7 @@ async function sameRouteSecondSessionContract(driver, baseUrl) {
 
     await (await waitForElement(driver, '#answer')).sendKeys('second session');
     await (await waitForElement(driver, "[data-action='check']")).click();
+    await (await waitForElement(driver, "[data-action='next']")).click();
     await waitForScript(
         driver,
         "document.getElementById('mm-summary')?.classList.contains('open')",
@@ -402,6 +487,7 @@ async function rewindContract(driver, baseUrl) {
 
     await (await waitForElement(driver, '#answer')).sendKeys('answer again');
     await (await waitForElement(driver, "[data-action='check']")).click();
+    await (await waitForElement(driver, "[data-action='next']")).click();
     await waitForScript(
         driver,
         "document.getElementById('mm-summary')?.classList.contains('open')",
@@ -414,7 +500,7 @@ async function rewindContract(driver, baseUrl) {
 }
 
 async function rewindReplacementProgressContract(driver, baseUrl) {
-    await openFixture(driver, baseUrl, { total: 2 });
+    await openFixture(driver, baseUrl, { hostIds: true, total: 2 });
     await (await waitForElement(driver, '#answer')).sendKeys('answer one');
     await (await waitForElement(driver, "[data-action='check']")).click();
     await waitForScript(
@@ -424,11 +510,17 @@ async function rewindReplacementProgressContract(driver, baseUrl) {
     );
     const firstScore = await text(driver, '#mm-hud-score');
     await (await waitForElement(driver, "[data-action='next']")).click();
-    await waitForElement(driver, "[data-question-id='fixture-question-2']");
+    await waitForElement(driver, "[data-fixture-item='2']");
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-hud-streak')?.textContent === '1'",
+        'First completed item was not recorded before final rewind',
+    );
 
     await driver.executeScript("globalThis.__mmHost.setRewindMode('replace-progress');");
     await (await waitForElement(driver, '#answer')).sendKeys('answer two');
     await (await waitForElement(driver, "[data-action='check']")).click();
+    await (await waitForElement(driver, "[data-action='next']")).click();
     await waitForScript(
         driver,
         "!document.getElementById('mm-hud-rewind-btn')?.disabled",
@@ -438,7 +530,7 @@ async function rewindReplacementProgressContract(driver, baseUrl) {
     await waitForScript(
         driver,
         `document.querySelector(
-            "[data-question-id='fixture-question-2']:not(.correct):not(.incorrect)"
+            "[data-fixture-item='2']:not(.correct):not(.incorrect)"
         ) && document.querySelector('.top_middle')?.textContent.trim() === '1 / 2'`,
         'Wrapper-replacing progress rewind did not settle',
     );
@@ -449,6 +541,7 @@ async function rewindReplacementProgressContract(driver, baseUrl) {
     );
     await driver.sleep(950);
     assert.equal(await count(driver, '#mm-summary.open'), 0);
+    assert.equal(await text(driver, '#mm-hud-streak'), '1');
     assert.equal((await hostSnapshot(driver)).rewinds, 1);
 }
 
@@ -514,7 +607,9 @@ async function timeoutContract(driver, baseUrl) {
     const snapshot = await hostSnapshot(driver);
     assert.equal(snapshot.wrongClicks, 1);
     assert.equal(snapshot.nextClicks, 1);
-    assert.equal(snapshot.current, 2);
+    assert.equal(snapshot.current, 0);
+    assert.equal(snapshot.resolution, 'unresolved');
+    assert.equal(await text(driver, '#mm-hud-streak'), '0');
 }
 
 const CONTRACTS = Object.freeze([
@@ -522,8 +617,8 @@ const CONTRACTS = Object.freeze([
     ['answer processing and wrapper replacement', answerAndWrapperContract],
     ['multi-question finalization ownership', multiQuestionFinalizationContract],
     ['one-question finalization', oneQuestionFinalizationContract],
-    ['incorrect finalization', finalIncorrectContract],
-    ['final timeout without automatic advance', finalTimeoutContract],
+    ['incorrect attempt does not complete an item', finalIncorrectContract],
+    ['incomplete-item timeout requeues without finalizing', finalTimeoutContract],
     ['summary cancellation on cleanup', summaryCleanupContract],
     ['transactional final-answer rewind', rewindContract],
     ['rewind across wrapper and progress replacement', rewindReplacementProgressContract],

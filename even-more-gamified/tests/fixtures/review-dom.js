@@ -13,6 +13,7 @@ export function mountReviewFixture(
         current = 1,
         total = 3,
         questionId = 'question-1',
+        layout = null,
         resolution = 'unresolved',
         includeWrong = true,
         includeNext = true,
@@ -20,6 +21,7 @@ export function mountReviewFixture(
     } = {},
 ) {
     const resolutionClass = resolution === 'unresolved' ? '' : ` ${resolution}`;
+    const layoutClass = layout ? ` ${layout}` : '';
     document.body.className = '';
     document.body.innerHTML = `
     <section id="time-me">
@@ -29,7 +31,7 @@ export function mountReviewFixture(
         <div class="top_wrap">
           <main id="main"><span>問</span></main>
           <div class="item_types"></div>
-          <section class="input-wrapper${resolutionClass}" data-question-id="${questionId}">
+          <section class="input-wrapper${layoutClass}${resolutionClass}" data-question-id="${questionId}">
             <label>Answer <input id="answer" type="text" value="original"></label>
             <button type="button" data-action="check">Check</button>
             ${includeWrong ? '<button type="button" data-action="wrong">Wrong</button>' : ''}

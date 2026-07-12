@@ -14,13 +14,11 @@ function createHarness({ isCompletionCurrent = () => true } = {}) {
     lifecycle.mount();
     lifecycle.start();
     const ownership = mountQuestion(lifecycle);
-    const onQuestionCompleted = vi.fn();
     const onSessionCompleted = vi.fn();
     const onShowSummary = vi.fn();
     const controller = createSessionFinalizationController({
         lifecycle,
         isCompletionCurrent,
-        onQuestionCompleted,
         onSessionCompleted,
         onShowSummary,
     });
@@ -28,7 +26,6 @@ function createHarness({ isCompletionCurrent = () => true } = {}) {
         lifecycle,
         ownership,
         controller,
-        onQuestionCompleted,
         onSessionCompleted,
         onShowSummary,
     };
@@ -53,34 +50,51 @@ describe('resolution-gated session finalization', () => {
     });
 
     it('does not complete an unresolved final counter position', () => {
-        const { controller, lifecycle, ownership, onQuestionCompleted, onShowSummary } =
-            createHarness();
+        const { controller, lifecycle, ownership, onShowSummary } = createHarness();
 
         const result = record(controller, ownership, 1, 1);
         vi.advanceTimersByTime(1_000);
 
         expect(result).toMatchObject({ accepted: false, reason: 'question-not-resolved' });
         expect(lifecycle.sessionState).toBe(SESSION_STATES.ACTIVE);
-        expect(onQuestionCompleted).not.toHaveBeenCalled();
         expect(onShowSummary).not.toHaveBeenCalled();
     });
 
-    it('counts each owned question once and completes only the resolved final question', () => {
+    it('accepts zero completed items and deduplicates prompt resolution', () => {
+        const { controller, lifecycle, ownership } = createHarness();
+        lifecycle.resolve('correct');
+
+        expect(record(controller, ownership, 0, 2)).toMatchObject({
+            accepted: true,
+            reason: 'question-counted',
+            counted: true,
+            sessionCompleted: false,
+        });
+        expect(record(controller, ownership, 0, 2)).toMatchObject({
+            accepted: true,
+            reason: 'duplicate-resolution',
+            counted: false,
+            sessionCompleted: false,
+        });
+        expect(lifecycle.sessionState).toBe(SESSION_STATES.ACTIVE);
+        expect(controller.completedQuestionCount).toBe(1);
+    });
+
+    it('completes only after the same resolved final prompt reaches host N/N', () => {
         const {
             controller,
             lifecycle,
             ownership: q1,
-            onQuestionCompleted,
             onSessionCompleted,
             onShowSummary,
         } = createHarness();
         lifecycle.resolve('correct');
 
-        expect(record(controller, q1, 1, 2)).toMatchObject({
+        expect(record(controller, q1, 0, 2)).toMatchObject({
             counted: true,
             sessionCompleted: false,
         });
-        expect(record(controller, q1, 1, 2)).toMatchObject({
+        expect(record(controller, q1, 0, 2)).toMatchObject({
             counted: false,
             sessionCompleted: false,
         });
@@ -88,9 +102,14 @@ describe('resolution-gated session finalization', () => {
 
         const q2 = mountQuestion(lifecycle, 'q2');
         lifecycle.resolve('correct');
+        expect(record(controller, q2, 1, 2)).toMatchObject({
+            reason: 'question-counted',
+            counted: true,
+            sessionCompleted: false,
+        });
         expect(record(controller, q2, 2, 2)).toMatchObject({
             reason: 'session-completed',
-            counted: true,
+            counted: false,
             sessionCompleted: true,
         });
         expect(record(controller, q2, 2, 2)).toMatchObject({
@@ -101,27 +120,22 @@ describe('resolution-gated session finalization', () => {
 
         vi.advanceTimersByTime(800);
         vi.advanceTimersByTime(800);
-        expect(onQuestionCompleted).toHaveBeenCalledTimes(2);
         expect(onSessionCompleted).toHaveBeenCalledTimes(1);
         expect(onShowSummary).toHaveBeenCalledTimes(1);
         expect(controller.completedQuestionCount).toBe(2);
     });
 
     it.each(['correct', 'incorrect'])(
-        'counts a one-question %s result before summary',
+        'requires host completion after a one-item %s result',
         (result) => {
-            const {
-                controller,
-                lifecycle,
-                ownership,
-                onQuestionCompleted,
-                onSessionCompleted,
-                onShowSummary,
-            } = createHarness();
+            const { controller, lifecycle, ownership, onSessionCompleted, onShowSummary } =
+                createHarness();
             lifecycle.resolve(result);
 
+            expect(record(controller, ownership, 0, 1, result)).toMatchObject({
+                sessionCompleted: false,
+            });
             record(controller, ownership, 1, 1, result);
-            expect(onQuestionCompleted).toHaveBeenCalledTimes(1);
             expect(onSessionCompleted).toHaveBeenCalledTimes(1);
             expect(onShowSummary).not.toHaveBeenCalled();
             vi.advanceTimersByTime(800);
@@ -132,6 +146,7 @@ describe('resolution-gated session finalization', () => {
     it('cancels the owned summary callback during cleanup', () => {
         const { controller, lifecycle, ownership, onShowSummary } = createHarness();
         lifecycle.resolve('correct');
+        record(controller, ownership, 0, 1);
         record(controller, ownership, 1, 1);
 
         vi.advanceTimersByTime(799);
@@ -143,9 +158,9 @@ describe('resolution-gated session finalization', () => {
     });
 
     it('cancels finalization on confirmed rewind and permits one clean re-answer', () => {
-        const { controller, lifecycle, ownership, onQuestionCompleted, onShowSummary } =
-            createHarness();
+        const { controller, lifecycle, ownership, onShowSummary } = createHarness();
         lifecycle.resolve('correct');
+        record(controller, ownership, 0, 1);
         record(controller, ownership, 1, 1);
 
         lifecycle.beginRewind();
@@ -156,11 +171,11 @@ describe('resolution-gated session finalization', () => {
         expect(controller.isComplete).toBe(false);
 
         lifecycle.resolve('correct');
+        record(controller, ownership, 0, 1);
         record(controller, ownership, 1, 1);
         record(controller, ownership, 1, 1);
         vi.advanceTimersByTime(800);
 
-        expect(onQuestionCompleted).toHaveBeenCalledTimes(2);
         expect(onShowSummary).toHaveBeenCalledTimes(1);
     });
 
@@ -170,6 +185,7 @@ describe('resolution-gated session finalization', () => {
             isCompletionCurrent,
         });
         lifecycle.resolve('correct');
+        record(controller, ownership, 0, 1);
         record(controller, ownership, 1, 1);
 
         vi.advanceTimersByTime(800);
@@ -179,26 +195,27 @@ describe('resolution-gated session finalization', () => {
     });
 
     it('rejects stale ownership from a previous question generation', () => {
-        const { controller, lifecycle, ownership: q1, onQuestionCompleted } = createHarness();
+        const { controller, lifecycle, ownership: q1 } = createHarness();
         lifecycle.resolve('correct');
         mountQuestion(lifecycle, 'q2');
 
-        expect(record(controller, q1, 1, 2)).toMatchObject({
+        expect(record(controller, q1, 0, 2)).toMatchObject({
             accepted: false,
             reason: 'stale-owner',
         });
-        expect(onQuestionCompleted).not.toHaveBeenCalled();
     });
 
     it('cannot leak a summary callback into a same-route second session', () => {
         const first = createHarness();
         first.lifecycle.resolve('correct');
+        record(first.controller, first.ownership, 0, 1);
         record(first.controller, first.ownership, 1, 1);
         first.controller.cleanup();
         first.lifecycle.cleanup();
 
         const second = createHarness();
         second.lifecycle.resolve('correct');
+        record(second.controller, second.ownership, 0, 1);
         record(second.controller, second.ownership, 1, 1);
         vi.advanceTimersByTime(800);
 

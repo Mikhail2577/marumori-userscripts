@@ -3,32 +3,54 @@
 
     const root = document.getElementById('time-me');
     const counter = root.querySelector('.top_middle');
+    const modals = document.getElementById('modals');
     const parameters = globalThis.__mmBrowserContractParameters || {};
     const state = {
         checks: 0,
-        current: 1,
+        current: 0,
+        item: 1,
+        layoutIndex: 0,
+        layoutsPerItem: Math.min(2, Math.max(1, Number(parameters.layouts) || 1)),
         nextClicks: 0,
         nextResult: 'correct',
         resolutions: 0,
         rewindDelayMs: 900,
         rewindMode: 'in-place',
         rewinds: 0,
+        terminal: false,
         total: Math.max(1, Number(parameters.total) || 3),
+        wrapperReplacements: 0,
         wrongClicks: 0,
     };
+    const layoutNames = ['reading', 'meaning'];
 
     function wrapper() {
         return root.querySelector('.input-wrapper');
+    }
+
+    function activeLayout() {
+        if (state.layoutsPerItem === 1) return 'meaning';
+        return layoutNames[state.layoutIndex];
     }
 
     function updateCounter() {
         counter.textContent = `${state.current} / ${state.total}`;
     }
 
-    function createWrapper(questionNumber = state.current) {
+    function updateFixtureIdentity(activeWrapper) {
+        activeWrapper.dataset.fixtureItem = String(state.item);
+        activeWrapper.dataset.fixtureLayout = activeLayout();
+        if (parameters.hostIds === '1') {
+            activeWrapper.dataset.questionId = `fixture-item-${state.item}-${activeLayout()}`;
+        } else {
+            delete activeWrapper.dataset.questionId;
+        }
+    }
+
+    function createWrapper() {
         const section = document.createElement('section');
-        section.className = 'input-wrapper';
-        section.dataset.questionId = `fixture-question-${questionNumber}`;
+        section.className = `input-wrapper ${activeLayout()}`;
+        updateFixtureIdentity(section);
         section.innerHTML = `
             <label>
                 Answer
@@ -44,8 +66,37 @@
         return section;
     }
 
-    function replaceQuestion(questionNumber = state.current) {
-        wrapper()?.replaceWith(createWrapper(questionNumber));
+    function replaceQuestion() {
+        state.wrapperReplacements += 1;
+        wrapper()?.replaceWith(createWrapper());
+    }
+
+    function reuseWrapperForLayout() {
+        const activeWrapper = wrapper();
+        if (!activeWrapper) return;
+        activeWrapper.classList.remove(
+            'correct',
+            'incorrect',
+            'reading',
+            'meaning',
+            'unscramble',
+            'fill-in-the-blank',
+        );
+        activeWrapper.classList.add(activeLayout());
+        updateFixtureIdentity(activeWrapper);
+        const input = activeWrapper.querySelector('#answer');
+        if (input) input.value = '';
+    }
+
+    function clearDoneModal() {
+        modals.replaceChildren();
+    }
+
+    function showDoneModal() {
+        const modal = document.createElement('section');
+        modal.className = 'lesson-done-modal';
+        modal.innerHTML = '<h1>Done with all your reviews!</h1>';
+        modals.replaceChildren(modal);
     }
 
     function resolve(result) {
@@ -57,19 +108,45 @@
 
     function nextQuestion() {
         state.nextClicks += 1;
+        const activeWrapper = wrapper();
+        const correct = activeWrapper?.classList.contains('correct');
+        const incorrect = activeWrapper?.classList.contains('incorrect');
+        if (!correct && !incorrect) return;
+
+        if (incorrect) {
+            reuseWrapperForLayout();
+            return;
+        }
+
+        if (state.layoutIndex + 1 < state.layoutsPerItem) {
+            state.layoutIndex += 1;
+            reuseWrapperForLayout();
+            return;
+        }
+
         state.current = Math.min(state.total, state.current + 1);
         updateCounter();
+        if (state.current === state.total) {
+            state.terminal = true;
+            showDoneModal();
+            return;
+        }
+
+        state.item += 1;
+        state.layoutIndex = 0;
         replaceQuestion();
     }
 
     function applyRewind() {
         const activeWrapper = wrapper();
-        const logicalQuestionId = activeWrapper?.dataset.questionId;
         if (state.rewindMode === 'replace-progress') {
-            state.current = Math.max(1, state.current - 1);
-            updateCounter();
+            if (state.terminal) {
+                state.current = Math.max(0, state.current - 1);
+                state.terminal = false;
+                clearDoneModal();
+                updateCounter();
+            }
             const replacement = createWrapper();
-            if (logicalQuestionId) replacement.dataset.questionId = logicalQuestionId;
             activeWrapper?.replaceWith(replacement);
             return;
         }
@@ -100,10 +177,11 @@
         }
     });
 
+    state.layoutIndex = 0;
+    reuseWrapperForLayout();
     updateCounter();
 
     globalThis.__mmHost = Object.freeze({
-        replaceQuestion,
         repeatSignals() {
             const activeWrapper = wrapper();
             activeWrapper?.setAttribute('class', activeWrapper.getAttribute('class') || '');
@@ -111,18 +189,23 @@
         },
         resetSession(sessionId = 'fixture-session-2', total = state.total) {
             state.checks = 0;
-            state.current = 1;
+            state.current = 0;
+            state.item = 1;
+            state.layoutIndex = 0;
             state.nextClicks = 0;
             state.nextResult = 'correct';
             state.resolutions = 0;
             state.rewindDelayMs = 900;
             state.rewindMode = 'in-place';
             state.rewinds = 0;
+            state.terminal = false;
             state.total = Math.max(1, Number(total) || state.total);
+            state.wrapperReplacements = 0;
             state.wrongClicks = 0;
             root.dataset.sessionId = sessionId;
+            clearDoneModal();
             updateCounter();
-            replaceQuestion(1);
+            replaceQuestion();
         },
         setNextResult(result) {
             state.nextResult = result === 'incorrect' ? 'incorrect' : 'correct';
@@ -134,6 +217,7 @@
         snapshot() {
             return {
                 ...state,
+                layout: activeLayout(),
                 resolution: wrapper()?.classList.contains('correct')
                     ? 'correct'
                     : wrapper()?.classList.contains('incorrect')

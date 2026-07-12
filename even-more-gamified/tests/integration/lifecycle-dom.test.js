@@ -70,6 +70,21 @@ describe('session and question lifecycle', () => {
         expect(lifecycle.questionGeneration).toBe(2);
     });
 
+    it('can begin a new attempt for the same prompt identity', () => {
+        const lifecycle = createLifecycleController();
+        lifecycle.mount();
+        lifecycle.start();
+        lifecycle.beginQuestion('q1');
+        lifecycle.resolve('incorrect');
+        const previousOwnership = lifecycle.captureOwnership();
+
+        lifecycle.beginQuestion('q1', { force: true });
+
+        expect(lifecycle.questionState).toBe(QUESTION_STATES.AWAITING_ANSWER);
+        expect(lifecycle.questionGeneration).toBe(2);
+        expect(lifecycle.owns(previousOwnership)).toBe(false);
+    });
+
     it('gives a same-route remount a fresh session generation and scope', () => {
         const lifecycle = createLifecycleController();
         lifecycle.mount();
@@ -178,7 +193,7 @@ describe('fail-closed MaruMori DOM adapter', () => {
         expect(after.progress).toMatchObject({ current: 1, total: 3 });
     });
 
-    it('fails closed on conflicting host IDs and uses a strict fallback without one', () => {
+    it('fails closed on conflicting host IDs and uses a wrapper-owned fallback without one', () => {
         fixture.wrapper.dataset.itemId = 'conflict';
         expect(adapter.getQuestionIdentity()).toBeNull();
         expect(adapter.readQuestionContext()).toBeNull();
@@ -189,7 +204,28 @@ describe('fail-closed MaruMori DOM adapter', () => {
         expect(fallback).toMatchObject({ identityKind: 'fallback' });
 
         fixture.counter.textContent = '2 / 3';
+        expect(adapter.getQuestionIdentity()).toBe(fallback.logicalQuestionIdentity);
+
+        replaceQuestionWrapper(fixture, { questionId: 'question-2' });
+        delete fixture.wrapper.dataset.questionId;
         expect(adapter.getQuestionIdentity()).not.toBe(fallback.logicalQuestionIdentity);
+    });
+
+    it('distinguishes sibling layouts that reuse one host wrapper', () => {
+        fixture.wrapper.classList.add('reading');
+        const reading = adapter.readQuestionContext();
+
+        fixture.wrapper.classList.remove('reading');
+        fixture.wrapper.classList.add('meaning');
+        const meaning = adapter.readQuestionContext();
+
+        expect(reading).toMatchObject({ questionLayout: 'reading' });
+        expect(meaning).toMatchObject({ questionLayout: 'meaning' });
+        expect(meaning.domGeneration).toBe(reading.domGeneration);
+        expect(meaning.logicalQuestionIdentity).not.toBe(reading.logicalQuestionIdentity);
+
+        fixture.wrapper.classList.add('reading');
+        expect(adapter.readQuestionContext()).toBeNull();
     });
 
     it('fails closed when two review wrappers are simultaneously visible', () => {

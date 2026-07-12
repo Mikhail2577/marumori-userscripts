@@ -32,7 +32,7 @@ function isValidProgress(progress) {
         Number.isInteger(progress?.current) &&
         Number.isInteger(progress?.total) &&
         progress.total > 0 &&
-        progress.current >= 1 &&
+        progress.current >= 0 &&
         progress.current <= progress.total
     );
 }
@@ -43,14 +43,14 @@ function response(accepted, reason, extra = {}) {
 
 /**
  * Owns the resolution-gated session-completion contract for one mounted session.
- * A final counter position is only progress metadata; completion requires the
- * currently owned logical question to have reached a confirmed resolved state.
+ * MaruMori's counter reports completed items and starts at zero. Reaching the
+ * final counter position is therefore a host completion signal, but finalization
+ * still requires the currently owned prompt to be confirmed as resolved.
  */
 export function createSessionFinalizationController({
     lifecycle,
     summaryDelayMs = 800,
     isCompletionCurrent = () => true,
-    onQuestionCompleted = () => {},
     onSessionCompleted = () => {},
     onShowSummary = () => {},
 } = {}) {
@@ -115,7 +115,6 @@ export function createSessionFinalizationController({
         const counted = !completedOwnerships.has(key);
         if (counted) {
             completedOwnerships.add(key);
-            onQuestionCompleted({ ownership, questionIdentity, progress, resolution });
         }
 
         if (progress.current !== progress.total) {

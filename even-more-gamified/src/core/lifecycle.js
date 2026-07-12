@@ -149,12 +149,16 @@ export class LifecycleController {
         return true;
     }
 
-    beginQuestion(questionId, { awaitingFirstInput = false } = {}) {
+    beginQuestion(questionId, { awaitingFirstInput = false, force = false } = {}) {
         if (this.sessionState !== SESSION_STATES.ACTIVE) return null;
         if (questionId === null || questionId === undefined || questionId === '') {
             return null;
         }
-        if (this.questionId === questionId && this.questionState !== QUESTION_STATES.INACTIVE) {
+        if (
+            !force &&
+            this.questionId === questionId &&
+            this.questionState !== QUESTION_STATES.INACTIVE
+        ) {
             return this.captureOwnership();
         }
 

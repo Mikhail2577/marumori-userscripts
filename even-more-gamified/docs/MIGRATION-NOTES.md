@@ -13,6 +13,20 @@ Tampermonkey or Violentmonkey sessions; the remaining browser work is listed in
 
 These are deliberate behavior changes rather than visual or gameplay redesigns.
 
+### Separate prompt and completed-item ownership
+
+MaruMori expands vocabulary and kanji items into reading/meaning prompts, while
+its `0 / N` counter advances only when all remaining layouts for one item are
+cleared. Answer scoring is therefore owned by prompt resolution; word streak,
+word-clear feedback, and `WORDS DONE` are owned only by a positive completed-item
+counter edge. Known layout classes distinguish sibling prompts even when the host
+reuses one wrapper. Incorrect same-layout retries start a fresh attempt generation
+without resetting the session.
+
+Coverage: [`tests/unit/session-finalization.test.js`](../tests/unit/session-finalization.test.js),
+[`tests/integration/lifecycle-dom.test.js`](../tests/integration/lifecycle-dom.test.js),
+and the production-bundle contracts under [`tests/browser/`](../tests/browser/).
+
 ### Transactional rewind
 
 Previously, local score/combo state could be restored after a click or fixed delay
