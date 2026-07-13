@@ -34,7 +34,7 @@
 - [x] Phase 9 — Release engineering
 - [x] Phase 10 — Additional low-risk hardening
 - [x] Phase 11 — Evidence-gated investigations
-- [ ] Phase 12 — Final automated validation
+- [x] Phase 12 — Final automated validation
 - [ ] Manual Checkpoint C
 - [ ] Phase 13 — Public artifact verification
 - [ ] Final report
@@ -139,12 +139,12 @@
 
 ## Manual Validation
 
-- Manual Checkpoint A: the first candidate was withdrawn on 2026-07-12 after the user questioned word-streak tracking. Diagnosis confirmed that its one-prompt/one-word, one-based fixture was incompatible with live MaruMori multi-layout semantics. The word-streak-only candidate (`74b8c363…`) was then superseded after the timer feedback below. Current corrected candidate version `3.9.0`; `.user.js` 460,329 bytes / SHA-256 `632b8853d077bc5de976de0af77e5f31c688851abf9497c0e8312f5b12086d7b`; `.meta.js` 1,127 bytes / SHA-256 `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
+- Manual Checkpoint A: the first candidate was withdrawn on 2026-07-12 after the user questioned word-streak tracking. Diagnosis confirmed that its one-prompt/one-word, one-based fixture was incompatible with live MaruMori multi-layout semantics. The word-streak-only candidate (`74b8c363…`) was then superseded after the timer feedback below. That timer-corrected candidate used version `3.9.0`; `.user.js` 460,329 bytes / SHA-256 `632b8853d077bc5de976de0af77e5f31c688851abf9497c0e8312f5b12086d7b`; `.meta.js` 1,127 bytes / SHA-256 `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
 - Revised Checkpoint A semantics: live progress begins at `0 / N`; sibling prompts do not advance word streak; the last sibling plus host advancement produces one word edge; final summary follows the resolved `N / N` host transition; incorrect/timeout attempts below `N / N` requeue without a word or summary; rewind after final completion restores the prior completed-item count.
 - Manual Checkpoint A received a second correction on 2026-07-12: only the session's first timer waits for a keystroke; all later reading/meaning prompt timers must start immediately on Next. The first candidate could consume that gate even when ownership failed to arm, and input retargeting considered disconnection but not a still-connected stale node.
 - The user confirmed the corrected live timer behavior on 2026-07-12. The remaining Checkpoint A scenarios were not claimed as passed and, by explicit user direction on 2026-07-13, are deferred into the combined post-Phase 12 manual validation.
 - Manual Checkpoint B: deferred into the combined post-Phase 12 manual validation by explicit user direction; not passed.
-- Manual Checkpoint C: not yet presented.
+- Manual Checkpoint C: prepared on 2026-07-13 and consolidated with the unpassed remainder of Checkpoints A/B. Release candidate `3.9.0`; `.user.js` 486,030 bytes / SHA-256 `3f1834575039ac245a19d37f386e199925da0708bed53682a7cedd0f06153be4`; `.meta.js` 1,127 bytes / SHA-256 `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`. Awaiting the user's authenticated Firefox/Safari validation; Phase 13 remains blocked.
 
 ## Deferred Items
 
@@ -298,7 +298,7 @@ and Safari performance/energy tools.
 - Checkpoint A timer correction `npm run check`: passed in full, including 33 Vitest files / 240 tests, build validation, syntax, lint, and formatting.
 - Final timer-corrected `npm run test:browser:firefox`: passed all 14 production-bundle contracts.
 - Final timer-corrected `npm run test:browser:safari`: passed all 14 production-bundle contracts after Safari Remote Automation was enabled.
-- Current Checkpoint A candidate hashes: `.user.js` `632b8853d077bc5de976de0af77e5f31c688851abf9497c0e8312f5b12086d7b`; `.meta.js` `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
+- Timer-corrected Checkpoint A candidate hashes: `.user.js` `632b8853d077bc5de976de0af77e5f31c688851abf9497c0e8312f5b12086d7b`; `.meta.js` `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
 - Phase 4 resumed core baseline: 5 files / 50 tests passed before changes.
 - Phase 4 focused suites: 6 files / 51 tests passed.
 - Phase 4 `npm run lint`: passed.
@@ -326,3 +326,12 @@ and Safari performance/energy tools.
 - Phase 10 artifact sizes/hashes: `.user.js` 486,030 bytes / `3f1834575039ac245a19d37f386e199925da0708bed53682a7cedd0f06153be4`; `.meta.js` 1,127 bytes / `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
 - Phase 11 deterministic Matrix operation-count harness: completed for six viewport/profile combinations over 3,600 seeded frames each; no runtime instrumentation was retained.
 - Phase 11 reconciliation scheduling/selector instrumentation and static broad-selector/CRT inventories: completed; no speculative production code change was justified.
+- Phase 12 began from clean, synchronized commit `7ec0e41` on Node `v26.4.0` / npm `11.17.0`.
+- Phase 12 `npm run lint`, `npm run test`, `npm run build`, and the non-mutating `npm run check`: passed. The complete suite remains 41 files / 343 tests, and rebuilding left committed `dist/` unchanged.
+- Phase 12 Firefox production-bundle run: passed all 16 contracts.
+- Phase 12 Safari production-bundle run: after the user authorized closing Safari, a clean full run passed the first two contracts and WebDriver hung during the long multi-question contract. That contract also hung without an assertion result in a fresh isolated session. The other 15 contracts all passed in clean focused Safari runs, including first-input/per-prompt timing, summary accessibility/cleanup, all four rewind contracts, both timeout contracts, finalization, remount, and persistence. The multi-question word-progression contract remains unclaimed and belongs in live validation.
+- Phase 12 `npm audit`: passed against the registry with 0 vulnerabilities.
+- Phase 12 security/release inspection: package/user/meta versions are all `3.9.0`; metadata begins at byte zero; no production map or source-map reference, dynamic import, runtime module-loader marker, `eval`, `new Function`, `unsafeWindow`, `@require`, or test marker was found; both artifacts pass AST/metadata validation and deterministic byte comparison.
+- Phase 12 pinned assets: current Shrine/Night View Git blob IDs exactly match their files at pinned commit `f997afc94074989ec324590d7df08960a2633f52`. SHA-256: Shrine `5e36d913c135a59f53c49ebdedb4fdfb43935c370a23ebf5ef94aa60bb7a8163`; Night View `c830b42f6e2fe50b27cbccf8fc4124a3961a173df675dec9c422102f6e7d1f50`.
+- Phase 12 hosted CI: the Node 24 locked-install/non-mutating check completed successfully for commits `ce1f60b` and `7ec0e41`; latest recorded run: `https://github.com/Mikhail2577/marumori-userscripts/actions/runs/29268212616`.
+- Release candidate `3.9.0`: `.user.js` 486,030 bytes / SHA-256 `3f1834575039ac245a19d37f386e199925da0708bed53682a7cedd0f06153be4`; `.meta.js` 1,127 bytes / SHA-256 `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
