@@ -132,7 +132,7 @@ export async function buildUserscript({
         ? `${bundledSource.trimEnd()}\n//# sourceMappingURL=${OUTPUT_FILES.userscript}.map\n`
         : bundledSource;
     const metadataSource = `${USER_SCRIPT_METADATA}\n`;
-    validateUserscriptSource(userscriptSource);
+    validateUserscriptSource(userscriptSource, { production: !development });
     validateMetadataSource(metadataSource);
 
     await mkdir(resolvedOutdir, { recursive: true });

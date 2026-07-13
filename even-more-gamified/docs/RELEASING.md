@@ -23,9 +23,9 @@ Update `package.json` and `package-lock.json` without creating a tag automatical
 npm version <new-version> --no-git-tag-version
 ```
 
-Set the same `@version` in [`build/metadata.mjs`](../build/metadata.mjs), and add
-the release notes to [`CHANGELOG.md`](../CHANGELOG.md). The metadata version is
-canonical for the installed userscript and is not inferred from `package.json`.
+Add the release notes to [`CHANGELOG.md`](../CHANGELOG.md). `package.json` is the
+single version source: the metadata builder derives `@version` from it, and release
+validation requires the `.user.js`, `.meta.js`, and package versions to agree.
 
 ## 3. Update immutable asset pins when needed
 
@@ -50,16 +50,19 @@ require repinning unchanged assets.
 ## 4. Run the release gate
 
 ```sh
+npm run build
 npm run check
 ```
 
-This command checks the preserved legacy syntax, lint, tests, production build,
-metadata/bundle security rules, generated syntax, and formatting. The production
-build is readable and removes any development `.map` left in `dist/`.
+The explicit build updates `dist/` and removes any development `.map`. The check
+then verifies preserved legacy syntax, lint, tests, metadata/bundle security rules,
+generated syntax, formatting, and release reproducibility. It builds the complete
+source twice under a temporary OS directory and compares both `.user.js` and
+`.meta.js` byte-for-byte with committed `dist/`.
 
-If documentation or release notes changed after the gate, rerun it. `npm run check`
-already performs the final `npm run build`; running `npm run build` again is safe
-but should not change the output.
+`npm run check` never updates `dist/`; a stale or missing artifact is a failure. If
+source changes after the gate, rerun `npm run build` and then `npm run check`. If
+only documentation or release notes change, rerun the check without rebuilding.
 
 On the macOS release machine, also run the account-free Firefox/Safari contracts:
 

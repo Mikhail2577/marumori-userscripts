@@ -31,7 +31,7 @@
 - [x] Phase 7 — Accessibility
 - [x] Phase 8 — Low-risk rendering and privacy fixes
 - [ ] Manual Checkpoint B — deferred into the consolidated post-Phase 12 validation
-- [ ] Phase 9 — Release engineering
+- [x] Phase 9 — Release engineering
 - [ ] Phase 10 — Additional low-risk hardening
 - [ ] Phase 11 — Evidence-gated investigations
 - [ ] Phase 12 — Final automated validation
@@ -77,6 +77,8 @@
 - Phase 7 moves summary ownership into a dedicated dialog controller. Opening the summary captures focus and the exact `inert`/`aria-hidden` state of every background body child, focuses Continue, traps forward/backward Tab navigation, and blocks programmatic background focus. Close, confirmed rewind, route cleanup, and remount restore background state and focus without leaking document listeners.
 - Settings range inputs now have stable programmatic labels, and every userscript control family has a theme-aware `:focus-visible` outline. The hidden-HUD recovery launcher remains outside the inert HUD and its Phase 4 accessibility state survives a summary cycle exactly.
 - Phase 8 gives shooting stars explicit backing-canvas bounds. Spawn, trail, update, and directional culling share that coordinate system, and resize/teardown clears trails expressed in obsolete bounds. Shrine and Night View retain the GM resource primary path; their one-shot direct fallback now assigns anonymous CORS and `no-referrer` before `src` without adding a request.
+- Phase 9 makes `package.json` the only maintained version source. Production metadata, `.user.js`, and `.meta.js` must agree; development and production builds use the same derived metadata.
+- Release verification now builds the complete source twice in a temporary workspace, validates and compares both outputs, compares both committed artifacts byte-for-byte, and cleans up in `finally`. `npm run check` is non-mutating and reports stale/missing artifacts; only `npm run build` writes `dist/`.
 
 ### Phase 0 subsystem map
 
@@ -125,6 +127,7 @@
 - `tests/unit/settings-panel.test.js`, `tests/unit/summary-dialog.test.js`, and `tests/regression/source-invariants.test.js`: stable slider label association, unique remount IDs, visible-focus contracts, dialog semantics, focus trapping/restoration, exact inert/ARIA restoration, repeated cycles, and cleanup while open.
 - `tests/browser/run-browser-contract.js`: production-bundle summary semantics, hidden-HUD preservation, focus ownership, and route-cleanup restoration. The Firefox/Safari-compatible suite now contains 15 contracts.
 - `tests/unit/shooting-stars.test.js` and `tests/unit/background-image-loading.test.js`: capped backing coordinates, trail cleanup/culling, GM-primary image loading, and direct-fallback assignment order.
+- `tests/build/build-userscript.test.js` and `tests/build/verify-release.test.js`: authoritative version agreement, metadata byte-zero, production source-map rejection, both-artifact version mismatch, exactly two real builds, stale/missing user/meta artifacts, nondeterminism, non-mutating committed output, and temporary cleanup.
 
 ## Manual Validation
 
@@ -200,3 +203,5 @@
 - Phases 7–8 production build and the combined pre-commit gate: passed, including 40 Vitest files / 307 tests, generated syntax/metadata validation, formatting, and the real-source deterministic verifier.
 - Phases 7–8 Firefox production-bundle run: passed all 15 contracts, including modal focus/background ownership and cleanup restoration.
 - Phases 7–8 artifact hashes: `.user.js` `e1d120f5bc92bf01a142cb6de2ff0331375657cc7774bfeb3736459c96faf33f`; `.meta.js` `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
+- Phase 9 focused release suites: 30/30 tests passed; complete combined suite: 40 files / 307 tests passed.
+- Phase 9 `npm run build`, real-source `npm run verify:release`, full non-mutating `npm run check`, lint, formatting, generated syntax, and `git diff --check`: passed. The `.user.js` hash remained `e1d120f5bc92bf01a142cb6de2ff0331375657cc7774bfeb3736459c96faf33f` before and after `npm run check`.

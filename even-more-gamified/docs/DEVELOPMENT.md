@@ -28,23 +28,27 @@ npm run test:browser
 npm run lint
 npm run format
 npm run format:check
+npm run verify:release
 npm run check
 ```
 
-| Command                | Purpose                                                                                                                        |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `npm run build`        | Creates a readable production IIFE and metadata file under `dist/`; removes a stale development map.                           |
-| `npm run build:dev`    | Creates the same installable shape with retained function names and an external `.user.js.map`.                                |
-| `npm run test`         | Runs the Vitest unit, integration, regression, and build suites once.                                                          |
-| `npm run test:watch`   | Runs Vitest in watch mode.                                                                                                     |
-| `npm run test:browser` | Builds and runs five account-free production-bundle contracts in installed Firefox and Safari.                                 |
-| `npm run lint`         | Lints source, build scripts, tests, configs, and the preserved legacy script.                                                  |
-| `npm run format`       | Formats source CSS/JavaScript, build/test/config files, and project Markdown.                                                  |
-| `npm run format:check` | Checks formatting without changing files.                                                                                      |
-| `npm run check`        | Runs legacy syntax, lint, all tests, a production build, build validation, generated syntax validation, and formatting checks. |
+| Command                  | Purpose                                                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `npm run build`          | Creates a readable production IIFE and metadata file under `dist/`; removes a stale development map.                           |
+| `npm run build:dev`      | Creates the same installable shape with retained function names and an external `.user.js.map`.                                |
+| `npm run test`           | Runs the Vitest unit, integration, regression, and build suites once.                                                          |
+| `npm run test:watch`     | Runs Vitest in watch mode.                                                                                                     |
+| `npm run test:browser`   | Builds and runs the account-free production-bundle contracts in installed Firefox and Safari.                                  |
+| `npm run lint`           | Lints source, build scripts, tests, configs, and the preserved legacy script.                                                  |
+| `npm run format`         | Formats source CSS/JavaScript, build/test/config files, and project Markdown.                                                  |
+| `npm run format:check`   | Checks formatting without changing files.                                                                                      |
+| `npm run verify:release` | Builds the real source twice in temporary directories, validates both artifacts, and compares them byte-for-byte with `dist/`. |
+| `npm run check`          | Runs legacy syntax, lint, all tests, non-mutating release verification, generated syntax validation, and formatting checks.    |
 
-`npm run check` is the release gate. Run focused tests while developing, but run
-the full command before handing off a build.
+`npm run build` is the only release command that updates `dist/`. `npm run check`
+is deliberately non-mutating: it fails when committed artifacts are absent or
+stale instead of repairing them. Run focused tests while developing, then run
+`npm run build` followed by the full check before handing off an artifact.
 
 ## Source and generated-file ownership
 

@@ -270,6 +270,19 @@ Coverage:
 [`tests/build/build-userscript.test.js`](../tests/build/build-userscript.test.js)
 and [`tests/regression/navigation.test.js`](../tests/regression/navigation.test.js).
 
+### Reproducible, non-mutating release verification
+
+`package.json` is now the single version source for both generated artifacts.
+Production checks reject package/user/meta version drift and source-map leakage.
+The release verifier builds the complete source twice under a temporary directory,
+validates both results, compares them with each other and committed `dist/`, then
+cleans up on success or failure. `npm run check` no longer rebuilds stale artifacts;
+`npm run build` is the explicit writer.
+
+Coverage:
+[`tests/build/build-userscript.test.js`](../tests/build/build-userscript.test.js)
+and [`tests/build/verify-release.test.js`](../tests/build/verify-release.test.js).
+
 ## Font Challenge network and privacy
 
 The userscript has no remote executable dependency. `SHRINE` and `NIGHT VIEW` are

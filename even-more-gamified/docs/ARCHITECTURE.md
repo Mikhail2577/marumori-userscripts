@@ -228,7 +228,8 @@ monotonic deadline remain unchanged.
 [`build/build-userscript.mjs`](../build/build-userscript.mjs) uses esbuild with an
 ES2020 browser target, no splitting, and a CSS-inlining plugin. It prepends the
 canonical metadata, generated-file warning, and strict directive before emitting
-one IIFE.
+one IIFE. `package.json` is the authoritative version source; both generated
+artifacts receive that exact version through [`build/metadata.mjs`](../build/metadata.mjs).
 
 [`build/validate-build.mjs`](../build/validate-build.mjs) parses metadata and the
 executable AST. It rejects malformed metadata, unexpected grants/resources,
@@ -236,3 +237,11 @@ mutable GitHub resource revisions, `@require`, dynamic imports, runtime evaluato
 remote script elements/workers, and a non-IIFE bundle shape. The two external
 image resources are non-executable and commit-pinned. Optional Google Fonts
 stylesheets are allowlisted by Font Challenge and are not JavaScript.
+
+[`build/verify-release.mjs`](../build/verify-release.mjs) is the non-mutating
+release boundary. It builds the complete real source twice in an OS temporary
+workspace, validates both outputs, proves them deterministic, and byte-compares
+both artifacts with `dist/` before cleaning the workspace in `finally`. Therefore
+`npm run check` detects stale or absent committed output; only the explicit
+`npm run build` command repairs it. Production validation also rejects source-map
+directives and `.map` files, while development builds may retain their external map.

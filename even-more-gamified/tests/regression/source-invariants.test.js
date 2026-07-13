@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'acorn';
 import { describe, expect, it } from 'vitest';
 
+import { USER_SCRIPT_METADATA } from '../../build/metadata.mjs';
+
 const PROJECT_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 const FILES = Object.freeze({
@@ -480,19 +482,9 @@ describe('source architecture invariants', () => {
             'Raw GitHub assets in generated metadata and src must use a 40-character commit, never main/master',
         ).toEqual([]);
 
-        const metadataSource = await readSource(FILES.metadata);
-        const metadataAst = parseModule(metadataSource, FILES.metadata);
-        const metadataDeclaration = findNodes(metadataAst, 'VariableDeclarator').find(
-            (declaration) => declaration.id?.name === 'USER_SCRIPT_METADATA',
-        );
-        const metadata = evaluateStaticString(metadataDeclaration?.init);
-        expect(
-            metadata,
-            'build/metadata.mjs must expose static userscript metadata',
-        ).not.toBeNull();
-        const resources = [...metadata.matchAll(/^\/\/ @resource\s+\S+\s+(\S+)$/gmu)].map(
-            (match) => match[1],
-        );
+        const resources = [
+            ...USER_SCRIPT_METADATA.matchAll(/^\/\/ @resource\s+\S+\s+(\S+)$/gmu),
+        ].map((match) => match[1]);
         expect(
             resources.length,
             'Userscript metadata must retain its declared image resources',

@@ -1,9 +1,14 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse } from 'acorn';
 
-import { GENERATED_NOTICE, OUTPUT_FILES, USER_SCRIPT_METADATA } from './metadata.mjs';
+import {
+    GENERATED_NOTICE,
+    OUTPUT_FILES,
+    PACKAGE_VERSION,
+    USER_SCRIPT_METADATA,
+} from './metadata.mjs';
 
 const METADATA_START = '// ==UserScript==';
 const METADATA_END = '// ==/UserScript==';
@@ -23,6 +28,7 @@ const REQUIRED_GRANTS = Object.freeze(['GM_setValue', 'GM_getValue', 'GM_getReso
 const REQUIRED_RESOURCES = Object.freeze(['mmShrineGarden', 'mmNightview']);
 const REMOTE_JAVASCRIPT_URL = /^https?:\/\/\S+\.(?:cjs|mjs|js)(?:[?#]\S*)?$/iu;
 const REMOTE_SCRIPT_MARKUP = /<script\b[^>]*\bsrc\s*=\s*["']?\s*https?:\/\//iu;
+const SOURCE_MAP_REFERENCE = /(?:\/\/[#@]|\/\*[#@])\s*sourceMappingURL\s*=/iu;
 
 export class BuildValidationError extends Error {
     constructor(message) {
@@ -111,16 +117,19 @@ export function parseMetadataBlock(block) {
 }
 
 export function validateMetadataBlock(block, { requireCanonical = true } = {}) {
-    if (requireCanonical && block !== USER_SCRIPT_METADATA) {
-        fail('The generated userscript metadata does not exactly match build/metadata.mjs.');
-    }
-
     const directives = parseMetadataBlock(block);
 
     for (const key of REQUIRED_SINGLETON_DIRECTIVES) {
         if (valuesFor(directives, key).length !== 1) {
             fail(`Metadata must contain exactly one @${key} directive.`);
         }
+    }
+
+    const metadataVersion = valuesFor(directives, 'version')[0];
+    if (metadataVersion !== PACKAGE_VERSION) {
+        fail(
+            `Metadata @version ${metadataVersion} does not match package.json version ${PACKAGE_VERSION}.`,
+        );
     }
 
     if (directives.has('require')) {
@@ -185,6 +194,10 @@ export function validateMetadataBlock(block, { requireCanonical = true } = {}) {
     }
 
     requireHttpsUrl(valuesFor(directives, 'icon')[0], 'icon');
+
+    if (requireCanonical && block !== USER_SCRIPT_METADATA) {
+        fail('The generated userscript metadata does not exactly match build/metadata.mjs.');
+    }
 
     return directives;
 }
@@ -310,9 +323,13 @@ function validateBundleShape(ast) {
     }
 }
 
-export function validateUserscriptSource(source) {
+export function validateUserscriptSource(source, { production = true } = {}) {
     const metadata = extractMetadataBlock(source);
     validateMetadataBlock(metadata);
+
+    if (production && SOURCE_MAP_REFERENCE.test(source)) {
+        fail('Production userscripts must not contain a source-map reference.');
+    }
 
     const expectedPrefix = `${USER_SCRIPT_METADATA}\n\n${GENERATED_NOTICE}\n"use strict";\n`;
     if (!source.startsWith(expectedPrefix)) {
@@ -339,11 +356,12 @@ export function validateUserscriptSource(source) {
 }
 
 export function validateMetadataSource(source) {
+    const metadata = extractMetadataBlock(source);
+    validateMetadataBlock(metadata);
+
     if (source !== `${USER_SCRIPT_METADATA}\n`) {
         fail('The .meta.js file must contain only the canonical metadata block and one newline.');
     }
-
-    validateMetadataBlock(source.slice(0, -1));
     return true;
 }
 
@@ -353,13 +371,36 @@ export async function validateBuildArtifacts({ distDirectory } = {}) {
     const userscriptPath = path.join(resolvedDistDirectory, OUTPUT_FILES.userscript);
     const metadataPath = path.join(resolvedDistDirectory, OUTPUT_FILES.metadata);
 
-    const [userscriptSource, metadataSource] = await Promise.all([
+    const [userscriptSource, metadataSource, directoryEntries] = await Promise.all([
         readFile(userscriptPath, 'utf8'),
         readFile(metadataPath, 'utf8'),
+        readdir(resolvedDistDirectory, { withFileTypes: true }),
     ]);
+
+    const sourceMaps = directoryEntries
+        .filter((entry) => entry.isFile() && entry.name.endsWith('.map'))
+        .map((entry) => entry.name)
+        .sort();
+    if (sourceMaps.length > 0) {
+        fail(`Production dist must not contain source maps: ${sourceMaps.join(', ')}.`);
+    }
 
     validateUserscriptSource(userscriptSource);
     validateMetadataSource(metadataSource);
+
+    const userscriptVersion = valuesFor(
+        parseMetadataBlock(extractMetadataBlock(userscriptSource)),
+        'version',
+    )[0];
+    const metadataVersion = valuesFor(
+        parseMetadataBlock(extractMetadataBlock(metadataSource)),
+        'version',
+    )[0];
+    if (userscriptVersion !== metadataVersion) {
+        fail(
+            `Userscript @version ${userscriptVersion} does not match metadata @version ${metadataVersion}.`,
+        );
+    }
 
     return { metadataPath, userscriptPath };
 }
