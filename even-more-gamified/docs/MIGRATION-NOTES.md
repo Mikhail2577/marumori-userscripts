@@ -41,6 +41,25 @@ exactly once.
 Coverage: [`tests/regression/rewind.test.js`](../tests/regression/rewind.test.js)
 and [`tests/integration/lifecycle-dom.test.js`](../tests/integration/lifecycle-dom.test.js).
 
+### Authoritative records, timer migration, and HUD recovery
+
+Reset Records now rewrites the records component of captured, pending, and
+late-recovery rewind snapshots. Gameplay state remains rewindable, but deleted
+seven-day records cannot return; an unusable snapshot is discarded fail-closed.
+Legacy `comboTimeout` milliseconds and current `timerSeconds` values normalize to
+5–120 seconds, with absent, null, blank, nonnumeric, and nonfinite legacy values
+using the 15-second default.
+
+Disabling the HUD now hides its subtree semantically rather than with opacity. A
+small native-button Settings launcher remains outside the hidden HUD, transfers
+focus safely, supports persisted `hudEnabled: false`, and has one cleanup/remount
+owner.
+
+Coverage: [`tests/integration/record-reset.test.js`](../tests/integration/record-reset.test.js),
+[`tests/unit/settings.test.js`](../tests/unit/settings.test.js),
+[`tests/integration/first-input-gate.test.js`](../tests/integration/first-input-gate.test.js),
+and [`tests/unit/hud-controller.test.js`](../tests/unit/hud-controller.test.js).
+
 ### Serialized timeout failure
 
 Timeout failure previously had multiple delayed paths that could submit or advance

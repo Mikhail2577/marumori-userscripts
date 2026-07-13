@@ -33,6 +33,7 @@ import {
     pruneRecords as pruneRecordSet,
     updateRollingRecords as mergeRollingRecords,
 } from './gameplay/records.js';
+import { resetRecordsAuthoritatively } from './gameplay/record-reset.js';
 import {
     calcAnswerPoints as calculateAnswerPoints,
     calcIncorrectPenalty,
@@ -521,14 +522,20 @@ function injectUI() {
         },
         onResetHudPosition: () => hudController?.resetPosition(),
         onResetRecords() {
-            records = { days: {} };
-            saveRecords();
-            updateHUD();
+            resetRecordsAuthoritatively({
+                rewind: rewindController,
+                setRecords(nextRecords) {
+                    records = nextRecords;
+                },
+                saveRecords,
+                updateHud: updateHUD,
+            });
         },
     });
 
     const frag = document.createDocumentFragment();
     frag.appendChild(hudController.element);
+    frag.appendChild(hudController.settingsLauncher);
     frag.appendChild(createTrustedTemplateElement('div', 'mm-flash'));
     frag.appendChild(createTrustedTemplateElement('div', 'mm-mult-banner'));
     frag.appendChild(createTrustedTemplateElement('div', 'mm-milestone-banner'));
@@ -1665,6 +1672,7 @@ function cleanup() {
 
     [
         'mm-hud',
+        'mm-settings-launcher',
         'mm-flash',
         'mm-mult-banner',
         'mm-milestone-banner',

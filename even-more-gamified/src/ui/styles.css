@@ -56,8 +56,35 @@
     opacity: 0.92;
 }
 #mm-hud.hidden {
-    opacity: 0;
-    pointer-events: none;
+    display: none !important;
+}
+#mm-hud[hidden],
+#mm-settings-launcher[hidden] {
+    display: none !important;
+}
+#mm-settings-launcher {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 9999;
+    padding: 7px 9px;
+    border: 1px solid var(--mm-theme-control-border, rgba(255, 255, 255, 0.2));
+    border-radius: 6px;
+    background: var(--mm-theme-panel-bg, rgba(0, 0, 0, 0.82));
+    color: var(--mm-theme-panel-text, #fff);
+    box-shadow: var(--mm-theme-panel-shadow, none);
+    font-family: var(--mm-arcade-font);
+    font-size: 8px;
+    line-height: 1.2;
+    cursor: pointer;
+}
+#mm-settings-launcher:hover {
+    border-color: var(--mm-theme-button, #f90);
+    color: var(--mm-theme-button, #f90);
+}
+#mm-settings-launcher:focus-visible {
+    outline: 2px solid var(--mm-theme-secondary, #7cf);
+    outline-offset: 2px;
 }
 #mm-hud.glow {
     box-shadow: 0 0 18px 4px var(--mm-theme-hud-glow, #f90);

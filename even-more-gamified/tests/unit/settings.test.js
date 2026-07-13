@@ -103,12 +103,28 @@ describe('normalizeSettings', () => {
         });
     });
 
-    it('preserves the legacy timer fallback semantics', () => {
-        expect(normalizeSettings({ comboTimeout: 1_000 }).timerSeconds).toBe(1);
-        expect(normalizeSettings({ comboTimeout: null }).timerSeconds).toBe(0);
+    it('normalizes malformed and bounded legacy timer values into 5–120 seconds', () => {
+        expect(normalizeSettings({ comboTimeout: null }).timerSeconds).toBe(15);
+        expect(normalizeSettings({}).timerSeconds).toBe(15);
+        expect(normalizeSettings({ comboTimeout: '' }).timerSeconds).toBe(15);
+        expect(normalizeSettings({ comboTimeout: 'not-a-number' }).timerSeconds).toBe(15);
+        expect(normalizeSettings({ comboTimeout: Number.POSITIVE_INFINITY }).timerSeconds).toBe(15);
+        expect(normalizeSettings({ comboTimeout: 0 }).timerSeconds).toBe(5);
+        expect(normalizeSettings({ comboTimeout: -10_000 }).timerSeconds).toBe(5);
+        expect(normalizeSettings({ comboTimeout: 1_000 }).timerSeconds).toBe(5);
+        expect(normalizeSettings({ comboTimeout: 5_000 }).timerSeconds).toBe(5);
+        expect(normalizeSettings({ comboTimeout: 15_000 }).timerSeconds).toBe(15);
+        expect(normalizeSettings({ comboTimeout: 1_000_000 }).timerSeconds).toBe(120);
+    });
+
+    it('preserves and clamps valid current timer settings independently of legacy data', () => {
         expect(normalizeSettings({ timerSeconds: 2 }).timerSeconds).toBe(5);
         expect(normalizeSettings({ timerSeconds: 130 }).timerSeconds).toBe(120);
         expect(normalizeSettings({ timerSeconds: 10.6 }).timerSeconds).toBe(11);
+        expect(normalizeSettings({ timerSeconds: '45', comboTimeout: null }).timerSeconds).toBe(45);
+        expect(normalizeSettings({ timerSeconds: null, comboTimeout: 30_000 }).timerSeconds).toBe(
+            30,
+        );
     });
 
     it('clamps volume values and validates music choices', () => {

@@ -121,6 +121,48 @@ export function createTransactionalRewind({
         return true;
     }
 
+    /**
+     * Replace the gameplay snapshot without invalidating its host/lifecycle
+     * ownership. This is used when an explicit user action (such as Reset
+     * Records) must remain authoritative if the answer is rewound later.
+     */
+    function updateSnapshot(update) {
+        if (typeof update !== 'function') {
+            throw new TypeError('Rewind snapshot update requires a function');
+        }
+
+        const records = [captured, pending, recentRecovery].filter(Boolean);
+        if (records.length === 0) return false;
+
+        const replacements = new Map();
+        for (const record of records) {
+            if (replacements.has(record.snapshot)) continue;
+            const replacement = update(record.snapshot);
+            if (!replacement || typeof replacement !== 'object') {
+                throw new TypeError('Rewind snapshot update must return an object');
+            }
+            replacements.set(record.snapshot, replacement);
+        }
+
+        let changed = false;
+        if (captured) {
+            const replacement = replacements.get(captured.snapshot);
+            if (replacement !== captured.snapshot) {
+                captured = Object.freeze({ ...captured, snapshot: replacement });
+                changed = true;
+            }
+        }
+        for (const record of [pending, recentRecovery]) {
+            if (!record) continue;
+            const replacement = replacements.get(record.snapshot);
+            if (replacement !== record.snapshot) {
+                record.snapshot = replacement;
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
     function isCaptureCurrent() {
         if (!captured) return false;
         const validation = readOwnedContext(captured);
@@ -454,6 +496,7 @@ export function createTransactionalRewind({
 
     return Object.freeze({
         capture,
+        updateSnapshot,
         request(source = 'hud') {
             return begin({ source, invokeNative: true });
         },

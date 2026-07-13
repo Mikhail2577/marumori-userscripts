@@ -25,7 +25,7 @@
 - [x] Phase 2 — Timer and timeout ownership
 - [x] Phase 3 — Rewind identity and late recovery
 - [ ] Manual Checkpoint A — deferred into the consolidated post-Phase 12 validation
-- [ ] Phase 4 — Storage, records, and HUD recovery
+- [x] Phase 4 — Storage, records, and HUD recovery
 - [ ] Phase 5 — Canvas cadence and lifecycle
 - [ ] Phase 6 — Live reduced motion
 - [ ] Phase 7 — Accessibility
@@ -69,6 +69,9 @@
 - The 750 ms request timeout now leaves one explicit recovery candidate for a further 2,000 ms. A slightly late genuine host transition restores once only when session/question/answer/root/logical ownership still matches. The candidate is cleared before restoration and is invalidated by a different question, new session, newer resolution, cleanup, or deadline.
 - After the recovery deadline, a late transition cannot restore the stale snapshot. Controller/app reconciliation clears it and safely remounts an otherwise impossible local-resolved/host-unresolved state.
 - Successful rewind progress regression lowers the local `lastCompleted` boundary marker before the next reconciliation, preventing a confirmed rewind from being misclassified as a new session.
+- Phase 4 treats `package.json`'s supported timer range as a storage invariant: missing/null/blank/invalid/nonfinite legacy values use 15 seconds, while every finite legacy or current value is clamped to 5–120 seconds before timer initialization.
+- Reset Records updates the records component of captured, pending, and bounded late-recovery rewind snapshots without discarding valid gameplay rewind ownership. If snapshot updating fails, rewind is discarded so deleted records remain authoritative.
+- HUD statistics visibility no longer owns Settings availability. Hidden HUD state uses `hidden`, `inert`, `aria-hidden`, and `display: none`; one accessible native-button recovery launcher lives outside the HUD subtree and is controller-owned across cleanup/remount.
 
 ### Phase 0 subsystem map
 
@@ -107,6 +110,9 @@
 - `tests/integration/lifecycle-dom.test.js`: monotonic answer-generation assertions across resolve, rewind, and re-answer.
 - `tests/integration/first-input-gate.test.js`: a rejected first timer start leaves both gate and lifecycle awaiting first input, a later event can commit it exactly once, and an event from a stale connected input is ignored.
 - `tests/browser/run-browser-contract.js` and `tests/browser/fixture-host.js`: the production bundle keeps the initial timer dormant before input, survives replacement by a new active input while the stale one stays connected, starts from first input, and restarts a sibling meaning timer before any input or completed-item edge. The Firefox/Safari-compatible suite now contains 14 contracts.
+- `tests/unit/settings.test.js` and `tests/integration/first-input-gate.test.js`: malformed/legacy timer values normalize into the supported range and a null legacy value can initialize and start the real compositor safely.
+- `tests/integration/record-reset.test.js` and `tests/regression/rewind.test.js`: reset persists/HUD-syncs once per action and remains authoritative across captured, pending, and late-recovery rewind state while gameplay fields remain rewindable.
+- `tests/unit/hud-controller.test.js`: persisted HUD-off state, semantic hiding, focus transfer, external launcher activation, re-enable, cleanup, and one-launcher remount ownership.
 
 ## Manual Validation
 
@@ -164,3 +170,9 @@
 - Final timer-corrected `npm run test:browser:firefox`: passed all 14 production-bundle contracts.
 - Final timer-corrected `npm run test:browser:safari`: passed all 14 production-bundle contracts after Safari Remote Automation was enabled.
 - Current Checkpoint A candidate hashes: `.user.js` `632b8853d077bc5de976de0af77e5f31c688851abf9497c0e8312f5b12086d7b`; `.meta.js` `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
+- Phase 4 resumed core baseline: 5 files / 50 tests passed before changes.
+- Phase 4 focused suites: 6 files / 51 tests passed.
+- Phase 4 `npm run lint`: passed.
+- Phase 4 `npm run test`: passed, 34 files / 250 tests.
+- Phase 4 `npm run build`, artifact validation, and generated userscript syntax check: passed.
+- Phase 4 focused formatting and `git diff --check`: passed.

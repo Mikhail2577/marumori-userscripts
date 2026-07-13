@@ -133,6 +133,11 @@ deadline discard it. A transition after that deadline never restores the stale
 snapshot; reconciliation instead fails closed and may remount the live review to
 avoid a permanent resolved/unresolved mismatch.
 
+Reset Records is authoritative over every rewind state. It replaces only the
+records component of a captured, pending, or late-recovery snapshot, preserving
+the owned gameplay rewind while preventing explicitly deleted records from being
+restored. If a snapshot cannot be updated safely, it is discarded fail-closed.
+
 Timeout auto-failure is one serialized controller. It chooses a scoped Wrong
 control or a scoped invalid-answer/Submit fallback, waits for confirmed incorrect
 resolution, and owns the only delayed Next action. Injected text is restored only
@@ -167,6 +172,12 @@ The combo timer stores monotonic timestamps for scoring. Its visual fill uses
 `transform: scaleX()` through WAAPI or a CSS transition and schedules JavaScript
 only for tier boundaries and expiration. When the HUD is hidden, it schedules
 expiration without visual animation.
+
+HUD visibility is separate from Settings availability. A disabled HUD is removed
+from layout, focus order, pointer interaction, and the accessibility tree with
+`hidden`, `inert`, and `aria-hidden`; one controller-owned settings launcher remains
+outside that subtree and is removed on cleanup. Legacy timer values are normalized
+to the supported 5–120 second interval before a compositor can be started.
 
 The audio context adapter deduplicates unlock attempts and reports a context only
 after `resume()` produces a running state. Music and SFX use that adapter; enabling

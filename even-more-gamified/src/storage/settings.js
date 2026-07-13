@@ -11,6 +11,24 @@ import { safeJsonParse } from '../utils/json.js';
 
 const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 
+function readFiniteSettingNumber(value) {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'string' && value.trim() === '') return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Legacy comboTimeout values are milliseconds. Invalid or absent legacy values
+ * use the current default; finite legacy values are clamped to the supported
+ * five-to-120-second range so old low/zero values can never disable startup.
+ */
+function normalizeLegacyTimerSeconds(value) {
+    const milliseconds = readFiniteSettingNumber(value);
+    if (milliseconds === null) return DEFAULT_SETTINGS.timerSeconds;
+    return clamp(milliseconds / 1000, 5, 120, DEFAULT_SETTINGS.timerSeconds);
+}
+
 export function normalizeBackgroundTheme(theme, fallback = DEFAULT_SETTINGS.backgroundTheme) {
     const raw = typeof theme === 'string' ? theme.trim() : '';
     const alias = THEME_ALIASES[raw] || THEME_ALIASES[raw.toLowerCase()];
@@ -48,11 +66,13 @@ export function normalizeSettings(raw = {}) {
     next.volume = clamp(source.volume, 0, 1, DEFAULT_SETTINGS.volume);
     next.musicVolume = clamp(source.musicVolume, 0, 0.5, DEFAULT_SETTINGS.musicVolume);
 
-    const legacyTimerSeconds = Number(source.comboTimeout) / 1000;
-    const timerFallback = Number.isFinite(legacyTimerSeconds)
-        ? legacyTimerSeconds
-        : DEFAULT_SETTINGS.timerSeconds;
-    next.timerSeconds = Math.round(clamp(source.timerSeconds, 5, 120, timerFallback));
+    const timerFallback = normalizeLegacyTimerSeconds(source.comboTimeout);
+    const currentTimerSeconds = readFiniteSettingNumber(source.timerSeconds);
+    next.timerSeconds = Math.round(
+        currentTimerSeconds === null
+            ? timerFallback
+            : clamp(currentTimerSeconds, 5, 120, timerFallback),
+    );
 
     if (MUSIC_STYLES.includes(source.musicStyle)) {
         next.musicStyle = source.musicStyle;

@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { QUESTION_STATES, createLifecycleController } from '../../src/core/lifecycle.js';
 import { createFirstInputGate } from '../../src/gameplay/first-input-gate.js';
+import { deserializeSettings } from '../../src/storage/settings.js';
+import { createComboTimerCompositor } from '../../src/ui/combo-timer.js';
 
 describe('first-answer input gate', () => {
     it('starts once on the first non-empty input and advances lifecycle state', () => {
@@ -110,5 +112,44 @@ describe('first-answer input gate', () => {
         expect(onStart).not.toHaveBeenCalled();
         expect(gate.hasStarted).toBe(false);
         expect(lifecycle.questionState).toBe(QUESTION_STATES.AWAITING_FIRST_INPUT);
+    });
+
+    it('initializes and starts safely after a malformed null legacy timer migration', () => {
+        const settings = deserializeSettings('{"comboTimeout":null}');
+        const lifecycle = createLifecycleController();
+        lifecycle.mount();
+        lifecycle.start();
+        lifecycle.beginQuestion('question-1', { awaitingFirstInput: true });
+        const input = document.createElement('input');
+        const wrapper = document.createElement('div');
+        const bar = document.createElement('div');
+        wrapper.append(bar);
+        document.body.append(input, wrapper);
+        const timer = createComboTimerCompositor({
+            bar,
+            wrapper,
+            reducedMotion: true,
+            animationMode: 'none',
+        });
+        const gate = createFirstInputGate({
+            lifecycle,
+            isResolved: () => false,
+            onStart() {
+                timer.start({ durationMs: settings.timerSeconds * 1000 });
+                return true;
+            },
+        });
+
+        expect(settings.timerSeconds).toBe(15);
+        expect(() => gate.arm(input)).not.toThrow();
+        input.value = '日';
+        expect(() => input.dispatchEvent(new Event('input', { bubbles: true }))).not.toThrow();
+        expect(timer.getSnapshot()).toMatchObject({
+            durationMs: 15_000,
+            status: 'running',
+        });
+        expect(gate.hasStarted).toBe(true);
+        timer.dispose();
+        gate.cleanup();
     });
 });

@@ -29,7 +29,7 @@ function createController(overrides = {}) {
     });
     const panel = document.createElement('div');
     panel.id = 'mm-settings';
-    document.body.append(controller.element, panel);
+    document.body.append(controller.element, controller.settingsLauncher, panel);
     Object.defineProperty(controller.element, 'getBoundingClientRect', {
         configurable: true,
         value: () => ({
@@ -73,6 +73,65 @@ describe('HUD controller', () => {
 
         vi.runAllTimers();
         controller.cleanup();
+    });
+
+    it('keeps an accessible settings recovery path when persisted HUD state is disabled', () => {
+        const { controller, panel, settings } = createController({
+            settings: { hudEnabled: false },
+        });
+
+        expect(controller.element.hidden).toBe(true);
+        expect(controller.element.classList.contains('hidden')).toBe(true);
+        expect(controller.element.hasAttribute('inert')).toBe(true);
+        expect(controller.element.getAttribute('aria-hidden')).toBe('true');
+        expect(controller.settingsLauncher.hidden).toBe(false);
+        expect(controller.settingsLauncher.parentElement).toBe(document.body);
+        expect(controller.element.contains(controller.settingsLauncher)).toBe(false);
+        expect(controller.settingsLauncher).toBeInstanceOf(HTMLButtonElement);
+        expect(controller.settingsLauncher.type).toBe('button');
+        expect(controller.settingsLauncher.getAttribute('aria-label')).toBe(
+            'Open gamification settings',
+        );
+
+        controller.settingsLauncher.click();
+        expect(panel.classList.contains('open')).toBe(true);
+
+        settings.hudEnabled = true;
+        controller.setVisible(true);
+        expect(controller.element.hidden).toBe(false);
+        expect(controller.element.hasAttribute('inert')).toBe(false);
+        expect(controller.element.hasAttribute('aria-hidden')).toBe(false);
+        expect(controller.settingsLauncher.hidden).toBe(true);
+        controller.cleanup();
+    });
+
+    it('moves focus out of a HUD that becomes hidden', () => {
+        const { controller } = createController();
+        controller.refs.settingsButton.focus();
+        expect(document.activeElement).toBe(controller.refs.settingsButton);
+
+        controller.setVisible(false);
+
+        expect(document.activeElement).toBe(controller.settingsLauncher);
+        expect(controller.element.hidden).toBe(true);
+        controller.cleanup();
+    });
+
+    it('removes recovery ownership on cleanup and remounts exactly one launcher', () => {
+        const first = createController({ settings: { hudEnabled: false } });
+        const staleLauncher = first.controller.settingsLauncher;
+        first.controller.cleanup();
+
+        expect(staleLauncher.isConnected).toBe(false);
+        expect(document.querySelectorAll('#mm-settings-launcher')).toHaveLength(0);
+
+        first.controller.element.remove();
+        first.panel.remove();
+        const second = createController({ settings: { hudEnabled: false } });
+        expect(document.querySelectorAll('#mm-settings-launcher')).toHaveLength(1);
+        second.controller.settingsLauncher.click();
+        expect(second.panel.classList.contains('open')).toBe(true);
+        second.controller.cleanup();
     });
 
     it('clamps a drag once per animation frame and persists on release', () => {

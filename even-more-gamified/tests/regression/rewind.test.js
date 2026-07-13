@@ -89,6 +89,32 @@ describe('transactional rewind', () => {
         expect(context.rewind.hasSnapshot).toBe(false);
     });
 
+    it('uses an authoritative snapshot update even when rewind is already pending', async () => {
+        const context = setup();
+        const snapshot = {
+            score: 1200,
+            records: { days: { '2026-07-13': { score: 1200, combo: 8, multiplier: 2 } } },
+        };
+        context.rewind.capture(snapshot);
+        const request = context.rewind.request('hud');
+
+        expect(
+            context.rewind.updateSnapshot((current) => ({
+                ...current,
+                records: { days: {} },
+            })),
+        ).toBe(true);
+
+        setResolution(context.fixture.wrapper, 'unresolved');
+        context.rewind.reconcile();
+        await request;
+
+        expect(context.restoreSnapshot).toHaveBeenCalledWith(
+            expect.objectContaining({ score: 1200, records: { days: {} } }),
+            expect.objectContaining({ source: 'hud' }),
+        );
+    });
+
     it('commits across same-logical wrapper replacement with a stable host ID', async () => {
         const context = setup();
         const before = context.dom.readQuestionContext();

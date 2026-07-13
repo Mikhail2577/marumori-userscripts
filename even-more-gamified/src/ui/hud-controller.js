@@ -65,6 +65,17 @@ function createHudElement(document) {
     return hud;
 }
 
+function createSettingsRecoveryLauncher(document) {
+    const launcher = document.createElement('button');
+    launcher.id = 'mm-settings-launcher';
+    launcher.type = 'button';
+    launcher.textContent = '⚙ SETTINGS';
+    launcher.setAttribute('aria-label', 'Open gamification settings');
+    launcher.setAttribute('aria-controls', 'mm-settings');
+    launcher.title = 'Open gamification settings';
+    return launcher;
+}
+
 export function createHudController({
     document,
     window = document.defaultView,
@@ -77,7 +88,7 @@ export function createHudController({
     if (!document || !window) throw new TypeError('HUD controller requires a document and window');
 
     const hud = createHudElement(document);
-    if (!settings.hudEnabled) hud.classList.add('hidden');
+    const settingsLauncher = createSettingsRecoveryLauncher(document);
     if (settings.hudCollapsed) hud.classList.add('mm-panel-collapsed');
 
     const refs = {
@@ -146,7 +157,8 @@ export function createHudController({
     function positionSettingsPanel() {
         if (!settingsPanel) return;
         const margin = 12;
-        const hudRect = hud.getBoundingClientRect();
+        const anchor = hud.hidden ? settingsLauncher : hud;
+        const hudRect = anchor.getBoundingClientRect();
         const panelWidth = settingsPanel.offsetWidth || 260;
         const panelHeight = settingsPanel.offsetHeight || 300;
         const rightSideX = hudRect.right + margin;
@@ -279,6 +291,11 @@ export function createHudController({
             settingsPanel.classList.toggle('open');
             if (settingsPanel.classList.contains('open')) positionSettingsPanel();
         });
+        listen(settingsLauncher, 'click', () => {
+            if (!settingsPanel) return;
+            settingsPanel.classList.toggle('open');
+            if (settingsPanel.classList.contains('open')) positionSettingsPanel();
+        });
         listen(refs.rewind, 'click', () => onRewind('hud'));
     }
 
@@ -348,7 +365,20 @@ export function createHudController({
     }
 
     function setVisible(visible) {
-        hud.classList.toggle('hidden', !visible);
+        const showHud = Boolean(visible);
+        const focusWasInsideHud = hud.contains(document.activeElement);
+        hud.classList.toggle('hidden', !showHud);
+        hud.hidden = !showHud;
+        hud.toggleAttribute('inert', !showHud);
+        if (showHud) hud.removeAttribute('aria-hidden');
+        else hud.setAttribute('aria-hidden', 'true');
+
+        settingsLauncher.hidden = showHud;
+        if (showHud) settingsLauncher.setAttribute('aria-hidden', 'true');
+        else settingsLauncher.removeAttribute('aria-hidden');
+
+        if (focusWasInsideHud && !showHud) settingsLauncher.focus();
+        if (settingsPanel?.classList.contains('open')) positionSettingsPanel();
     }
 
     function cleanup() {
@@ -364,13 +394,17 @@ export function createHudController({
         drag = null;
         hud.classList.remove('dragging');
         removeElementSafe(microElement);
+        removeElementSafe(settingsLauncher);
         microElement = null;
         settingsPanel = null;
         installed = false;
     }
 
+    setVisible(settings.hudEnabled);
+
     return {
         element: hud,
+        settingsLauncher,
         refs,
         install,
         cleanup,

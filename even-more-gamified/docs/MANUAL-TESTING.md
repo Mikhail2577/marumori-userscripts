@@ -102,6 +102,8 @@ covered.
       timer, HUD, background, and performance settings survive normalization.
 - [ ] Verify legacy `arcadeEnabled`, `autoFailTimeout`, `comboTimeout`, and
       `performanceMode` values migrate to their current equivalents.
+- [ ] Verify null/blank/invalid legacy `comboTimeout` values use 15 seconds and
+      finite legacy/current timer values remain within 5–120 seconds.
 - [ ] Verify removed/aliased background IDs normalize to the documented fallback.
 - [ ] Change every setting, reload, and confirm persistence without resetting
       unrelated fields.
@@ -114,6 +116,8 @@ covered.
       unchanged in manager storage.
 - [ ] Complete answers across reloads and confirm seven-day score/combo/multiplier
       records persist.
+- [ ] After creating a rewind snapshot, reset seven-day records and then rewind;
+      confirm gameplay rewinds but HUD and stored records remain empty.
 - [ ] Test around a local DST boundary or with a controlled clock and confirm records
       retain seven local calendar days rather than seven fixed 24-hour intervals.
 - [ ] Confirm storage writes are flushed on page hide/session cleanup and are not
@@ -138,8 +142,9 @@ covered.
       no duplicate theme application.
 - [ ] Verify current and best score, streak, and multiplier records update only when
       improved.
-- [ ] Toggle HUD visibility and compact mode; confirm gameplay/scoring continues and
-      hidden HUD timer visuals stop doing visual work.
+- [ ] Toggle HUD visibility and compact mode; confirm gameplay/scoring continues,
+      hidden HUD controls leave the Tab order, the external Settings launcher can
+      restore the HUD after reload, and hidden HUD timer visuals stop doing work.
 - [ ] Open/close settings repeatedly and click outside; confirm one panel, correct
       labels, no leaked listeners, and no accidental answer submission.
 - [ ] Drag the HUD with mouse and available pointer/touch input; confirm smooth
