@@ -248,6 +248,32 @@ export class ComboTimerCompositor {
         return this.getSnapshot();
     }
 
+    syncReducedMotion() {
+        this.#assertUsable();
+        if (this.status !== COMBO_TIMER_STATUS.RUNNING) return this.getSnapshot();
+
+        // Re-anchor presentation work at one monotonic sample. This changes only
+        // how the existing countdown is painted; ownership and its deadline remain
+        // authoritative and are never paused or rearmed.
+        const now = this.clock();
+        const remainingPct = this.getRemainingPct(now);
+        this.#cancelScheduledWork();
+        this.generation += 1;
+        this.anchorRemainingPct = remainingPct;
+        this.anchorTime = now;
+
+        if (remainingPct <= 0) {
+            this.#expire();
+        } else if (!this.visualsEnabled) {
+            this.#scheduleExpirationOnly();
+        } else {
+            this.#present(remainingPct, { updateTransform: true });
+            this.#startInterpolation();
+            this.#scheduleNextBoundary();
+        }
+        return this.getSnapshot();
+    }
+
     stop({ remainingPct, inactive = false, clearTier = false } = {}) {
         this.#assertUsable();
         const finalRemainingPct = Number.isFinite(remainingPct)

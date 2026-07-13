@@ -50,6 +50,7 @@ import { createHudController } from './ui/hud-controller.js';
 import { createSettingsPanelController } from './ui/settings-panel.js';
 import BASE_STYLES from './ui/styles.css';
 import { clamp } from './utils/clamp.js';
+import { subscribeMediaQuery } from './utils/media-query.js';
 
 function resolveToneFrequency(note, context = {}) {
     if (Array.isArray(note.freqByMultiplier)) {
@@ -1156,13 +1157,7 @@ function previewThemeEvent(eventType) {
     previewOneThemeEvent(eventType);
 }
 
-const {
-    restart: restartArcadeBackdrop,
-    triggerShootingStar,
-    syncCrtEffects,
-    off: arcadeOff,
-    sync: syncArcadePresentation,
-} = createCanvasBackgroundController({
+const canvasBackgroundController = createCanvasBackgroundController({
     document,
     window,
     settings,
@@ -1172,7 +1167,26 @@ const {
     isMaxMode,
     prefersReducedMotion,
     isAnswerResolved,
+    isSessionActive: () =>
+        initialized && lifecycle.sessionState === SESSION_STATES.ACTIVE && state.sessionActive,
 });
+const {
+    restart: restartArcadeBackdrop,
+    triggerShootingStar,
+    syncCrtEffects,
+    off: arcadeOff,
+    sync: syncArcadePresentation,
+} = canvasBackgroundController;
+
+function installReducedMotionLifecycle() {
+    const removeListener = subscribeMediaQuery(reduceMotionMedia, () => {
+        if (!initialized) return;
+        if (prefersReducedMotion()) transientEffects.cleanup();
+        canvasBackgroundController.syncReducedMotion();
+        comboTimerCompositor?.syncReducedMotion();
+    });
+    lifecycle.sessionScope?.defer(removeListener);
+}
 
 function getInputWrapper() {
     return marumoriDom.getInputWrapper();
@@ -1514,6 +1528,7 @@ function setupReviewControllers() {
         },
         onSessionCompleted() {
             state.sessionActive = false;
+            canvasBackgroundController.pause();
         },
         onShowSummary: showSummary,
     });
@@ -1533,6 +1548,7 @@ function setupReviewControllers() {
             }
             lastAnswerState = null;
             state.sessionActive = true;
+            canvasBackgroundController.resume();
             if (settings.musicEnabled) startMusic();
             applyFontChallenge();
             refreshAnswerTimerForCurrentQuestion(true);
@@ -1613,6 +1629,7 @@ function init() {
     }
 
     initialized = true;
+    installReducedMotionLifecycle();
     observeCorrectness();
     observeCounter();
     installNativeRewindDetection();
@@ -1620,12 +1637,14 @@ function init() {
     updateHUD();
     applyFontChallenge();
     refreshAnswerTimerForCurrentQuestion();
+    canvasBackgroundController.resume();
     syncArcadePresentation();
     reviewReconciler.request('init');
 }
 
 function cleanup() {
     initialized = false;
+    canvasBackgroundController.pause();
     if (domSyncRaf) {
         cancelAnimationFrame(domSyncRaf);
         domSyncRaf = null;

@@ -197,6 +197,18 @@ backing pixel budgets, cached/memoized theme state and static work where availab
 in-place array compaction, debounced resize, hidden-tab suspension, and generation
 tokens. OffscreenCanvas and workers are deliberately not required.
 
+Balanced cadence is deadline-driven: every accepted frame advances the deadline
+at least once and missed intervals are skipped arithmetically, preventing
+high-refresh catch-up bursts. Canvas resource ownership is distinct from activity
+ownership. Completion cancels scheduling but retains the canvas, renderer state,
+and last frame; only a confirmed rewind or active new session can resume one loop.
+
+One session-owned media-query subscription coordinates live reduced-motion
+changes. Canvas activity is paused/resumed through the same session/visibility
+gate, transient work is cancelled when reduction becomes active, and the combo
+timer reconfigures only its compositor work. Its immutable timer owner and
+monotonic deadline remain unchanged.
+
 ## Build and security boundary
 
 [`build/build-userscript.mjs`](../build/build-userscript.mjs) uses esbuild with an

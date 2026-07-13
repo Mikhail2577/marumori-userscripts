@@ -26,8 +26,8 @@
 - [x] Phase 3 — Rewind identity and late recovery
 - [ ] Manual Checkpoint A — deferred into the consolidated post-Phase 12 validation
 - [x] Phase 4 — Storage, records, and HUD recovery
-- [ ] Phase 5 — Canvas cadence and lifecycle
-- [ ] Phase 6 — Live reduced motion
+- [x] Phase 5 — Canvas cadence and lifecycle
+- [x] Phase 6 — Live reduced motion
 - [ ] Phase 7 — Accessibility
 - [ ] Phase 8 — Low-risk rendering and privacy fixes
 - [ ] Manual Checkpoint B — deferred into the consolidated post-Phase 12 validation
@@ -72,6 +72,8 @@
 - Phase 4 treats `package.json`'s supported timer range as a storage invariant: missing/null/blank/invalid/nonfinite legacy values use 15 seconds, while every finite legacy or current value is clamped to 5–120 seconds before timer initialization.
 - Reset Records updates the records component of captured, pending, and bounded late-recovery rewind snapshots without discarding valid gameplay rewind ownership. If snapshot updating fails, rewind is discarded so deleted records remain authoritative.
 - HUD statistics visibility no longer owns Settings availability. Hidden HUD state uses `hidden`, `inert`, `aria-hidden`, and `display: none`; one accessible native-button recovery launcher lives outside the HUD subtree and is controller-owned across cleanup/remount.
+- Phase 5 replaces the Balanced early-tolerance gate with a deadline cadence that advances after every accepted frame and skips missed intervals arithmetically. Canvas activity can pause without destroying renderer resources or the retained last frame; completed-session reconciliation remains paused and confirmed rewind/new-session ownership resumes one loop.
+- Phase 6 installs one session-owned modern/legacy media-query subscription. Live reduced-motion changes compose with session and visibility state, cancel transient work, and reconfigure canvas/timer presentation without resetting gameplay or replacing the timer owner/deadline.
 
 ### Phase 0 subsystem map
 
@@ -113,6 +115,10 @@
 - `tests/unit/settings.test.js` and `tests/integration/first-input-gate.test.js`: malformed/legacy timer values normalize into the supported range and a null legacy value can initialize and start the real compositor safely.
 - `tests/integration/record-reset.test.js` and `tests/regression/rewind.test.js`: reset persists/HUD-syncs once per action and remains authoritative across captured, pending, and late-recovery rewind state while gameplay fields remain rewindable.
 - `tests/unit/hud-controller.test.js`: persisted HUD-off state, semantic hiding, focus transfer, external launcher activation, re-enable, cleanup, and one-launcher remount ownership.
+- `tests/unit/canvas-runtime.test.js`: Balanced cadence across synthetic 60/90/120/144/165/240 Hz displays, bounded long-frame recovery, reset, and invalid inputs.
+- `tests/unit/canvas-background-controller.test.js`: completion pause with retained canvas, reconciliation while paused, exactly-one rewind/new-session resume, hidden/completed composition, resize/theme changes, stale activity generations, and reduced-motion toggles.
+- `tests/unit/combo-timer.test.js`: live motion toggles preserve the exact owner/effective deadline and expire once in animated, stepped, and hidden-visual modes.
+- `tests/unit/media-query.test.js`: modern and legacy subscription APIs, lifecycle cleanup, idempotence, and unavailable-query fallback.
 
 ## Manual Validation
 
@@ -176,3 +182,10 @@
 - Phase 4 `npm run test`: passed, 34 files / 250 tests.
 - Phase 4 `npm run build`, artifact validation, and generated userscript syntax check: passed.
 - Phase 4 focused formatting and `git diff --check`: passed.
+- Phase 5 evidence replay before changes: the old Balanced gate rendered 82/82/61/69/93 frames over synthetic 90/120/144/165/240 Hz one-second timelines, with gaps as short as one display frame; 60 Hz rendered 60.
+- Phases 5–6 focused suites: 4 files / 43 tests passed before the final two controller cases; the complete suite below includes both additions.
+- Phases 5–6 `npm run lint`: passed.
+- Phases 5–6 `npm run test`: passed, 35 files / 273 tests.
+- Phases 5–6 production build, artifact validation, syntax, formatting, and `git diff --check`: passed.
+- Phases 5–6 Firefox production-bundle run: passed all 14 contracts.
+- Phases 5–6 Safari production-bundle run: the first two contracts passed, then WebDriver stalled and left Safari paired to the abandoned session; the run was terminated and no complete Safari result is claimed. A fresh attach was rejected as already paired, so retry is deferred to Phase 12 without forcibly closing the user's Safari session.

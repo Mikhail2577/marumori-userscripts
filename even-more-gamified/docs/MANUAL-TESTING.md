@@ -279,6 +279,9 @@ covered.
 - [ ] Enable operating-system reduced motion and confirm CRT flicker, continuous
       background motion, shooting stars, and optional transient movement are
       disabled or reduced as intended.
+- [ ] Toggle reduced motion on and off during an active timer; confirm presentation
+      changes immediately without resetting the remaining time or firing timeout
+      more than once.
 - [ ] Confirm correct/incorrect information remains understandable with motion
       reduced.
 - [ ] Exercise success flash, failure flash, screen shake, floating feedback,
@@ -321,6 +324,9 @@ covered.
       resolution, settings interaction, and userscript-only effects.
 - [ ] Count active animation-frame loops and confirm no duplicates after background
       switches, route transitions, wrapper replacement, or same-route second session.
+- [ ] Finish a session with an animated background; confirm its last frame remains,
+      drawing stops behind and after the summary, and confirmed final rewind resumes
+      exactly one loop.
 - [ ] Measure canvas frame time in `MAX`, `BALANCED`, and `LITE` at 1080p and 4K.
 - [ ] Confirm backing canvas dimensions respect profile pixel budgets and remain
       visually acceptable when capped.

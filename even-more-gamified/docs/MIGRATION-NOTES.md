@@ -202,9 +202,25 @@ frames. Profile-specific backing-pixel budgets cap 4K memory growth before reduc
 1,500,000 (`LITE`), 3,686,400 (`BALANCED`), and 8,294,400 (`MAX`). No worker or
 OffscreenCanvas dependency was added.
 
+Balanced mode now advances one monotonic cadence deadline after every accepted
+frame and skips missed deadlines without catch-up draws. Synthetic 60, 90, 120,
+144, 165, and 240 Hz timelines remain within the documented roughly 60 FPS cap.
+
+Canvas scheduling now has non-destructive activity ownership separate from full
+resource cleanup. Session completion retains the last frame while cancelling all
+future scheduling; summary close cannot resume it, and confirmed final rewind or a
+new active session resumes exactly one generation.
+
+Live `prefers-reduced-motion` changes are owned by one session listener. Canvas and
+transient presentation respond immediately, while the combo timer samples one
+monotonic instant and rebuilds interpolation/boundary work from the remaining time.
+It does not pause, extend, rearm, or replace timer ownership.
+
 Coverage:
 [`tests/unit/canvas-runtime.test.js`](../tests/unit/canvas-runtime.test.js),
 [`tests/unit/canvas-background-controller.test.js`](../tests/unit/canvas-background-controller.test.js),
+[`tests/unit/combo-timer.test.js`](../tests/unit/combo-timer.test.js),
+[`tests/unit/media-query.test.js`](../tests/unit/media-query.test.js),
 and [`tests/regression/source-invariants.test.js`](../tests/regression/source-invariants.test.js).
 
 ### Immutable resources and exact routing

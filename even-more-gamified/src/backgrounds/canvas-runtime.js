@@ -6,6 +6,46 @@ export const CANVAS_PIXEL_BUDGETS = Object.freeze({
     max: 8_294_400,
 });
 
+export function createFrameCadenceGate({ intervalMs = 1000 / 60, earlyToleranceMs = 0.5 } = {}) {
+    if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
+        throw new RangeError('Frame cadence interval must be greater than zero');
+    }
+    if (!Number.isFinite(earlyToleranceMs) || earlyToleranceMs < 0) {
+        throw new RangeError('Frame cadence tolerance must be nonnegative');
+    }
+
+    let nextDeadline = null;
+
+    function shouldRender(now) {
+        if (!Number.isFinite(now)) return false;
+        if (nextDeadline === null) {
+            nextDeadline = now + intervalMs;
+            return true;
+        }
+        if (now + earlyToleranceMs < nextDeadline) return false;
+
+        // Every accepted frame advances the deadline at least once. Advancing
+        // missed intervals arithmetically avoids catch-up bursts after a long frame.
+        const missedIntervals = Math.floor(
+            Math.max(0, now + earlyToleranceMs - nextDeadline) / intervalMs,
+        );
+        nextDeadline += (missedIntervals + 1) * intervalMs;
+        return true;
+    }
+
+    function reset(now = null) {
+        nextDeadline = Number.isFinite(now) ? now + intervalMs : null;
+    }
+
+    return Object.freeze({
+        shouldRender,
+        reset,
+        get nextDeadline() {
+            return nextDeadline;
+        },
+    });
+}
+
 export function calculateCanvasSize(
     viewportWidth,
     viewportHeight,

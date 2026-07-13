@@ -278,6 +278,123 @@ describe('combo timer compositor', () => {
         expect(bar.style.transform).toBe('scaleX(0.8)');
     });
 
+    it('reconfigures live reduced motion without changing ownership or deadline', () => {
+        const scheduler = new FakeScheduler();
+        const { bar, wrapper } = createElements();
+        const animations = [];
+        bar.animate = vi.fn(() => {
+            const animation = { cancel: vi.fn() };
+            animations.push(animation);
+            return animation;
+        });
+        let reducedMotion = false;
+        const onExpire = vi.fn();
+        const ownership = Object.freeze({ deadline: 10_000, timerGeneration: 1 });
+        const timer = createComboTimerCompositor({
+            bar,
+            wrapper,
+            clock: () => scheduler.time,
+            scheduler,
+            reducedMotion: () => reducedMotion,
+            onExpire,
+        });
+
+        timer.start({ durationMs: 10_000, ownership });
+        scheduler.advanceBy(2_500);
+        reducedMotion = true;
+        expect(timer.syncReducedMotion()).toMatchObject({
+            animationMode: 'none',
+            ownership,
+            remainingPct: 0.75,
+            status: COMBO_TIMER_STATUS.RUNNING,
+        });
+        expect(animations[0].cancel).toHaveBeenCalledOnce();
+        expect(bar.style.transform).toBe('scaleX(0.75)');
+
+        scheduler.advanceBy(1_500);
+        reducedMotion = false;
+        expect(timer.syncReducedMotion()).toMatchObject({
+            animationMode: 'waapi',
+            ownership,
+            remainingPct: 0.6,
+        });
+        expect(bar.animate).toHaveBeenCalledTimes(2);
+        expect(bar.animate).toHaveBeenLastCalledWith(
+            [{ transform: 'scaleX(0.6)' }, { transform: 'scaleX(0)' }],
+            { duration: 6_000, easing: 'linear', fill: 'forwards' },
+        );
+
+        scheduler.advanceBy(1_000);
+        reducedMotion = true;
+        timer.syncReducedMotion();
+        reducedMotion = false;
+        expect(timer.syncReducedMotion()).toMatchObject({
+            ownership,
+            remainingPct: 0.5,
+        });
+        expect(scheduler.pending('timeout')).toHaveLength(1);
+
+        scheduler.advanceBy(4_999);
+        expect(onExpire).not.toHaveBeenCalled();
+        scheduler.advanceBy(1);
+        expect(onExpire).toHaveBeenCalledTimes(1);
+        expect(onExpire.mock.calls[0][1]).toBe(ownership);
+        expect(scheduler.pending('timeout')).toHaveLength(0);
+    });
+
+    it('keeps one expiration-only deadline when motion changes with hidden visuals', () => {
+        const scheduler = new FakeScheduler();
+        const { bar, wrapper } = createElements();
+        bar.animate = vi.fn();
+        let reducedMotion = false;
+        const onExpire = vi.fn();
+        const timer = createComboTimerCompositor({
+            bar,
+            wrapper,
+            clock: () => scheduler.time,
+            scheduler,
+            reducedMotion: () => reducedMotion,
+            onExpire,
+        });
+        timer.start({ durationMs: 10_000, visualsEnabled: false });
+        scheduler.advanceBy(2_500);
+
+        reducedMotion = true;
+        expect(timer.syncReducedMotion()).toMatchObject({
+            remainingPct: 0.75,
+            visualsEnabled: false,
+        });
+        expect(bar.animate).not.toHaveBeenCalled();
+        expect(scheduler.pending('timeout')).toHaveLength(1);
+
+        scheduler.advanceBy(7_500);
+        expect(onExpire).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not restart paused or stopped timers when motion changes', () => {
+        const scheduler = new FakeScheduler();
+        let reducedMotion = false;
+        const { timer } = createTimer({
+            scheduler,
+            reducedMotion: () => reducedMotion,
+        });
+        timer.start({ durationMs: 10_000 });
+        scheduler.advanceBy(2_000);
+        timer.pause();
+
+        reducedMotion = true;
+        expect(timer.syncReducedMotion()).toMatchObject({
+            remainingPct: 0.8,
+            status: COMBO_TIMER_STATUS.PAUSED,
+        });
+        expect(scheduler.pending('timeout')).toHaveLength(0);
+
+        timer.stop();
+        reducedMotion = false;
+        expect(timer.syncReducedMotion().status).toBe(COMBO_TIMER_STATUS.STOPPED);
+        expect(scheduler.pending('timeout')).toHaveLength(0);
+    });
+
     it('schedules only expiration while the HUD visual is hidden', () => {
         const scheduler = new FakeScheduler();
         const { bar, wrapper } = createElements();

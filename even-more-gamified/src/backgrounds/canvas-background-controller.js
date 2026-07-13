@@ -1,7 +1,11 @@
 import { CANVAS_BACKGROUND_THEMES, SHOOTING_STAR_THEMES } from '../config/themes.js';
 import { debounce } from '../utils/scheduling.js';
 import ARCADE_CSS from './arcade.css';
-import { CANVAS_PIXEL_BUDGETS, calculateCanvasSize } from './canvas-runtime.js';
+import {
+    CANVAS_PIXEL_BUDGETS,
+    calculateCanvasSize,
+    createFrameCadenceGate,
+} from './canvas-runtime.js';
 import {
     drawBrightStar,
     drawStarPoint,
@@ -44,6 +48,7 @@ export function createCanvasBackgroundController({
     isMaxMode,
     prefersReducedMotion,
     isAnswerResolved,
+    isSessionActive = () => true,
     requestFrame = requestAnimationFrame,
     cancelFrame = cancelAnimationFrame,
     setTimer = setTimeout,
@@ -55,6 +60,9 @@ export function createCanvasBackgroundController({
     let starResizeHandler = null;
     let starVisibilityHandler = null;
     let starGeneration = 0;
+    let starActivityGeneration = 0;
+    let resumeStarfield = null;
+    let renderStarfieldOnce = null;
 
     function injectArcadeStyles() {
         if (document.getElementById('mm-arcade-styles')) return;
@@ -86,16 +94,24 @@ export function createCanvasBackgroundController({
         hasShootingStars,
     });
 
-    function stopArcadeBackdrop() {
-        starGeneration++;
-        if (starRaf) {
+    function pauseArcadeBackdrop() {
+        const hadScheduledWork = starRaf !== null || starFrameTimer !== null;
+        if (hadScheduledWork) starActivityGeneration++;
+        if (starRaf !== null) {
             cancelFrame(starRaf);
             starRaf = null;
         }
-        if (starFrameTimer) {
+        if (starFrameTimer !== null) {
             clearTimer(starFrameTimer);
             starFrameTimer = null;
         }
+        return hadScheduledWork;
+    }
+
+    function stopArcadeBackdrop() {
+        starGeneration++;
+        starActivityGeneration++;
+        pauseArcadeBackdrop();
         if (starResizeHandler) {
             window.removeEventListener('resize', starResizeHandler);
             starResizeHandler.cancel?.();
@@ -105,15 +121,46 @@ export function createCanvasBackgroundController({
             document.removeEventListener('visibilitychange', starVisibilityHandler);
             starVisibilityHandler = null;
         }
+        resumeStarfield = null;
+        renderStarfieldOnce = null;
         shootingStars.clear();
         document.getElementById('mm-starfield')?.remove();
     }
 
     function restartArcadeBackdrop() {
         ThemeManager.applyTheme(settings.backgroundTheme, { persist: false });
-        if (!settings.visualsEnabled) return;
         stopArcadeBackdrop();
+        if (!settings.visualsEnabled) return;
         syncArcadePresentation();
+    }
+
+    function resumeArcadeBackdrop() {
+        const reducedMotion = prefersReducedMotion();
+        if (
+            !settings.visualsEnabled ||
+            !hasCanvasBackdrop() ||
+            !isSessionActive() ||
+            document.hidden ||
+            reducedMotion
+        ) {
+            pauseArcadeBackdrop();
+            return false;
+        }
+        if (!document.getElementById('mm-starfield')) {
+            buildStarfield();
+            return Boolean(document.getElementById('mm-starfield'));
+        }
+        return resumeStarfield?.() === true;
+    }
+
+    function syncReducedMotion() {
+        const nextReducedMotionState = prefersReducedMotion();
+        pauseArcadeBackdrop();
+        if (nextReducedMotionState) {
+            if (isSessionActive() && !document.hidden) renderStarfieldOnce?.();
+            return false;
+        }
+        return resumeArcadeBackdrop();
     }
 
     function triggerShootingStar() {
@@ -123,11 +170,14 @@ export function createCanvasBackgroundController({
     function buildStarfield() {
         const currentRenderer = ThemeManager.getActiveTheme().background.renderer;
         const isStaticImageTheme = currentRenderer === 'shrine' || currentRenderer === 'nightview';
-        if (!hasCanvasBackdrop() || (prefersReducedMotion() && !isStaticImageTheme)) {
+        const reducedMotion = prefersReducedMotion();
+        if (!hasCanvasBackdrop() || (reducedMotion && !isStaticImageTheme)) {
             return;
         }
 
-        document.getElementById('mm-starfield')?.remove();
+        if (document.getElementById('mm-starfield') || starResizeHandler || starVisibilityHandler) {
+            stopArcadeBackdrop();
+        }
         const canvas = document.createElement('canvas');
         canvas.id = 'mm-starfield';
         document.body.appendChild(canvas);
@@ -147,10 +197,11 @@ export function createCanvasBackgroundController({
         let width = 0;
         let height = 0;
         let lastRenderAt = 0;
-        let nextFrameDue = 0;
         let frameScale = 1;
+        let rendererRenderPending = false;
         const generation = ++starGeneration;
         const frameInterval = isLiteMode() ? 1000 / 12 : 1000 / 60;
+        const frameCadence = createFrameCadenceGate({ intervalMs: frameInterval });
         const renderScale = isLiteMode() ? 0.7 : 1;
         const pixelBudget =
             CANVAS_PIXEL_BUDGETS[settings.performanceProfile] || CANVAS_PIXEL_BUDGETS.balanced;
@@ -192,36 +243,64 @@ export function createCanvasBackgroundController({
             paintEllipticalGlow,
             drawStarPoint,
             drawBrightStar,
-            requestRender: () => tick(),
+            requestRender: () => {
+                if (document.hidden) {
+                    rendererRenderPending = true;
+                    return false;
+                }
+                rendererRenderPending = false;
+                return renderStarfieldOnce?.() === true;
+            },
         });
 
+        function scheduleAnimationFrame() {
+            if (starRaf !== null) return;
+            const activityGeneration = starActivityGeneration;
+            let frameId = null;
+            frameId = requestFrame((now) => {
+                if (starRaf === frameId) starRaf = null;
+                if (activityGeneration !== starActivityGeneration) return;
+                tick(now);
+            });
+            starRaf = frameId;
+        }
+
         function scheduleNextFrame() {
-            if (prefersReducedMotion() || (isLiteMode() && isStaticImageTheme) || document.hidden) {
+            if (
+                generation !== starGeneration ||
+                !isSessionActive() ||
+                prefersReducedMotion() ||
+                (isLiteMode() && isStaticImageTheme) ||
+                document.hidden
+            ) {
                 return;
             }
             if (isLiteMode()) {
-                if (starFrameTimer) return;
+                if (starFrameTimer !== null) return;
                 const delay = Math.max(0, frameInterval - (performanceNow() - lastRenderAt));
-                starFrameTimer = setTimer(() => {
-                    starFrameTimer = null;
-                    if (!starRaf) starRaf = requestFrame(tick);
+                const activityGeneration = starActivityGeneration;
+                let timerId = null;
+                timerId = setTimer(() => {
+                    if (starFrameTimer === timerId) starFrameTimer = null;
+                    if (activityGeneration !== starActivityGeneration) return;
+                    scheduleAnimationFrame();
                 }, delay);
-            } else if (!starRaf) {
-                starRaf = requestFrame(tick);
+                starFrameTimer = timerId;
+            } else {
+                scheduleAnimationFrame();
             }
         }
 
-        function tick(now = performanceNow(), force = false) {
-            starRaf = null;
+        function tick(now = performanceNow(), force = false, schedule = true) {
             if (generation !== starGeneration) return;
-            if (document.hidden && !force) return;
-            if (!force && !isLiteMode() && !isMaxMode()) {
-                if (nextFrameDue && now + 0.5 < nextFrameDue) {
+            if (document.hidden || (!force && !isSessionActive())) return;
+            if (!isLiteMode() && !isMaxMode()) {
+                if (force) {
+                    frameCadence.reset(now);
+                } else if (!frameCadence.shouldRender(now)) {
                     scheduleNextFrame();
                     return;
                 }
-                if (!nextFrameDue) nextFrameDue = now + frameInterval;
-                while (nextFrameDue <= now) nextFrameDue += frameInterval;
             }
 
             const elapsed = lastRenderAt ? Math.min(100, now - lastRenderAt) : 1000 / 60;
@@ -234,34 +313,61 @@ export function createCanvasBackgroundController({
                 triggerShootingStar();
             }
             shootingStars.draw(ctx, frameScale);
-            scheduleNextFrame();
+            if (schedule) scheduleNextFrame();
         }
+
+        renderStarfieldOnce = () => {
+            if (generation !== starGeneration || document.hidden) return false;
+            tick(performanceNow(), true, false);
+            return true;
+        };
+        resumeStarfield = () => {
+            if (
+                generation !== starGeneration ||
+                starRaf !== null ||
+                starFrameTimer !== null ||
+                !isSessionActive() ||
+                document.hidden ||
+                prefersReducedMotion()
+            ) {
+                return false;
+            }
+            starActivityGeneration++;
+            lastRenderAt = 0;
+            frameCadence.reset();
+            tick(performanceNow(), true);
+            return true;
+        };
 
         starResizeHandler = debounce(() => {
             resize();
             renderer.init();
-            if (prefersReducedMotion() || (isLiteMode() && isStaticImageTheme)) {
-                tick();
+            if (
+                prefersReducedMotion() ||
+                (isLiteMode() && isStaticImageTheme) ||
+                !isSessionActive()
+            ) {
+                if (!renderStarfieldOnce()) rendererRenderPending = true;
             }
         }, 180);
         starVisibilityHandler = () => {
             if (document.hidden) {
-                if (starRaf) cancelFrame(starRaf);
-                starRaf = null;
-                if (starFrameTimer) clearTimer(starFrameTimer);
-                starFrameTimer = null;
+                pauseArcadeBackdrop();
                 return;
             }
-            lastRenderAt = 0;
-            nextFrameDue = 0;
-            if (!starRaf) tick();
+            const renderedPendingFrame = rendererRenderPending;
+            if (rendererRenderPending) {
+                rendererRenderPending = false;
+                renderStarfieldOnce();
+            }
+            if (isSessionActive() && !renderedPendingFrame) resumeArcadeBackdrop();
         };
 
         window.addEventListener('resize', starResizeHandler);
         document.addEventListener('visibilitychange', starVisibilityHandler);
         resize();
         renderer.init();
-        tick();
+        tick(performanceNow(), true);
     }
 
     function syncCrtEffects() {
@@ -279,6 +385,8 @@ export function createCanvasBackgroundController({
 
         if (hasCanvasBackdrop()) {
             if (!document.getElementById('mm-starfield')) buildStarfield();
+            else if (isSessionActive()) resumeArcadeBackdrop();
+            else pauseArcadeBackdrop();
         } else {
             stopArcadeBackdrop();
         }
@@ -307,7 +415,10 @@ export function createCanvasBackgroundController({
     return Object.freeze({
         injectStyles: injectArcadeStyles,
         stop: stopArcadeBackdrop,
+        pause: pauseArcadeBackdrop,
+        resume: resumeArcadeBackdrop,
         restart: restartArcadeBackdrop,
+        syncReducedMotion,
         hasCanvasBackdrop,
         hasShootingStars,
         triggerShootingStar,
