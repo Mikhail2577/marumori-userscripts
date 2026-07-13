@@ -24,13 +24,13 @@
 - [x] Phase 1 — Final-question completion
 - [x] Phase 2 — Timer and timeout ownership
 - [x] Phase 3 — Rewind identity and late recovery
-- [ ] Manual Checkpoint A
+- [ ] Manual Checkpoint A — deferred into the consolidated post-Phase 12 validation
 - [ ] Phase 4 — Storage, records, and HUD recovery
 - [ ] Phase 5 — Canvas cadence and lifecycle
 - [ ] Phase 6 — Live reduced motion
 - [ ] Phase 7 — Accessibility
 - [ ] Phase 8 — Low-risk rendering and privacy fixes
-- [ ] Manual Checkpoint B
+- [ ] Manual Checkpoint B — deferred into the consolidated post-Phase 12 validation
 - [ ] Phase 9 — Release engineering
 - [ ] Phase 10 — Additional low-risk hardening
 - [ ] Phase 11 — Evidence-gated investigations
@@ -45,6 +45,7 @@
 - Keep `package.json` (`3.9.0`) and the current hard-coded metadata version unchanged until the dedicated Phase 9 version-source work.
 - Preserve the root-level legacy userscript as a read-only behavioral reference. Source changes belong under `src/`; generated artifacts are updated only with npm build scripts.
 - Do not approve the pending `esbuild@0.28.1` or `fsevents@2.3.3` install scripts merely to remove npm warnings.
+- On 2026-07-13 the user explicitly authorized continuing through Phases 4–12 before further manual validation. Checkpoints A and B remain unpassed and are consolidated with Checkpoint C after Phase 12; Phase 13/public distribution remains blocked until that combined live validation succeeds.
 - Use targeted controller/integration tests for deterministic lifecycle races and production-bundle Firefox contracts for whole-application finalization behavior. Safari results remain unclaimed while Remote Automation is disabled.
 - Phase 1 uses `src/core/session-finalization.js` as the single resolution-gated session-completion owner. The controller requires both MaruMori's authoritative `N / N` completed-item signal and resolved current-prompt ownership; the session-scoped summary token is invalidated by cleanup or confirmed rewind.
 - `LifecycleController.complete()` now rejects unresolved or stale question ownership, making the lifecycle transition itself enforce the completion contract.
@@ -112,7 +113,8 @@
 - Manual Checkpoint A: the first candidate was withdrawn on 2026-07-12 after the user questioned word-streak tracking. Diagnosis confirmed that its one-prompt/one-word, one-based fixture was incompatible with live MaruMori multi-layout semantics. The word-streak-only candidate (`74b8c363…`) was then superseded after the timer feedback below. Current corrected candidate version `3.9.0`; `.user.js` 460,329 bytes / SHA-256 `632b8853d077bc5de976de0af77e5f31c688851abf9497c0e8312f5b12086d7b`; `.meta.js` 1,127 bytes / SHA-256 `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
 - Revised Checkpoint A semantics: live progress begins at `0 / N`; sibling prompts do not advance word streak; the last sibling plus host advancement produces one word edge; final summary follows the resolved `N / N` host transition; incorrect/timeout attempts below `N / N` requeue without a word or summary; rewind after final completion restores the prior completed-item count.
 - Manual Checkpoint A received a second correction on 2026-07-12: only the session's first timer waits for a keystroke; all later reading/meaning prompt timers must start immediately on Next. The first candidate could consume that gate even when ownership failed to arm, and input retargeting considered disconnection but not a still-connected stale node.
-- Manual Checkpoint B: not yet presented.
+- The user confirmed the corrected live timer behavior on 2026-07-12. The remaining Checkpoint A scenarios were not claimed as passed and, by explicit user direction on 2026-07-13, are deferred into the combined post-Phase 12 manual validation.
+- Manual Checkpoint B: deferred into the combined post-Phase 12 manual validation by explicit user direction; not passed.
 - Manual Checkpoint C: not yet presented.
 
 ## Deferred Items
