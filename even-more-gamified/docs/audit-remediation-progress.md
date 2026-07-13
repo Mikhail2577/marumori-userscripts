@@ -33,7 +33,7 @@
 - [ ] Manual Checkpoint B — deferred into the consolidated post-Phase 12 validation
 - [x] Phase 9 — Release engineering
 - [x] Phase 10 — Additional low-risk hardening
-- [ ] Phase 11 — Evidence-gated investigations
+- [x] Phase 11 — Evidence-gated investigations
 - [ ] Phase 12 — Final automated validation
 - [ ] Manual Checkpoint C
 - [ ] Phase 13 — Public artifact verification
@@ -148,8 +148,114 @@
 
 ## Deferred Items
 
-- Release-check redesign, version unification, and public distribution verification remain in their ordered later phases.
-- Matrix rendering, reconciliation duplication, broad arcade selectors, and CRT GPU behavior remain evidence-gated for Phase 11.
+- Public distribution verification remains in its ordered later phase and is blocked on the consolidated live validation.
+- Matrix caching, reconciliation restructuring, broad-selector rewriting, and CRT redesign remain intentionally unchanged because Phase 11 found no measured browser cost or live collision that justifies their complexity. Targeted Firefox/Safari profiling remains in the final manual checkpoint.
+
+## Evidence-gated investigations
+
+### 11.1 Matrix glyph rendering
+
+Measured: The actual Matrix renderer ran for 3,600 deterministic seeded frames per
+profile/viewport combination while `fillText` calls were counted. This is an
+operation-count harness, not a browser CPU/GPU benchmark.
+
+Result:
+
+| Viewport/profile | Backing surface | Average |   p95 |  Peak |                            Approximate rate at profile cap |
+| ---------------- | --------------: | ------: | ----: | ----: | ---------------------------------------------------------: |
+| 1080p Lite       |  profile-capped |   272.4 |   312 |   335 |                                   3,269 glyphs/s at 12 FPS |
+| 1080p Balanced   |  profile-capped |   880.7 |   969 | 1,010 |                                  52,842 glyphs/s at 60 FPS |
+| 1080p Max        |  profile-capped |   886.0 |   989 | 1,012 | 53,160 glyphs/s at 60 FPS; higher on high-refresh displays |
+| 4K Lite          |     1,632 × 918 |   355.8 |   402 |   428 |                                   4,270 glyphs/s at 12 FPS |
+| 4K Balanced      |   2,560 × 1,440 | 1,272.4 | 1,405 | 1,477 |                                  76,344 glyphs/s at 60 FPS |
+| 4K Max           |   3,840 × 2,160 | 2,086.3 | 2,331 | 2,416 |                                 125,178 glyphs/s at 60 FPS |
+
+Code changed: No.
+
+Reason: Renderer state is bounded, and operation counts alone do not demonstrate
+slow frame time, glyph-rasterization pressure, garbage collection, or material CPU
+cost on the target browsers. A glyph atlas/cache would add lifecycle and memory
+complexity without evidence of benefit.
+
+Deferred: Sprite caching, glyph atlases, and appearance-changing density changes.
+
+Manual profiling still needed: Firefox and Safari frame time, CPU, GC, and retained
+memory at 1080p/4K for Lite, Balanced, and Max, especially 4K Balanced/Max.
+
+### 11.2 Duplicate reconciliation phases
+
+Measured: Static scheduling trace plus instrumented adapter calls show that a
+narrow correctness/counter microtask and the broad navigation
+microtask → animation-frame → review-microtask path can both reconcile one host
+transition. Representative adapter discovery costs were:
+
+- question context: 7 `querySelectorAll`, 3 `matches`, 8 `closest` calls;
+- session identity: 2 `querySelectorAll`, 2 `matches`, 4 `closest` calls;
+- answer input: 3 `querySelectorAll`, 2 `matches`, 5 `closest` calls;
+- wrapper plus counter: 5 `querySelectorAll`, 5 `matches`, 9 `closest` calls.
+
+Result: A normal reconciliation was approximately 16 `querySelectorAll` calls; a
+broad sync plus review pass was approximately 23; the structurally possible narrow
+plus broad pair was approximately 39 per answer transition. No elapsed-time or
+long-task evidence showed that this is material.
+
+Code changed: No.
+
+Reason: The narrow observers and broad SPA recovery path have different failure
+ownership. Combining them into an uncontrolled body observer or adding persistent
+caches without timing evidence risks stale host identity for uncertain benefit.
+
+Deferred: Stronger cross-phase coalescing, pass-local memoization, and active-root
+caching with explicit invalidation.
+
+Manual profiling still needed: Observer callbacks, reconciliations, selector calls,
+and elapsed time for normal answers, wrapper replacement, timeout, rewind, and
+same-route remount on live MaruMori.
+
+### 11.3 Broad arcade CSS selectors
+
+Measured: Static selector/activation review. Broad `class*=` and body-input rules
+are gated by the active arcade/review body state, but authenticated non-review and
+variant review pages were not available to this harness.
+
+Result: A collision is plausible in theory; no actual unrelated text input, card,
+layout, or page styling collision was observed or reproducibly measured.
+
+Code changed: No.
+
+Reason: Replacing compatibility selectors without a failing live element could
+silently lose intended styling across MaruMori review variants.
+
+Deferred: Scoping broad rules to a new explicit active-review marker.
+
+Manual profiling still needed: Inspect review and nearby non-review routes in
+Firefox/Safari for unrelated input overrides, card shadows, and transparency/layout
+leaks.
+
+### 11.4 CRT GPU wakeups
+
+Measured: Static compositor inventory found two fixed overlays. The tint uses a
+gradient, `mix-blend-mode: multiply`, and an eight-second opacity animation whose
+changing keyframe intervals total roughly 0.48 seconds. CRT is already suppressed
+for Lite, Shrine, Night View, and reduced motion; its CSS overlay can otherwise
+remain present after completion or while hidden.
+
+Result: The structure is a credible compositor/energy profiling target, but this
+environment did not produce browser GPU, energy, or wakeup measurements proving a
+substantial continuous cost.
+
+Code changed: No.
+
+Reason: Removing or lowering the effect would change an intentional visual without
+evidence. Existing reduced-motion and theme/profile gates already cover the clearest
+low-cost cases.
+
+Deferred: Completion/hidden-state suspension, lower-frequency keyframes, and CRT
+visual redesign.
+
+Manual profiling still needed: Compare CRT off/on with Default and an animated
+background, then reduced-motion, hidden-tab, and completed-session states in Firefox
+and Safari performance/energy tools.
 
 ## Commands and Results
 
@@ -218,3 +324,5 @@
 - Phase 10 Firefox production-bundle run: passed all 16 contracts, including ordinary-editing rejection and exactly-one confirmed Backspace rewind.
 - Phase 10 workflow and policy checks: CI YAML and install-script documentation pass Prettier; the hosted push/pull-request job has not yet executed in this local environment.
 - Phase 10 artifact sizes/hashes: `.user.js` 486,030 bytes / `3f1834575039ac245a19d37f386e199925da0708bed53682a7cedd0f06153be4`; `.meta.js` 1,127 bytes / `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
+- Phase 11 deterministic Matrix operation-count harness: completed for six viewport/profile combinations over 3,600 seeded frames each; no runtime instrumentation was retained.
+- Phase 11 reconciliation scheduling/selector instrumentation and static broad-selector/CRT inventories: completed; no speculative production code change was justified.
