@@ -2,7 +2,8 @@
 
 The root-level userscript remains the working behavioral reference. The modular
 implementation builds separately into `dist/` and preserves existing storage keys,
-defaults, scoring intent, theme identity, and userscript metadata.
+defaults, scoring intent, theme identity, and required metadata permissions. The
+modular metadata builder owns current attribution and distribution endpoints.
 
 Automated tests validate the extracted contracts and generated output. This
 migration has **not** by itself demonstrated full parity in authenticated

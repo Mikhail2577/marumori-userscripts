@@ -113,6 +113,13 @@ describe('build validation', () => {
 
         expect(PACKAGE_VERSION).toBe(packageJson.version);
         expect(directives.get('version')).toEqual([packageJson.version]);
+        expect(directives.get('author')).toEqual(['matskye & Mikhail2577 & OpenAI Codex']);
+        expect(directives.get('downloadURL')).toEqual([
+            'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/dist/marumori_even_more_gamified.user.js',
+        ]);
+        expect(directives.get('updateURL')).toEqual([
+            'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/dist/marumori_even_more_gamified.meta.js',
+        ]);
         expect(validateUserscriptSource(fixtureBundle())).toBe(true);
     });
 

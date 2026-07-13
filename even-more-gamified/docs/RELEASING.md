@@ -127,6 +127,11 @@ backgrounds require authenticated real-browser validation.
 ## 8. Publish
 
 Publish the reviewed production `.user.js` and `.meta.js` through the repository's
-normal distribution channel. Ensure the hosted download/update URLs serve those
-exact files and the published metadata version matches the release. Tag or commit
-only according to the maintainer's normal release policy.
+`main` branch. The canonical raw URLs are:
+
+- `https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/dist/marumori_even_more_gamified.user.js`
+- `https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/dist/marumori_even_more_gamified.meta.js`
+
+Ensure both URLs serve the reviewed files and the published metadata version
+matches the release. Tag or commit only according to the maintainer's normal
+release policy.

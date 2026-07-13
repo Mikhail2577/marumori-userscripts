@@ -470,11 +470,25 @@ describe('source architecture invariants', () => {
             }
         }
 
+        const distributionUrls = new Set(
+            [...USER_SCRIPT_METADATA.matchAll(/^\/\/ @(?:downloadURL|updateURL)\s+(\S+)$/gmu)].map(
+                (match) => match[1],
+            ),
+        );
+        expect(distributionUrls.size, 'Expected one download URL and one update URL').toBe(2);
+        for (const url of distributionUrls) {
+            expect(
+                rawGitHubRevision(url),
+                `Distribution URL must follow the stable main branch: ${url}`,
+            ).toBe('main');
+        }
+
+        const assetReferences = references.filter(({ url }) => !distributionUrls.has(url));
         expect(
-            references.length,
+            assetReferences.length,
             'Expected at least one generated/source asset reference',
         ).toBeGreaterThan(0);
-        const unpinnedReferences = references
+        const unpinnedReferences = assetReferences
             .map(({ filePath, url }) => ({ filePath, revision: rawGitHubRevision(url), url }))
             .filter(({ revision }) => !/^[0-9a-f]{40}$/iu.test(revision ?? ''));
         expect(

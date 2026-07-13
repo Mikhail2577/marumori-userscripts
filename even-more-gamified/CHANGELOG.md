@@ -6,6 +6,8 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ### Fixed
 
+- Pointed generated download/update metadata at this repository's canonical
+  `main`-branch artifacts and added OpenAI Codex to the author attribution.
 - Restored mounting on the live review page by recognizing `#time-me` as the
   review-session container instead of incorrectly requiring the sibling answer
   wrapper to be inside the `#main` question prompt.
