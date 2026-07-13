@@ -54,7 +54,7 @@ function createPanelElement(document, settings, getMusicModeLabel, getThemeLabel
             </button>
         </div>
         <div class="mm-setting-row">
-            <label>SFX Volume</label>
+            <label for="mm-vol-slider">SFX Volume</label>
             <input id="mm-vol-slider" type="range" min="0" max="1" step="0.05" value="${settings.volume}">
         </div>
         <div class="mm-setting-row">
@@ -64,7 +64,7 @@ function createPanelElement(document, settings, getMusicModeLabel, getThemeLabel
             </button>
         </div>
         <div class="mm-setting-row">
-            <label>Music Volume</label>
+            <label for="mm-music-vol-slider">Music Volume</label>
             <input id="mm-music-vol-slider" type="range" min="0" max="0.5" step="0.01"
                 value="${settings.musicVolume}">
         </div>

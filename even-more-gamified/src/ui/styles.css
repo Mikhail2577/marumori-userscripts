@@ -82,10 +82,6 @@
     border-color: var(--mm-theme-button, #f90);
     color: var(--mm-theme-button, #f90);
 }
-#mm-settings-launcher:focus-visible {
-    outline: 2px solid var(--mm-theme-secondary, #7cf);
-    outline-offset: 2px;
-}
 #mm-hud.glow {
     box-shadow: 0 0 18px 4px var(--mm-theme-hud-glow, #f90);
 }
@@ -128,7 +124,12 @@
     border-color: var(--mm-theme-button, #f90);
     background: var(--mm-theme-button-soft, rgba(255, 153, 0, 0.1));
 }
-#mm-hud-collapse-btn:focus-visible {
+#mm-settings-launcher:focus-visible,
+#mm-hud button:focus-visible,
+#mm-settings button:focus-visible,
+#mm-settings input[type='range']:focus-visible,
+#mm-summary button:focus-visible,
+#mm-summary [tabindex]:focus-visible {
     outline: 2px solid var(--mm-theme-secondary, #7cf);
     outline-offset: 2px;
 }
@@ -1440,7 +1441,6 @@ body.mm-shake-hard {
     height: 4px;
     background: var(--mm-theme-panel-divider, #555);
     border-radius: 2px;
-    outline: none;
     cursor: pointer;
 }
 #mm-vol-slider::-webkit-slider-thumb,

@@ -86,7 +86,6 @@ export function createCanvasBackgroundController({
     }
 
     const shootingStars = createShootingStarSystem({
-        window,
         settings,
         isLiteMode,
         prefersReducedMotion,
@@ -123,7 +122,7 @@ export function createCanvasBackgroundController({
         }
         resumeStarfield = null;
         renderStarfieldOnce = null;
-        shootingStars.clear();
+        shootingStars.resize(0, 0);
         document.getElementById('mm-starfield')?.remove();
     }
 
@@ -214,6 +213,7 @@ export function createCanvasBackgroundController({
             });
             width = canvas.width = size.width;
             height = canvas.height = size.height;
+            shootingStars.resize(canvas.width, canvas.height);
         }
 
         function createBackdropTexture() {

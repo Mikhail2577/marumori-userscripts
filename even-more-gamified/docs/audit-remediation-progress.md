@@ -28,8 +28,8 @@
 - [x] Phase 4 — Storage, records, and HUD recovery
 - [x] Phase 5 — Canvas cadence and lifecycle
 - [x] Phase 6 — Live reduced motion
-- [ ] Phase 7 — Accessibility
-- [ ] Phase 8 — Low-risk rendering and privacy fixes
+- [x] Phase 7 — Accessibility
+- [x] Phase 8 — Low-risk rendering and privacy fixes
 - [ ] Manual Checkpoint B — deferred into the consolidated post-Phase 12 validation
 - [ ] Phase 9 — Release engineering
 - [ ] Phase 10 — Additional low-risk hardening
@@ -74,6 +74,9 @@
 - HUD statistics visibility no longer owns Settings availability. Hidden HUD state uses `hidden`, `inert`, `aria-hidden`, and `display: none`; one accessible native-button recovery launcher lives outside the HUD subtree and is controller-owned across cleanup/remount.
 - Phase 5 replaces the Balanced early-tolerance gate with a deadline cadence that advances after every accepted frame and skips missed intervals arithmetically. Canvas activity can pause without destroying renderer resources or the retained last frame; completed-session reconciliation remains paused and confirmed rewind/new-session ownership resumes one loop.
 - Phase 6 installs one session-owned modern/legacy media-query subscription. Live reduced-motion changes compose with session and visibility state, cancel transient work, and reconfigure canvas/timer presentation without resetting gameplay or replacing the timer owner/deadline.
+- Phase 7 moves summary ownership into a dedicated dialog controller. Opening the summary captures focus and the exact `inert`/`aria-hidden` state of every background body child, focuses Continue, traps forward/backward Tab navigation, and blocks programmatic background focus. Close, confirmed rewind, route cleanup, and remount restore background state and focus without leaking document listeners.
+- Settings range inputs now have stable programmatic labels, and every userscript control family has a theme-aware `:focus-visible` outline. The hidden-HUD recovery launcher remains outside the inert HUD and its Phase 4 accessibility state survives a summary cycle exactly.
+- Phase 8 gives shooting stars explicit backing-canvas bounds. Spawn, trail, update, and directional culling share that coordinate system, and resize/teardown clears trails expressed in obsolete bounds. Shrine and Night View retain the GM resource primary path; their one-shot direct fallback now assigns anonymous CORS and `no-referrer` before `src` without adding a request.
 
 ### Phase 0 subsystem map
 
@@ -119,6 +122,9 @@
 - `tests/unit/canvas-background-controller.test.js`: completion pause with retained canvas, reconciliation while paused, exactly-one rewind/new-session resume, hidden/completed composition, resize/theme changes, stale activity generations, and reduced-motion toggles.
 - `tests/unit/combo-timer.test.js`: live motion toggles preserve the exact owner/effective deadline and expire once in animated, stepped, and hidden-visual modes.
 - `tests/unit/media-query.test.js`: modern and legacy subscription APIs, lifecycle cleanup, idempotence, and unavailable-query fallback.
+- `tests/unit/settings-panel.test.js`, `tests/unit/summary-dialog.test.js`, and `tests/regression/source-invariants.test.js`: stable slider label association, unique remount IDs, visible-focus contracts, dialog semantics, focus trapping/restoration, exact inert/ARIA restoration, repeated cycles, and cleanup while open.
+- `tests/browser/run-browser-contract.js`: production-bundle summary semantics, hidden-HUD preservation, focus ownership, and route-cleanup restoration. The Firefox/Safari-compatible suite now contains 15 contracts.
+- `tests/unit/shooting-stars.test.js` and `tests/unit/background-image-loading.test.js`: capped backing coordinates, trail cleanup/culling, GM-primary image loading, and direct-fallback assignment order.
 
 ## Manual Validation
 
@@ -189,3 +195,8 @@
 - Phases 5–6 production build, artifact validation, syntax, formatting, and `git diff --check`: passed.
 - Phases 5–6 Firefox production-bundle run: passed all 14 contracts.
 - Phases 5–6 Safari production-bundle run: the first two contracts passed, then WebDriver stalled and left Safari paired to the abandoned session; the run was terminated and no complete Safari result is claimed. A fresh attach was rejected as already paired, so retry is deferred to Phase 12 without forcibly closing the user's Safari session.
+- Phases 7–8 focused suites: 5 files / 32 tests passed before the final repeated-dialog-cycle assertion; the summary controller suite then passed 9/9.
+- Phases 7–8 lint, formatting, and `git diff --check`: passed on the completed source/test diff.
+- Phases 7–8 production build and the combined pre-commit gate: passed, including 40 Vitest files / 307 tests, generated syntax/metadata validation, formatting, and the real-source deterministic verifier.
+- Phases 7–8 Firefox production-bundle run: passed all 15 contracts, including modal focus/background ownership and cleanup restoration.
+- Phases 7–8 artifact hashes: `.user.js` `e1d120f5bc92bf01a142cb6de2ff0331375657cc7774bfeb3736459c96faf33f`; `.meta.js` `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.

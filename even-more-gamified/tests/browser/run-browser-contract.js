@@ -489,6 +489,125 @@ async function summaryCleanupContract(driver, baseUrl) {
     await waitForScript(driver, "!document.getElementById('mm-hud')", 'HUD did not clean up');
     await driver.sleep(950);
     assert.equal(await count(driver, '#mm-summary.open'), 0);
+    const restored = await driver.executeScript(`
+        const root = document.getElementById('time-me');
+        return {
+            ariaHidden: root?.getAttribute('aria-hidden'),
+            inert: root?.hasAttribute('inert') === true,
+        };
+    `);
+    assert.deepEqual(restored, { ariaHidden: null, inert: false });
+}
+
+async function summaryAccessibilityContract(driver, baseUrl) {
+    await openFixture(driver, baseUrl, { mode: 'hidden-hud', total: 1 });
+    await (await waitForElement(driver, '#answer')).sendKeys('answer');
+    await (await waitForElement(driver, "[data-action='check']")).click();
+    await driver.executeScript(`
+        const next = document.querySelector('[data-action="next"]');
+        next.focus();
+        next.click();
+    `);
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-summary')?.classList.contains('open')",
+        'Accessible summary did not open',
+    );
+
+    const modal = await driver.executeScript(`
+        const dialog = document.getElementById('mm-summary');
+        const hud = document.getElementById('mm-hud');
+        const launcher = document.getElementById('mm-settings-launcher');
+        const title = document.getElementById(dialog?.getAttribute('aria-labelledby'));
+        return {
+            activeId: document.activeElement?.id ?? null,
+            dialogCount: document.querySelectorAll('#mm-summary').length,
+            headingCount: document.querySelectorAll('#mm-summary-title').length,
+            hudAriaHidden: hud?.getAttribute('aria-hidden'),
+            hudInert: hud?.hasAttribute('inert') === true,
+            labelledBy: dialog?.getAttribute('aria-labelledby'),
+            launcherAriaHidden: launcher?.getAttribute('aria-hidden'),
+            launcherInert: launcher?.hasAttribute('inert') === true,
+            modal: dialog?.getAttribute('aria-modal'),
+            role: dialog?.getAttribute('role'),
+            rootAriaHidden: document.getElementById('time-me')?.getAttribute('aria-hidden'),
+            rootInert: document.getElementById('time-me')?.hasAttribute('inert') === true,
+            title: title?.textContent?.trim(),
+        };
+    `);
+    assert.deepEqual(modal, {
+        activeId: 'mm-summary-close',
+        dialogCount: 1,
+        headingCount: 1,
+        hudAriaHidden: 'true',
+        hudInert: true,
+        labelledBy: 'mm-summary-title',
+        launcherAriaHidden: 'true',
+        launcherInert: true,
+        modal: 'true',
+        role: 'dialog',
+        rootAriaHidden: 'true',
+        rootInert: true,
+        title: 'SESSION COMPLETE',
+    });
+
+    const focusTrap = await driver.executeScript(`
+        const close = document.getElementById('mm-summary-close');
+        const forward = new KeyboardEvent('keydown', {
+            bubbles: true,
+            cancelable: true,
+            key: 'Tab',
+        });
+        close.dispatchEvent(forward);
+        const backward = new KeyboardEvent('keydown', {
+            bubbles: true,
+            cancelable: true,
+            key: 'Tab',
+            shiftKey: true,
+        });
+        close.dispatchEvent(backward);
+        document.getElementById('mm-settings-launcher').focus();
+        return {
+            activeId: document.activeElement?.id ?? null,
+            backwardPrevented: backward.defaultPrevented,
+            forwardPrevented: forward.defaultPrevented,
+        };
+    `);
+    assert.deepEqual(focusTrap, {
+        activeId: 'mm-summary-close',
+        backwardPrevented: true,
+        forwardPrevented: true,
+    });
+
+    await (await waitForElement(driver, '#mm-summary-close')).click();
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-summary')?.hidden === true",
+        'Summary did not close',
+    );
+    const restored = await driver.executeScript(`
+        const hud = document.getElementById('mm-hud');
+        const launcher = document.getElementById('mm-settings-launcher');
+        const root = document.getElementById('time-me');
+        return {
+            activeAction: document.activeElement?.dataset?.action ?? null,
+            hudAriaHidden: hud?.getAttribute('aria-hidden'),
+            hudInert: hud?.hasAttribute('inert') === true,
+            launcherAriaHidden: launcher?.getAttribute('aria-hidden'),
+            launcherInert: launcher?.hasAttribute('inert') === true,
+            rootAriaHidden: root?.getAttribute('aria-hidden'),
+            rootInert: root?.hasAttribute('inert') === true,
+        };
+    `);
+    assert.deepEqual(restored, {
+        activeAction: 'next',
+        hudAriaHidden: 'true',
+        hudInert: true,
+        launcherAriaHidden: null,
+        launcherInert: false,
+        rootAriaHidden: null,
+        rootInert: false,
+    });
 }
 
 async function sameRouteSecondSessionContract(driver, baseUrl) {
@@ -688,6 +807,7 @@ const CONTRACTS = Object.freeze([
     ['one-question finalization', oneQuestionFinalizationContract],
     ['incorrect attempt does not complete an item', finalIncorrectContract],
     ['incomplete-item timeout requeues without finalizing', finalTimeoutContract],
+    ['accessible modal summary ownership', summaryAccessibilityContract],
     ['summary cancellation on cleanup', summaryCleanupContract],
     ['transactional final-answer rewind', rewindContract],
     ['rewind across wrapper and progress replacement', rewindReplacementProgressContract],

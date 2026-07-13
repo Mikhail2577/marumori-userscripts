@@ -1,7 +1,6 @@
 import { compactInPlace } from '../canvas-runtime.js';
 
 export function createShootingStarSystem({
-    window,
     settings,
     isLiteMode,
     prefersReducedMotion,
@@ -9,6 +8,32 @@ export function createShootingStarSystem({
     hasShootingStars,
 }) {
     let stars = [];
+    let width = 0;
+    let height = 0;
+
+    function resize(nextWidth, nextHeight) {
+        const normalizedWidth = Number(nextWidth);
+        const normalizedHeight = Number(nextHeight);
+        if (
+            !Number.isFinite(normalizedWidth) ||
+            normalizedWidth <= 0 ||
+            !Number.isFinite(normalizedHeight) ||
+            normalizedHeight <= 0
+        ) {
+            width = 0;
+            height = 0;
+            stars = [];
+            return false;
+        }
+
+        if (width !== normalizedWidth || height !== normalizedHeight) {
+            // Existing trails are expressed in the previous backing coordinate space.
+            width = normalizedWidth;
+            height = normalizedHeight;
+            stars = [];
+        }
+        return true;
+    }
 
     function trigger() {
         if (
@@ -16,14 +41,16 @@ export function createShootingStarSystem({
             !settings.visualsEnabled ||
             prefersReducedMotion() ||
             isAnswerResolved() ||
-            !hasShootingStars()
+            !hasShootingStars() ||
+            width <= 0 ||
+            height <= 0
         ) {
             return false;
         }
 
         stars.push({
-            x: window.innerWidth * (0.65 + Math.random() * 0.45),
-            y: window.innerHeight * (0.06 + Math.random() * 0.38),
+            x: width * (0.65 + Math.random() * 0.45),
+            y: height * (0.06 + Math.random() * 0.38),
             vx: -9 - Math.random() * 7,
             vy: 4 + Math.random() * 4,
             life: 1,
@@ -34,7 +61,22 @@ export function createShootingStarSystem({
     }
 
     function draw(ctx, frameScale) {
-        compactInPlace(stars, (star) => star.life > 0);
+        if (width <= 0 || height <= 0) return;
+        compactInPlace(stars, (star) => {
+            if (star.life <= 0) return false;
+            const tailX = star.x - (star.vx * star.length) / 12;
+            const tailY = star.y - (star.vy * star.length) / 12;
+            const outsideLeft = Math.max(star.x, tailX) < 0;
+            const outsideRight = Math.min(star.x, tailX) > width;
+            const outsideTop = Math.max(star.y, tailY) < 0;
+            const outsideBottom = Math.min(star.y, tailY) > height;
+            return !(
+                (outsideLeft && star.vx <= 0) ||
+                (outsideRight && star.vx >= 0) ||
+                (outsideTop && star.vy <= 0) ||
+                (outsideBottom && star.vy >= 0)
+            );
+        });
         for (const star of stars) {
             const tailX = star.x - (star.vx * star.length) / 12;
             const tailY = star.y - (star.vy * star.length) / 12;
@@ -64,5 +106,5 @@ export function createShootingStarSystem({
         stars = [];
     }
 
-    return Object.freeze({ trigger, draw, clear });
+    return Object.freeze({ resize, trigger, draw, clear });
 }

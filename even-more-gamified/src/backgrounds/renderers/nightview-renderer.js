@@ -66,6 +66,7 @@ export function createNightviewRenderer(runtime) {
             }
             nightviewDirectFallbackTried = true;
             nightviewImage.crossOrigin = 'anonymous';
+            nightviewImage.referrerPolicy = 'no-referrer';
             nightviewImage.src = NIGHTVIEW_IMAGE_URL;
         };
         nightviewImage.onerror = loadNightviewDirectly;

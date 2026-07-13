@@ -147,10 +147,18 @@ covered.
       restore the HUD after reload, and hidden HUD timer visuals stop doing work.
 - [ ] Open/close settings repeatedly and click outside; confirm one panel, correct
       labels, no leaked listeners, and no accidental answer submission.
+- [ ] Navigate Settings using only the keyboard; confirm both ranges have meaningful
+      accessible names and every toggle, cycle/action button, launcher, and range
+      has a visible focus indicator.
 - [ ] Drag the HUD with mouse and available pointer/touch input; confirm smooth
       movement, persistence, bounds, and no text/input interference.
 - [ ] Trigger summary after a mixed session and verify correct/incorrect counts,
       accuracy, score, best combo/multiplier, timed XP effects, and grade.
+- [ ] While summary is open, confirm focus begins on Continue, Tab and Shift+Tab
+      remain inside it, background controls cannot receive focus, and closing it
+      restores focus without changing the hidden-HUD launcher/HUD accessibility state.
+- [ ] Navigate away while summary is open and confirm MaruMori is not left inert and
+      no summary key/focus handler remains.
 - [ ] Confirm a stale summary callback cannot appear in a new or rewound session.
 
 ## Answer timer and timed XP
@@ -314,6 +322,10 @@ covered.
       rewritten in bulk.
 - [ ] Verify base floating-text motion/font/shadow/color reaches each event override.
 - [ ] Block each image resource and confirm graceful fallback/no executable request.
+- [ ] In the Network panel, simulate the Shrine and Night View direct fallbacks and
+      confirm each makes at most one direct request with no MaruMori `Referer`.
+- [ ] At 4K or with a simulated large CSS viewport in Balanced mode, trigger shooting
+      stars and confirm they originate within the capped drawable backing surface.
 - [ ] Confirm both production resource URLs contain the same full immutable commit
       revision as the direct fallback URLs.
 

@@ -51,6 +51,7 @@ export function createShrineRenderer(runtime) {
             }
             shrineDirectFallbackTried = true;
             shrineImage.crossOrigin = 'anonymous';
+            shrineImage.referrerPolicy = 'no-referrer';
             shrineImage.src = SHRINE_IMAGE_URL;
         };
         shrineImage.onerror = loadShrineDirectly;

@@ -223,6 +223,40 @@ Coverage:
 [`tests/unit/media-query.test.js`](../tests/unit/media-query.test.js),
 and [`tests/regression/source-invariants.test.js`](../tests/regression/source-invariants.test.js).
 
+### Keyboard and modal accessibility
+
+Both settings ranges now have stable, unique IDs and explicit labels. Userscript
+buttons and ranges expose a visible theme-aware keyboard outline through
+`:focus-visible` without adding pointer-focus decoration.
+
+The session summary is now a dedicated modal controller. It provides dialog and
+heading semantics, focuses Continue, traps Tab in both directions, prevents
+background focus, and snapshots/restores the exact background `inert` and
+`aria-hidden` state. Repeated open/close, final rewind, route cleanup, hidden HUD,
+and remount paths share the same restoration ownership.
+
+Coverage:
+[`tests/unit/settings-panel.test.js`](../tests/unit/settings-panel.test.js),
+[`tests/unit/summary-dialog.test.js`](../tests/unit/summary-dialog.test.js),
+[`tests/regression/rewind.test.js`](../tests/regression/rewind.test.js), and the
+account-free browser contracts.
+
+### Backing-coordinate effects and image fallback privacy
+
+Shooting stars use the actual capped backing canvas for spawn, trails, updates,
+and culling. A resize clears transient stars whose coordinates belong to the old
+surface. This keeps Balanced rendering visible when a 4K CSS viewport is backed by
+a smaller pixel-budget surface.
+
+Shrine and Night View preserve `GM_getResourceURL` as their primary image path.
+Their one-shot direct fallback assigns anonymous CORS and `no-referrer` before
+`src`, preventing the MaruMori page URL from becoming the fallback request
+referrer without introducing another request.
+
+Coverage:
+[`tests/unit/shooting-stars.test.js`](../tests/unit/shooting-stars.test.js) and
+[`tests/unit/background-image-loading.test.js`](../tests/unit/background-image-loading.test.js).
+
 ### Immutable resources and exact routing
 
 Production image resource and direct fallback URLs use a full immutable commit

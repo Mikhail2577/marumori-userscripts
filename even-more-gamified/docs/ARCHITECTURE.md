@@ -21,22 +21,22 @@ dependency, code splitting, or remote executable JavaScript.
 
 ## Module map
 
-| Area                                            | Responsibility                                                                                                                         |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| [`src/index.js`](../src/index.js)               | Minimal build entry point.                                                                                                             |
-| [`src/app.js`](../src/app.js)                   | Composition root. It samples review state and wires the focused gameplay, platform, presentation, audio, and background controllers.   |
-| [`src/config/`](../src/config/)                 | Defaults, constants, theme/audio registries, aliases, preset composition, and memoized theme presentation.                             |
-| [`src/core/`](../src/core/)                     | Explicit session/question state transitions, monotonically increasing generations, owned cleanup scopes, and coalesced reconciliation. |
-| [`src/adapters/`](../src/adapters/)             | MaruMori DOM discovery, exact-route SPA navigation, synchronous GM storage, and Web Audio context state.                               |
-| [`src/gameplay/`](../src/gameplay/)             | Pure scoring/grades/records and owned first-input, rewind, and timeout transactions.                                                   |
-| [`src/audio/`](../src/audio/)                   | SFX, generated music scheduling, unlock, visibility, and cleanup lifecycle.                                                            |
-| [`src/ui/`](../src/ui/)                         | Bundled base CSS, HUD lifecycle/drag/presentation, settings-panel wiring, and the compositor-focused combo timer.                      |
-| [`src/effects/`](../src/effects/)               | CRT overlays plus owned shake, flash, floating text, banner, particle, celebration, accent, and replayable animation lifecycles.       |
-| [`src/backgrounds/`](../src/backgrounds/)       | Canvas lifecycle, bundled arcade CSS, sizing/pixel budgets, shared drawing primitives, and focused modules for each theme renderer.    |
-| [`src/font-challenge/`](../src/font-challenge/) | Font allowlist, exact inline-style restoration, optional stylesheet lifecycle, and bounded cache.                                      |
-| [`src/storage/`](../src/storage/)               | Stable keys and settings normalization/migration.                                                                                      |
-| [`src/utils/`](../src/utils/)                   | Small DOM, scheduling, JSON, and numeric helpers.                                                                                      |
-| [`tests/`](../tests/)                           | Unit, fixture-backed integration, regression, and generated-build tests.                                                               |
+| Area                                            | Responsibility                                                                                                                             |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`src/index.js`](../src/index.js)               | Minimal build entry point.                                                                                                                 |
+| [`src/app.js`](../src/app.js)                   | Composition root. It samples review state and wires the focused gameplay, platform, presentation, audio, and background controllers.       |
+| [`src/config/`](../src/config/)                 | Defaults, constants, theme/audio registries, aliases, preset composition, and memoized theme presentation.                                 |
+| [`src/core/`](../src/core/)                     | Explicit session/question state transitions, monotonically increasing generations, owned cleanup scopes, and coalesced reconciliation.     |
+| [`src/adapters/`](../src/adapters/)             | MaruMori DOM discovery, exact-route SPA navigation, synchronous GM storage, and Web Audio context state.                                   |
+| [`src/gameplay/`](../src/gameplay/)             | Pure scoring/grades/records and owned first-input, rewind, and timeout transactions.                                                       |
+| [`src/audio/`](../src/audio/)                   | SFX, generated music scheduling, unlock, visibility, and cleanup lifecycle.                                                                |
+| [`src/ui/`](../src/ui/)                         | Bundled base CSS, HUD lifecycle/drag/presentation, settings-panel wiring, modal summary ownership, and the compositor-focused combo timer. |
+| [`src/effects/`](../src/effects/)               | CRT overlays plus owned shake, flash, floating text, banner, particle, celebration, accent, and replayable animation lifecycles.           |
+| [`src/backgrounds/`](../src/backgrounds/)       | Canvas lifecycle, bundled arcade CSS, sizing/pixel budgets, shared drawing primitives, and focused modules for each theme renderer.        |
+| [`src/font-challenge/`](../src/font-challenge/) | Font allowlist, exact inline-style restoration, optional stylesheet lifecycle, and bounded cache.                                          |
+| [`src/storage/`](../src/storage/)               | Stable keys and settings normalization/migration.                                                                                          |
+| [`src/utils/`](../src/utils/)                   | Small DOM, scheduling, JSON, and numeric helpers.                                                                                          |
+| [`tests/`](../tests/)                           | Unit, fixture-backed integration, regression, and generated-build tests.                                                                   |
 
 `src/app.js` is deliberately an explicit integration shell rather than a second
 framework. HUD/settings presentation, theme resolution, audio synthesis, transient
@@ -179,6 +179,14 @@ from layout, focus order, pointer interaction, and the accessibility tree with
 outside that subtree and is removed on cleanup. Legacy timer values are normalized
 to the supported 5–120 second interval before a compositor can be started.
 
+The summary is a controller-owned modal dialog with a stable labelled heading and
+Continue action. It snapshots every background body child's prior `inert` and
+`aria-hidden` state, owns focus while open, and restores both background state and
+the previous viable focus target on close. Confirmed rewind and route cleanup use
+the same close path, so a removed review cannot leave MaruMori inert. Range inputs
+have stable label associations, and keyboard focus indication is scoped through
+`:focus-visible` to the userscript's control families.
+
 The audio context adapter deduplicates unlock attempts and reports a context only
 after `resume()` produces a running state. Music and SFX use that adapter; enabling
 SFX consumes the settings gesture when necessary, while lifecycle listeners remain
@@ -196,6 +204,12 @@ focused renderer module for each theme. The shared runtime uses profile-specific
 backing pixel budgets, cached/memoized theme state and static work where available,
 in-place array compaction, debounced resize, hidden-tab suspension, and generation
 tokens. OffscreenCanvas and workers are deliberately not required.
+
+Shooting stars receive the selected backing canvas width and height explicitly;
+their spawn points, trails, motion, and offscreen culling never infer backing
+coordinates from the CSS viewport. Shrine and Night View first use their manager
+resource URL, then make at most one direct image fallback with anonymous CORS and a
+`no-referrer` policy assigned before `src`.
 
 Balanced cadence is deadline-driven: every accepted frame advances the deadline
 at least once and missed intervals are skipped arithmetically, preventing

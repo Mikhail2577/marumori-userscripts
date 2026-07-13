@@ -34,6 +34,22 @@
         );
     }
 
+    if (parameters.get('mode') === 'hidden-hud') {
+        setValue(
+            'mmSettings',
+            JSON.stringify({
+                fontChallengeEnabled: false,
+                hudEnabled: false,
+                musicEnabled: false,
+                sfxEnabled: false,
+                timedXpBonusEnabled: false,
+                timerEnabled: false,
+                timeoutFailureEnabled: false,
+                visualsEnabled: false,
+            }),
+        );
+    }
+
     if (parameters.get('mode') === 'font') {
         setValue(
             'mmSettings',

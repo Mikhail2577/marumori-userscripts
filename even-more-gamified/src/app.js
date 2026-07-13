@@ -48,6 +48,7 @@ import { normalizeSettings } from './storage/settings.js';
 import { createComboTimerCompositor } from './ui/combo-timer.js';
 import { createHudController } from './ui/hud-controller.js';
 import { createSettingsPanelController } from './ui/settings-panel.js';
+import { createSummaryDialogController } from './ui/summary-dialog.js';
 import BASE_STYLES from './ui/styles.css';
 import { clamp } from './utils/clamp.js';
 import { subscribeMediaQuery } from './utils/media-query.js';
@@ -203,6 +204,7 @@ let counterTarget = null;
 let comboTimerCompositor = null;
 let hudController = null;
 let settingsPanelController = null;
+let summaryDialogController = null;
 let documentClickHandler = null;
 let documentKeyHandler = null;
 let domSyncRaf = null;
@@ -533,6 +535,24 @@ function injectUI() {
             });
         },
     });
+    summaryDialogController = createSummaryDialogController({
+        document,
+        getFallbackFocus() {
+            const candidates = [
+                marumoriDom.getAnswerInput(),
+                hudController?.refs.settingsButton,
+                hudController?.settingsLauncher,
+            ];
+            return (
+                candidates.find(
+                    (candidate) =>
+                        candidate?.isConnected &&
+                        !candidate.hidden &&
+                        !candidate.closest?.('[hidden], [inert], [aria-hidden="true"]'),
+                ) ?? null
+            );
+        },
+    });
 
     const frag = document.createDocumentFragment();
     frag.appendChild(hudController.element);
@@ -541,6 +561,7 @@ function injectUI() {
     frag.appendChild(createTrustedTemplateElement('div', 'mm-mult-banner'));
     frag.appendChild(createTrustedTemplateElement('div', 'mm-milestone-banner'));
     frag.appendChild(settingsPanelController.element);
+    frag.appendChild(summaryDialogController.element);
     document.body.appendChild(frag);
 
     els = {
@@ -607,7 +628,7 @@ function updateRewindButton() {
 
 function cancelPendingSummary() {
     sessionFinalizationController?.cancelPendingSummary();
-    document.getElementById('mm-summary')?.classList.remove('open');
+    summaryDialogController?.close();
 }
 
 function restoreRewindSnapshot(snapshot, { source = 'unknown' } = {}) {
@@ -1315,34 +1336,27 @@ function showSummary() {
     const elapsed = Math.round((Date.now() - state.sessionStart) / 1000);
     const { label: g, color: c } = getGrade(acc, state.score);
 
-    const stat = (label, val, cls) =>
-        `<div class="mm-summary-cell">${label}<span class="mm-summary-val ${cls}">${val}</span></div>`;
-
-    const overlay = document.getElementById('mm-summary');
-    if (!overlay) return;
-    // Summary interpolation is limited to numeric session state and the fixed grade table.
-    overlay.innerHTML = `
-            <div id="mm-summary-inner">
-                <h2>SESSION COMPLETE</h2>
-                <div id="mm-grade" style="color:${c}">${g}</div>
-                <div class="mm-summary-grid">
-                    ${stat('SCORE', state.score.toLocaleString(), 'gold')}
-                    ${stat('ACCURACY', `${acc}%`, 'green')}
-                    ${stat('CORRECT', state.sessionCorrect, 'cyan')}
-                    ${stat('INCORRECT', state.sessionIncorrect, '')}
-                    ${stat('WORDS DONE', state.sessionWords, 'orange')}
-                    ${stat('BEST COMBO', `x${state.bestStreak}`, 'pink')}
-                    ${stat('BEST MULT', `x${state.bestMultiplier}`, 'orange')}
-                    ${stat('TIME', `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`, 'cyan')}
-                </div>
-                <button id="mm-summary-close">CONTINUE</button>
-            </div>`;
-    overlay.classList.add('open');
-    overlay
-        .querySelector('#mm-summary-close')
-        .addEventListener('click', () => overlay.classList.remove('open'));
-    spawnThemeParticles('sessionComplete', overlay.querySelector('#mm-summary-inner'));
-    spawnCelebrationBurst('sessionComplete', overlay.querySelector('#mm-summary-inner'));
+    const opened = summaryDialogController?.open({
+        grade: g,
+        gradeColor: c,
+        stats: [
+            { label: 'SCORE', value: state.score.toLocaleString(), tone: 'gold' },
+            { label: 'ACCURACY', value: `${acc}%`, tone: 'green' },
+            { label: 'CORRECT', value: state.sessionCorrect, tone: 'cyan' },
+            { label: 'INCORRECT', value: state.sessionIncorrect },
+            { label: 'WORDS DONE', value: state.sessionWords, tone: 'orange' },
+            { label: 'BEST COMBO', value: `x${state.bestStreak}`, tone: 'pink' },
+            { label: 'BEST MULT', value: `x${state.bestMultiplier}`, tone: 'orange' },
+            {
+                label: 'TIME',
+                value: `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`,
+                tone: 'cyan',
+            },
+        ],
+    });
+    if (!opened) return;
+    spawnThemeParticles('sessionComplete', summaryDialogController.refs.inner);
+    spawnCelebrationBurst('sessionComplete', summaryDialogController.refs.inner);
 }
 
 function processResolvedAnswer(
@@ -1624,10 +1638,6 @@ function init() {
 
     state.lastCompleted = progress.current;
 
-    if (!document.getElementById('mm-summary')) {
-        document.body.appendChild(createTrustedTemplateElement('div', 'mm-summary'));
-    }
-
     initialized = true;
     installReducedMotionLifecycle();
     observeCorrectness();
@@ -1663,6 +1673,8 @@ function cleanup() {
     rewindController = null;
     sessionFinalizationController?.cleanup();
     sessionFinalizationController = null;
+    summaryDialogController?.cleanup();
+    summaryDialogController = null;
     lifecycle.cleanup();
     activeReviewRoot = null;
     activeReviewUrl = null;

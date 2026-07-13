@@ -83,6 +83,36 @@ describe('settings panel controller', () => {
         expect(callbacks.scheduleSettingsSave).toHaveBeenCalledTimes(2);
     });
 
+    it('associates stable unique labels with both range controls', () => {
+        const { controller } = createController();
+        const associations = [
+            ['mm-vol-slider', 'SFX Volume'],
+            ['mm-music-vol-slider', 'Music Volume'],
+        ];
+
+        for (const [id, labelText] of associations) {
+            const input = controller.element.querySelector(`#${id}`);
+            const label = controller.element.querySelector(`label[for="${id}"]`);
+            expect(input).toBeInstanceOf(HTMLInputElement);
+            expect(input.type).toBe('range');
+            expect(label?.textContent).toBe(labelText);
+            expect(label?.control).toBe(input);
+            expect([...input.labels]).toContain(label);
+            expect(controller.element.querySelectorAll(`#${id}`)).toHaveLength(1);
+        }
+    });
+
+    it('remounts the stable range IDs without accumulating duplicates', () => {
+        const first = createController();
+        first.controller.cleanup();
+        first.controller.element.remove();
+
+        const second = createController();
+        expect(document.querySelectorAll('#mm-vol-slider')).toHaveLength(1);
+        expect(document.querySelectorAll('#mm-music-vol-slider')).toHaveLength(1);
+        second.controller.cleanup();
+    });
+
     it('keeps theme controls and preview callbacks explicitly wired', () => {
         const { callbacks, controller, settings } = createController();
 
