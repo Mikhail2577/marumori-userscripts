@@ -34,6 +34,7 @@ import {
     updateRollingRecords as mergeRollingRecords,
 } from './gameplay/records.js';
 import { resetRecordsAuthoritatively } from './gameplay/record-reset.js';
+import { isResolvedReviewBackspaceIntent } from './gameplay/rewind-keyboard-intent.js';
 import {
     calcAnswerPoints as calculateAnswerPoints,
     calcIncorrectPenalty,
@@ -671,9 +672,11 @@ function installNativeRewindDetection() {
     documentKeyHandler = (event) => {
         if (
             !rewindController?.hasSnapshot ||
-            !lastAnswerState ||
-            event.key !== 'Backspace' ||
-            event.defaultPrevented
+            !isResolvedReviewBackspaceIntent({
+                event,
+                dom: marumoriDom,
+                expectedResolution: lastAnswerState,
+            })
         ) {
             return;
         }

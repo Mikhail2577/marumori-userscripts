@@ -2,6 +2,7 @@ import { RECORD_WINDOW_DAYS } from '../config/constants.js';
 import { safeJsonParse } from '../utils/json.js';
 
 const RECORD_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const RECORD_DAY_FIELDS = ['score', 'combo', 'multiplier'];
 
 export function emptyRecordDay() {
     return { score: 0, combo: 0, multiplier: 1 };
@@ -9,23 +10,64 @@ export function emptyRecordDay() {
 
 export function getRecordKey(time = Date.now()) {
     const date = new Date(time);
-    const year = date.getFullYear();
+    const year = String(date.getFullYear()).padStart(4, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
 }
 
 export function recordKeyToTime(key) {
+    if (!RECORD_KEY_PATTERN.test(key)) return Number.NaN;
+
     const [year, month, day] = key.split('-').map(Number);
-    return new Date(year, month - 1, day).getTime();
+    const date = new Date(0);
+    date.setHours(0, 0, 0, 0);
+    date.setFullYear(year, month - 1, day);
+
+    const roundTrips =
+        date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+    return roundTrips ? date.getTime() : Number.NaN;
 }
 
-export function normalizeRecords(raw = {}) {
+function recordsAreCanonical(source, normalized) {
+    if (!source || typeof source !== 'object' || Array.isArray(source)) return false;
+    if (Object.keys(source).length !== 1 || !Object.hasOwn(source, 'days')) return false;
+
+    const sourceDays = source.days;
+    if (!sourceDays || typeof sourceDays !== 'object' || Array.isArray(sourceDays)) return false;
+
+    const sourceKeys = Object.keys(sourceDays);
+    const normalizedKeys = Object.keys(normalized.days);
+    if (sourceKeys.length !== normalizedKeys.length) return false;
+
+    return normalizedKeys.every((key) => {
+        if (!Object.hasOwn(sourceDays, key)) return false;
+        const sourceDay = sourceDays[key];
+        const normalizedDay = normalized.days[key];
+        if (!sourceDay || typeof sourceDay !== 'object' || Array.isArray(sourceDay)) return false;
+        if (Object.keys(sourceDay).length !== RECORD_DAY_FIELDS.length) return false;
+        return RECORD_DAY_FIELDS.every(
+            (field) => Object.hasOwn(sourceDay, field) && sourceDay[field] === normalizedDay[field],
+        );
+    });
+}
+
+export function normalizeRecords(raw = {}, time = Date.now()) {
     const days = raw?.days && typeof raw.days === 'object' ? raw.days : {};
     const next = { days: {} };
+    const currentDay = new Date(time);
+    currentDay.setHours(0, 0, 0, 0);
+    const currentDayTime = currentDay.getTime();
 
     for (const [key, value] of Object.entries(days)) {
-        if (!RECORD_KEY_PATTERN.test(key) || !value || typeof value !== 'object') {
+        const keyTime = recordKeyToTime(key);
+        if (
+            !Number.isFinite(keyTime) ||
+            keyTime > currentDayTime ||
+            !value ||
+            typeof value !== 'object' ||
+            Array.isArray(value)
+        ) {
             continue;
         }
         next.days[key] = {
@@ -38,16 +80,16 @@ export function normalizeRecords(raw = {}) {
     return next;
 }
 
-export function deserializeRecords(value) {
-    return normalizeRecords(safeJsonParse(value, {}));
+export function deserializeRecords(value, time = Date.now()) {
+    return normalizeRecords(safeJsonParse(value, {}), time);
 }
 
 export function serializeRecords(records) {
     return JSON.stringify(records);
 }
 
-export function getRecordsSignature(source = {}) {
-    const normalized = normalizeRecords(source);
+export function getRecordsSignature(source = {}, time = Date.now()) {
+    const normalized = normalizeRecords(source, time);
     return Object.keys(normalized.days)
         .sort()
         .map((key) => {
@@ -69,7 +111,7 @@ export function getRecordWindowCutoff(time = Date.now(), windowDays = RECORD_WIN
 }
 
 export function pruneRecords(source, time = Date.now(), windowDays = RECORD_WINDOW_DAYS) {
-    const records = normalizeRecords(source);
+    const records = normalizeRecords(source, time);
     const cutoff = getRecordWindowCutoff(time, windowDays);
     for (const key of Object.keys(records.days)) {
         if (recordKeyToTime(key) < cutoff) delete records.days[key];
@@ -97,7 +139,6 @@ export function updateRollingRecords(
     time = Date.now(),
     windowDays = RECORD_WINDOW_DAYS,
 ) {
-    const previousSignature = getRecordsSignature(source);
     const records = pruneRecords(source, time, windowDays);
     const key = getRecordKey(time);
     const day = records.days[key] || emptyRecordDay();
@@ -110,6 +151,6 @@ export function updateRollingRecords(
         next.score !== day.score || next.combo !== day.combo || next.multiplier !== day.multiplier;
 
     if (recordImproved) records.days[key] = next;
-    const changed = recordImproved || getRecordsSignature(records) !== previousSignature;
+    const changed = recordImproved || !recordsAreCanonical(source, records);
     return { records, changed };
 }

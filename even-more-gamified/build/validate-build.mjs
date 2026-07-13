@@ -29,6 +29,8 @@ const REQUIRED_RESOURCES = Object.freeze(['mmShrineGarden', 'mmNightview']);
 const REMOTE_JAVASCRIPT_URL = /^https?:\/\/\S+\.(?:cjs|mjs|js)(?:[?#]\S*)?$/iu;
 const REMOTE_SCRIPT_MARKUP = /<script\b[^>]*\bsrc\s*=\s*["']?\s*https?:\/\//iu;
 const SOURCE_MAP_REFERENCE = /(?:\/\/[#@]|\/\*[#@])\s*sourceMappingURL\s*=/iu;
+const KNOWN_GLOBALS = new Set(['globalThis', 'self', 'window']);
+const RUNTIME_EVALUATION_PROPERTIES = new Set(['Function', 'eval']);
 
 export class BuildValidationError extends Error {
     constructor(message) {
@@ -202,13 +204,32 @@ export function validateMetadataBlock(block, { requireCanonical = true } = {}) {
     return directives;
 }
 
+// Intentionally syntax-local: identifiers, calls, coercion, and other runtime
+// expressions are not evaluated or followed through aliases.
 function staticStringValue(node) {
     if (node?.type === 'Literal' && typeof node.value === 'string') {
         return node.value;
     }
 
-    if (node?.type === 'TemplateLiteral' && node.expressions.length === 0) {
-        return node.quasis[0]?.value.cooked ?? '';
+    if (node?.type === 'TemplateLiteral') {
+        let value = '';
+        for (let index = 0; index < node.quasis.length; index += 1) {
+            const quasi = node.quasis[index]?.value.cooked;
+            if (quasi === null || quasi === undefined) return null;
+            value += quasi;
+            if (index >= node.expressions.length) continue;
+            const expression = staticStringValue(node.expressions[index]);
+            if (expression === null) return null;
+            value += expression;
+        }
+        return value;
+    }
+
+    if (node?.type === 'BinaryExpression' && node.operator === '+') {
+        const left = staticStringValue(node.left);
+        if (left === null) return null;
+        const right = staticStringValue(node.right);
+        return right === null ? null : left + right;
     }
 
     return null;
@@ -226,35 +247,81 @@ function propertyName(node) {
     return node.computed ? staticStringValue(node.property) : identifierName(node.property);
 }
 
+function knownGlobalProperty(node) {
+    // Exact browser-global names only. This does not attempt scope or alias analysis.
+    if (node?.type !== 'MemberExpression' || !KNOWN_GLOBALS.has(identifierName(node.object))) {
+        return null;
+    }
+    return propertyName(node);
+}
+
+function isNonReferenceIdentifier(parent, key) {
+    if (!parent) return false;
+    if (parent.type === 'MemberExpression' && key === 'property' && !parent.computed) {
+        return true;
+    }
+    if (
+        (parent.type === 'Property' ||
+            parent.type === 'MethodDefinition' ||
+            parent.type === 'PropertyDefinition') &&
+        key === 'key' &&
+        !parent.computed
+    ) {
+        return true;
+    }
+    return (
+        key === 'label' &&
+        (parent.type === 'LabeledStatement' ||
+            parent.type === 'BreakStatement' ||
+            parent.type === 'ContinueStatement')
+    );
+}
+
 function walkAst(root, visit) {
-    const pending = [root];
+    const pending = [{ key: null, node: root, parent: null }];
 
     while (pending.length > 0) {
-        const node = pending.pop();
-        visit(node);
+        const { key, node, parent } = pending.pop();
+        visit(node, parent, key);
 
-        for (const value of Object.values(node)) {
+        for (const [childKey, value] of Object.entries(node)) {
             if (Array.isArray(value)) {
                 for (let index = value.length - 1; index >= 0; index -= 1) {
                     if (value[index]?.type) {
-                        pending.push(value[index]);
+                        pending.push({ key: childKey, node: value[index], parent: node });
                     }
                 }
             } else if (value?.type) {
-                pending.push(value);
+                pending.push({ key: childKey, node: value, parent: node });
             }
         }
     }
 }
 
 function validateExecutableAst(ast) {
-    walkAst(ast, (node) => {
+    walkAst(ast, (node, parent, key) => {
+        if (
+            node.type === 'Identifier' &&
+            node.name === 'unsafeWindow' &&
+            !isNonReferenceIdentifier(parent, key)
+        ) {
+            fail('unsafeWindow is forbidden in the generated userscript.');
+        }
+
         if (node.type === 'ImportExpression') {
             fail('Dynamic import() is forbidden in the generated userscript.');
         }
 
         if (node.type === 'MetaProperty' && node.meta.name === 'import') {
             fail('import.meta is forbidden in the generated userscript.');
+        }
+
+        const globalProperty = knownGlobalProperty(node);
+        if (globalProperty === 'unsafeWindow') {
+            fail('unsafeWindow access through a known global is forbidden.');
+        }
+        if (RUNTIME_EVALUATION_PROPERTIES.has(globalProperty)) {
+            fail('Runtime JavaScript evaluation through a known global is forbidden.');
         }
 
         if (node.type === 'CallExpression') {

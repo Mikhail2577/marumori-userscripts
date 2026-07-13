@@ -15,6 +15,27 @@ local setup:
 npm install
 ```
 
+### Install-script policy
+
+The locked tree currently causes npm to report pending scripts for
+`esbuild@0.28.1` (`postinstall: node install.js`) and the optional macOS watcher
+`fsevents@2.3.3`. No approval is currently required: installation, production
+builds, tests, and release verification all succeed with those scripts blocked.
+Do not approve or silence a warning merely to obtain a quiet install.
+
+If a future clean build genuinely requires an install script:
+
+1. identify the exact locked package/version and why the repository needs it;
+2. inspect its package metadata, script source, lockfile provenance/integrity, and
+   possible filesystem or network effects;
+3. reproduce the failure with scripts blocked and evaluate the script in an
+   isolated clean checkout;
+4. approve only the reviewed package, never a blanket category;
+5. record the decision and rerun `npm ci`, `npm audit`, and `npm run check`.
+
+Package-manager security configuration remains unchanged unless that review shows
+a concrete repository requirement.
+
 ## Commands
 
 ```sh
@@ -49,6 +70,10 @@ npm run check
 is deliberately non-mutating: it fails when committed artifacts are absent or
 stale instead of repairing them. Run focused tests while developing, then run
 `npm run build` followed by the full check before handing off an artifact.
+
+The root GitHub Actions workflow runs `npm ci` and `npm run check` on Node.js 24
+for every push and pull request. It intentionally excludes account-required GUI
+browser tests and publication credentials.
 
 ## Source and generated-file ownership
 

@@ -686,6 +686,69 @@ async function rewindContract(driver, baseUrl) {
     assert.equal(await count(driver, '#mm-summary.open'), 1);
 }
 
+async function keyboardRewindIntentContract(driver, baseUrl) {
+    await openFixture(driver, baseUrl, { total: 1 });
+    await (await waitForElement(driver, '#answer')).sendKeys('answer');
+    await (await waitForElement(driver, "[data-action='check']")).click();
+    await waitForScript(
+        driver,
+        "!document.getElementById('mm-hud-rewind-btn')?.disabled",
+        'Keyboard rewind snapshot did not become available',
+    );
+
+    const ordinaryEditing = await driver.executeScript(`
+        const targets = [document.getElementById('mm-vol-slider')];
+        const unrelated = document.createElement('textarea');
+        document.getElementById('time-me').prepend(unrelated);
+        targets.push(unrelated);
+        const editable = document.createElement('span');
+        editable.contentEditable = 'true';
+        editable.textContent = 'editable';
+        document.querySelector('.input-wrapper').prepend(editable);
+        targets.push(editable);
+
+        return targets.map((target) => {
+            const event = new KeyboardEvent('keydown', {
+                bubbles: true,
+                cancelable: true,
+                key: 'Backspace',
+            });
+            target.dispatchEvent(event);
+            return event.defaultPrevented;
+        });
+    `);
+    assert.deepEqual(ordinaryEditing, [false, false, false]);
+    assert.equal((await hostSnapshot(driver)).rewinds, 0);
+    assert.equal(
+        await driver.executeScript(
+            "return document.getElementById('mm-hud-rewind-btn')?.disabled === false;",
+        ),
+        true,
+    );
+
+    const accepted = await driver.executeScript(`
+        const event = new KeyboardEvent('keydown', {
+            bubbles: true,
+            cancelable: true,
+            key: 'Backspace',
+        });
+        document.getElementById('answer').dispatchEvent(event);
+        return { defaultPrevented: event.defaultPrevented };
+    `);
+    assert.deepEqual(accepted, { defaultPrevented: false });
+    await waitForScript(
+        driver,
+        "document.querySelector('.input-wrapper:not(.correct):not(.incorrect)')",
+        'Resolved-input Backspace did not produce host rewind confirmation',
+    );
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-hud-score')?.textContent === '0'",
+        'Resolved-input Backspace did not restore local state',
+    );
+    assert.equal((await hostSnapshot(driver)).rewinds, 1);
+}
+
 async function rewindReplacementProgressContract(driver, baseUrl) {
     await openFixture(driver, baseUrl, { hostIds: true, total: 2 });
     await (await waitForElement(driver, '#answer')).sendKeys('answer one');
@@ -810,6 +873,7 @@ const CONTRACTS = Object.freeze([
     ['accessible modal summary ownership', summaryAccessibilityContract],
     ['summary cancellation on cleanup', summaryCleanupContract],
     ['transactional final-answer rewind', rewindContract],
+    ['scoped Backspace rewind intent', keyboardRewindIntentContract],
     ['rewind across wrapper and progress replacement', rewindReplacementProgressContract],
     ['bounded delayed rewind recovery', delayedRewindRecoveryContract],
     ['same-route second-session finalization', sameRouteSecondSessionContract],

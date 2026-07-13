@@ -137,6 +137,18 @@ Reset Records is authoritative over every rewind state. It replaces only the
 records component of a captured, pending, or late-recovery snapshot, preserving
 the owned gameplay rewind while preventing explicitly deleted records from being
 restored. If a snapshot cannot be updated safely, it is discarded fail-closed.
+Record keys are accepted only when `YYYY-MM-DD` round-trips through the local
+calendar and is not later than the explicit current local day. Rolling-window
+cutoffs continue to use calendar construction rather than fixed 24-hour arithmetic,
+and normalization repairs are persisted even when no best value improves.
+
+Document-wide Backspace observation is filtered before it can arm a rewind
+transaction. The current host context must still match the processed resolved
+answer, and the event target must be the exact active answer input or active host
+wrapper. Userscript controls, unrelated editables, contenteditable content,
+unresolved prompts, and ambiguous context fail closed. The userscript never
+prevents native deletion; accepted intent still commits only after host DOM
+confirmation through the normal rewind controller.
 
 Timeout auto-failure is one serialized controller. It chooses a scoped Wrong
 control or a scoped invalid-answer/Submit fallback, waits for confirmed incorrect
@@ -238,6 +250,12 @@ remote script elements/workers, and a non-IIFE bundle shape. The two external
 image resources are non-executable and commit-pinned. Optional Google Fonts
 stylesheets are allowlisted by Font Challenge and are not JavaScript.
 
+Validator folding is deliberately syntax-local: string literals, fully static
+templates, and static string `+` trees cover computed known-global evaluator/
+`unsafeWindow` properties, script element names, and executable URLs. It does not
+claim alias, scope, identifier-value, coercion, arbitrary runtime property, or
+general dataflow analysis.
+
 [`build/verify-release.mjs`](../build/verify-release.mjs) is the non-mutating
 release boundary. It builds the complete real source twice in an OS temporary
 workspace, validates both outputs, proves them deterministic, and byte-compares
@@ -245,3 +263,7 @@ both artifacts with `dist/` before cleaning the workspace in `finally`. Therefor
 `npm run check` detects stale or absent committed output; only the explicit
 `npm run build` command repairs it. Production validation also rejects source-map
 directives and `.map` files, while development builds may retain their external map.
+
+The repository CI runs `npm ci` and that same non-mutating check on Node.js 24 for
+pushes and pull requests with read-only repository contents. Account/authenticated
+GUI browser tests remain local and are not part of CI.

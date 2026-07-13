@@ -32,7 +32,7 @@
 - [x] Phase 8 — Low-risk rendering and privacy fixes
 - [ ] Manual Checkpoint B — deferred into the consolidated post-Phase 12 validation
 - [x] Phase 9 — Release engineering
-- [ ] Phase 10 — Additional low-risk hardening
+- [x] Phase 10 — Additional low-risk hardening
 - [ ] Phase 11 — Evidence-gated investigations
 - [ ] Phase 12 — Final automated validation
 - [ ] Manual Checkpoint C
@@ -79,6 +79,10 @@
 - Phase 8 gives shooting stars explicit backing-canvas bounds. Spawn, trail, update, and directional culling share that coordinate system, and resize/teardown clears trails expressed in obsolete bounds. Shrine and Night View retain the GM resource primary path; their one-shot direct fallback now assigns anonymous CORS and `no-referrer` before `src` without adding a request.
 - Phase 9 makes `package.json` the only maintained version source. Production metadata, `.user.js`, and `.meta.js` must agree; development and production builds use the same derived metadata.
 - Release verification now builds the complete source twice in a temporary workspace, validates and compares both outputs, compares both committed artifacts byte-for-byte, and cleans up in `finally`. `npm run check` is non-mutating and reports stale/missing artifacts; only `npm run build` writes `dist/`.
+- Phase 10 validates record keys as actual non-future local calendar days and persists corruption/value repairs without changing the DST-safe rolling-window calculation.
+- Backspace native-intent tracking now requires a matching resolved host context and an exact active review wrapper/answer target. Ordinary editing and userscript controls fail closed without `preventDefault`; the existing host-confirmed transaction remains the only local rewind commit owner.
+- Minimal read-only GitHub Actions CI runs the locked install and non-mutating gate on Node.js 24 for pushes and pull requests. Account-required browser tests and publication credentials remain excluded.
+- Validator defense in depth rejects bare or known-global `unsafeWindow`, known-global indirect `eval`/`Function`, and statically concatenated script element/executable URL forms. Folding is explicitly limited to static strings; aliases and general dataflow are unsupported and unclaimed.
 
 ### Phase 0 subsystem map
 
@@ -128,6 +132,10 @@
 - `tests/browser/run-browser-contract.js`: production-bundle summary semantics, hidden-HUD preservation, focus ownership, and route-cleanup restoration. The Firefox/Safari-compatible suite now contains 15 contracts.
 - `tests/unit/shooting-stars.test.js` and `tests/unit/background-image-loading.test.js`: capped backing coordinates, trail cleanup/culling, GM-primary image loading, and direct-fallback assignment order.
 - `tests/build/build-userscript.test.js` and `tests/build/verify-release.test.js`: authoritative version agreement, metadata byte-zero, production source-map rejection, both-artifact version mismatch, exactly two real builds, stale/missing user/meta artifacts, nondeterminism, non-mutating committed output, and temporary cleanup.
+- `tests/unit/records.test.js`: actual/leap/future local dates, deterministic/idempotent normalization, spring/fall DST windows, and persistent corruption/value repair.
+- `tests/unit/rewind-keyboard-intent.test.js` plus existing transactional rewind tests: unresolved/settings/contenteditable/unrelated targets, exact resolved wrapper/input acceptance, resolution matching, no default prevention, and confirmation-only commit.
+- `tests/browser/run-browser-contract.js` and its host fixture: ordinary editing targets leave rewind unarmed, while Backspace from the resolved canonical input remains uncancelled and produces one host-confirmed local restoration. The suite now contains 16 contracts.
+- `tests/build/build-userscript.test.js`: bare/known-global `unsafeWindow`, direct/known-global evaluators, static concatenation/templates, remote scripts/workers, and bounded negative cases that document unsupported dynamic analysis.
 
 ## Manual Validation
 
@@ -205,3 +213,8 @@
 - Phases 7–8 artifact hashes: `.user.js` `e1d120f5bc92bf01a142cb6de2ff0331375657cc7774bfeb3736459c96faf33f`; `.meta.js` `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.
 - Phase 9 focused release suites: 30/30 tests passed; complete combined suite: 40 files / 307 tests passed.
 - Phase 9 `npm run build`, real-source `npm run verify:release`, full non-mutating `npm run check`, lint, formatting, generated syntax, and `git diff --check`: passed. The `.user.js` hash remained `e1d120f5bc92bf01a142cb6de2ff0331375657cc7774bfeb3736459c96faf33f` before and after `npm run check`.
+- Phase 10 focused record/Backspace/rewind/validator suites: 4 files / 78 tests passed.
+- Phase 10 `npm run build` and full non-mutating `npm run check`: passed, including 41 Vitest files / 343 tests, lint, deterministic real-source comparison, generated syntax, and formatting.
+- Phase 10 Firefox production-bundle run: passed all 16 contracts, including ordinary-editing rejection and exactly-one confirmed Backspace rewind.
+- Phase 10 workflow and policy checks: CI YAML and install-script documentation pass Prettier; the hosted push/pull-request job has not yet executed in this local environment.
+- Phase 10 artifact sizes/hashes: `.user.js` 486,030 bytes / `3f1834575039ac245a19d37f386e199925da0708bed53682a7cedd0f06153be4`; `.meta.js` 1,127 bytes / `9f522d359a115147e88970f4e2d4f8744bf6d7d48fe7e8cc2813d0dd00cbb2c3`.

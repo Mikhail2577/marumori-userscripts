@@ -82,7 +82,7 @@ See [Development](./docs/DEVELOPMENT.md),
 [Architecture](./docs/ARCHITECTURE.md), and
 [Releasing](./docs/RELEASING.md) for the complete workflow.
 
-The generated production bundle can also run through five account-free contracts
+The generated production bundle can also run through account-free contracts
 in installed Firefox and Safari. See
 [Local browser testing](./docs/BROWSER-TESTING.md).
 

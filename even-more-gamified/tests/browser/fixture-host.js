@@ -177,6 +177,19 @@
         }
     });
 
+    root.addEventListener('keydown', (event) => {
+        if (event.key !== 'Backspace' || event.defaultPrevented) return;
+        const activeWrapper = wrapper();
+        if (
+            !activeWrapper?.matches('.correct, .incorrect') ||
+            (event.target !== activeWrapper &&
+                event.target !== activeWrapper.querySelector('#answer'))
+        ) {
+            return;
+        }
+        rewind();
+    });
+
     state.layoutIndex = 0;
     reuseWrapperForLayout();
     updateCounter();

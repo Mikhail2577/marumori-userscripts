@@ -190,11 +190,93 @@ describe('build validation', () => {
     });
 
     it.each([
-        ["import('https://example.com/plugin.js');", /Dynamic import/u],
-        ["eval('globalThis.compromised = true');", /evaluation/u],
-        ["document.createElement('script');", /script elements/u],
-        ["const remote = 'https://example.com/plugin.js';", /Remote executable/u],
-    ])('rejects forbidden runtime code: %s', (body, expectedError) => {
+        ['dynamic import', "import('https://example.com/plugin.js');", /Dynamic import/u],
+        ['direct eval', "eval('globalThis.compromised = true');", /evaluation/u],
+        ['direct Function call', "Function('return true');", /evaluation/u],
+        ['direct Function construction', "new Function('return true');", /evaluation/u],
+        ['unsafeWindow reference', 'unsafeWindow.document;', /unsafeWindow/u],
+        [
+            'globalThis unsafeWindow property',
+            'const page = globalThis.unsafeWindow;',
+            /unsafeWindow/u,
+        ],
+        [
+            'computed window unsafeWindow property',
+            "const page = window['unsafe' + 'Window'];",
+            /unsafeWindow/u,
+        ],
+        ['self unsafeWindow property', 'const page = self.unsafeWindow;', /unsafeWindow/u],
+        ['globalThis.eval reference', 'const evaluate = globalThis.eval;', /known global/u],
+        ['window.eval reference', 'const evaluate = window.eval;', /known global/u],
+        [
+            'computed window eval call',
+            "window['ev' + 'al']('globalThis.compromised = true');",
+            /known global/u,
+        ],
+        ['computed self Function call', "self[`Fun${'ction'}`]('return true');", /known global/u],
+        ['static script element', "document.createElement('script');", /script elements/u],
+        [
+            'concatenated script element method and name',
+            "document['create' + 'Element']('scr' + 'ipt');",
+            /script elements/u,
+        ],
+        [
+            'templated script element name',
+            "document.createElement(`scr${'ipt'}`);",
+            /script elements/u,
+        ],
+        [
+            'static remote executable URL',
+            "const remote = 'https://example.com/plugin.js';",
+            /Remote executable/u,
+        ],
+        [
+            'concatenated remote executable URL',
+            "const remote = 'https://example.com/' + 'plugin.' + 'js';",
+            /Remote executable/u,
+        ],
+        [
+            'concatenated remote script markup',
+            "const markup = '<scr' + 'ipt src=https://example.com/plugin.js></script>';",
+            /Remote script markup/u,
+        ],
+        [
+            'concatenated remote worker URL',
+            "new Worker('https://example.com/' + 'worker.js');",
+            /Remote worker scripts/u,
+        ],
+    ])('rejects forbidden runtime code: %s', (_label, body, expectedError) => {
         expect(() => validateUserscriptSource(fixtureBundle(body))).toThrow(expectedError);
+    });
+
+    it.each([
+        [
+            'unsafe names used only as data or non-computed property names',
+            "const label = 'unsafeWindow'; const record = { unsafeWindow: true }; record.unsafeWindow;",
+        ],
+        [
+            'similar but non-evaluating known-global properties',
+            'window.evaluate; self.functional; globalThis.functionName;',
+        ],
+        [
+            'evaluation-named properties on an unknown object',
+            "sandbox.eval('source'); sandbox['Function'];",
+        ],
+        [
+            'unsafeWindow properties on ordinary data objects',
+            "sandbox.unsafeWindow; sandbox['unsafe' + 'Window'];",
+        ],
+        ['a dynamically computed known-global property', "window[propertyName]('source');"],
+        [
+            'safe and dynamic element names',
+            "document.createElement('div'); document.createElement(tagName);",
+        ],
+        [
+            'non-executable and dynamically completed URLs',
+            "const css = 'https://example.com/plugin.css'; const dynamic = 'https://example.com/' + fileName;",
+        ],
+        ['a dynamic worker URL', 'new Worker(workerUrl);'],
+    ])('does not overreach beyond explicit syntactic cases: %s', (_label, body) => {
+        expect(validateUserscriptSource(fixtureBundle(body))).toBe(true);
     });
 });

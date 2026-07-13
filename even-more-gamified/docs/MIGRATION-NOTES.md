@@ -60,6 +60,23 @@ Coverage: [`tests/integration/record-reset.test.js`](../tests/integration/record
 [`tests/integration/first-input-gate.test.js`](../tests/integration/first-input-gate.test.js),
 and [`tests/unit/hud-controller.test.js`](../tests/unit/hud-controller.test.js).
 
+### Record-date and keyboard-rewind hardening
+
+Record normalization now rejects impossible and future local-calendar keys while
+preserving valid leap days and seven-day DST semantics. Removing malformed keys or
+normalizing stored values is itself a persistent change, even when today's best
+record does not improve.
+
+Backspace can arm native rewind tracking only from the exact resolved review
+wrapper or canonical answer input in a matching live host context. Unresolved and
+unrelated editables, Settings controls, contenteditable regions, and userscript
+controls retain ordinary behavior. No key default is prevented, and local state
+still waits for the existing transactional host confirmation.
+
+Coverage: [`tests/unit/records.test.js`](../tests/unit/records.test.js),
+[`tests/unit/rewind-keyboard-intent.test.js`](../tests/unit/rewind-keyboard-intent.test.js),
+and [`tests/regression/rewind.test.js`](../tests/regression/rewind.test.js).
+
 ### Serialized timeout failure
 
 Timeout failure previously had multiple delayed paths that could submit or advance
@@ -282,6 +299,17 @@ cleans up on success or failure. `npm run check` no longer rebuilds stale artifa
 Coverage:
 [`tests/build/build-userscript.test.js`](../tests/build/build-userscript.test.js)
 and [`tests/build/verify-release.test.js`](../tests/build/verify-release.test.js).
+
+### CI and validator defense in depth
+
+A minimal push/pull-request workflow runs the locked install and non-mutating check
+under Node.js 24 without credentials or account-required browsers. Build validation
+now rejects `unsafeWindow` and direct or known-global `eval`/`Function` access,
+including statically concatenated property names. The same bounded static string
+folding covers script element names and executable URLs. Alias and general dataflow
+analysis remain intentionally unsupported rather than overstated.
+
+Coverage: [`tests/build/build-userscript.test.js`](../tests/build/build-userscript.test.js).
 
 ## Font Challenge network and privacy
 

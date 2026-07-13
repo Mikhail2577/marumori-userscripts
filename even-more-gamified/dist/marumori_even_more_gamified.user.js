@@ -7914,25 +7914,54 @@
 
   // src/gameplay/records.js
   var RECORD_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+  var RECORD_DAY_FIELDS = ["score", "combo", "multiplier"];
   function emptyRecordDay() {
     return { score: 0, combo: 0, multiplier: 1 };
   }
   function getRecordKey(time = Date.now()) {
     const date = new Date(time);
-    const year = date.getFullYear();
+    const year = String(date.getFullYear()).padStart(4, "0");
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   }
   function recordKeyToTime(key) {
+    if (!RECORD_KEY_PATTERN.test(key)) return Number.NaN;
     const [year, month, day] = key.split("-").map(Number);
-    return new Date(year, month - 1, day).getTime();
+    const date = /* @__PURE__ */ new Date(0);
+    date.setHours(0, 0, 0, 0);
+    date.setFullYear(year, month - 1, day);
+    const roundTrips = date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+    return roundTrips ? date.getTime() : Number.NaN;
   }
-  function normalizeRecords(raw = {}) {
+  function recordsAreCanonical(source, normalized) {
+    if (!source || typeof source !== "object" || Array.isArray(source)) return false;
+    if (Object.keys(source).length !== 1 || !Object.hasOwn(source, "days")) return false;
+    const sourceDays = source.days;
+    if (!sourceDays || typeof sourceDays !== "object" || Array.isArray(sourceDays)) return false;
+    const sourceKeys = Object.keys(sourceDays);
+    const normalizedKeys = Object.keys(normalized.days);
+    if (sourceKeys.length !== normalizedKeys.length) return false;
+    return normalizedKeys.every((key) => {
+      if (!Object.hasOwn(sourceDays, key)) return false;
+      const sourceDay = sourceDays[key];
+      const normalizedDay = normalized.days[key];
+      if (!sourceDay || typeof sourceDay !== "object" || Array.isArray(sourceDay)) return false;
+      if (Object.keys(sourceDay).length !== RECORD_DAY_FIELDS.length) return false;
+      return RECORD_DAY_FIELDS.every(
+        (field) => Object.hasOwn(sourceDay, field) && sourceDay[field] === normalizedDay[field]
+      );
+    });
+  }
+  function normalizeRecords(raw = {}, time = Date.now()) {
     const days = raw?.days && typeof raw.days === "object" ? raw.days : {};
     const next = { days: {} };
+    const currentDay = new Date(time);
+    currentDay.setHours(0, 0, 0, 0);
+    const currentDayTime = currentDay.getTime();
     for (const [key, value] of Object.entries(days)) {
-      if (!RECORD_KEY_PATTERN.test(key) || !value || typeof value !== "object") {
+      const keyTime = recordKeyToTime(key);
+      if (!Number.isFinite(keyTime) || keyTime > currentDayTime || !value || typeof value !== "object" || Array.isArray(value)) {
         continue;
       }
       next.days[key] = {
@@ -7943,8 +7972,8 @@
     }
     return next;
   }
-  function getRecordsSignature(source = {}) {
-    const normalized = normalizeRecords(source);
+  function getRecordsSignature(source = {}, time = Date.now()) {
+    const normalized = normalizeRecords(source, time);
     return Object.keys(normalized.days).sort().map((key) => {
       const day = normalized.days[key];
       return `${key}:${day.score}/${day.combo}/${day.multiplier}`;
@@ -7955,7 +7984,7 @@
     return new Date(now.getFullYear(), now.getMonth(), now.getDate() - (windowDays - 1)).getTime();
   }
   function pruneRecords(source, time = Date.now(), windowDays = RECORD_WINDOW_DAYS) {
-    const records2 = normalizeRecords(source);
+    const records2 = normalizeRecords(source, time);
     const cutoff = getRecordWindowCutoff(time, windowDays);
     for (const key of Object.keys(records2.days)) {
       if (recordKeyToTime(key) < cutoff) delete records2.days[key];
@@ -7973,7 +8002,6 @@
     return best;
   }
   function updateRollingRecords(source, state2, time = Date.now(), windowDays = RECORD_WINDOW_DAYS) {
-    const previousSignature = getRecordsSignature(source);
     const records2 = pruneRecords(source, time, windowDays);
     const key = getRecordKey(time);
     const day = records2.days[key] || emptyRecordDay();
@@ -7984,7 +8012,7 @@
     };
     const recordImproved = next.score !== day.score || next.combo !== day.combo || next.multiplier !== day.multiplier;
     if (recordImproved) records2.days[key] = next;
-    const changed = recordImproved || getRecordsSignature(records2) !== previousSignature;
+    const changed = recordImproved || !recordsAreCanonical(source, records2);
     return { records: records2, changed };
   }
 
@@ -8018,6 +8046,37 @@
     saveRecords2();
     updateHud();
     return emptyRecords;
+  }
+
+  // src/gameplay/rewind-keyboard-intent.js
+  var RESOLVED_STATES = /* @__PURE__ */ new Set([DOM_RESOLUTION.CORRECT, DOM_RESOLUTION.INCORRECT]);
+  function isContentEditableTarget(target) {
+    let current = target;
+    while (current?.nodeType === 1) {
+      if (current.hasAttribute("contenteditable")) {
+        return current.getAttribute("contenteditable")?.toLowerCase() !== "false";
+      }
+      current = current.parentElement;
+    }
+    return false;
+  }
+  function isResolvedReviewBackspaceIntent({ event, dom, expectedResolution } = {}) {
+    if (event?.key !== "Backspace" || event.defaultPrevented || !RESOLVED_STATES.has(expectedResolution) || typeof dom?.readQuestionContext !== "function" || typeof dom?.getAnswerInput !== "function" || typeof dom?.isUserscriptOwned !== "function") {
+      return false;
+    }
+    const target = event.target;
+    if (target?.nodeType !== 1 || isContentEditableTarget(target)) return false;
+    try {
+      const context = dom.readQuestionContext();
+      if (!context?.root?.isConnected || !context.wrapper?.isConnected || !context.root.contains(context.wrapper) || context.resolution !== expectedResolution || dom.isUserscriptOwned(target)) {
+        return false;
+      }
+      if (target === context.wrapper) return true;
+      const answerInput = dom.getAnswerInput();
+      return target === answerInput && answerInput?.isConnected === true && context.wrapper.contains(answerInput);
+    } catch {
+      return false;
+    }
   }
 
   // src/gameplay/scoring.js
@@ -8081,7 +8140,7 @@
   }
 
   // src/gameplay/rewind.js
-  var RESOLVED_STATES = /* @__PURE__ */ new Set([DOM_RESOLUTION.CORRECT, DOM_RESOLUTION.INCORRECT]);
+  var RESOLVED_STATES2 = /* @__PURE__ */ new Set([DOM_RESOLUTION.CORRECT, DOM_RESOLUTION.INCORRECT]);
   function result2(ok, status, reason, source, extra = {}) {
     return Object.freeze({ ok, status, reason, source, ...extra });
   }
@@ -8147,7 +8206,7 @@
       }
       const context = dom.readQuestionContext();
       const ownership = lifecycle2.captureOwnership();
-      if (!context || !RESOLVED_STATES.has(context.resolution) || !lifecycle2.owns(ownership) || ownership.questionId !== context.logicalQuestionIdentity) {
+      if (!context || !RESOLVED_STATES2.has(context.resolution) || !lifecycle2.owns(ownership) || ownership.questionId !== context.logicalQuestionIdentity) {
         return false;
       }
       const snapshotIdentity = `${ownership.sessionGeneration}:${ownership.questionGeneration}:${nextSnapshotGeneration++}`;
@@ -10816,7 +10875,11 @@
       updateRewindButton();
     };
     documentKeyHandler = (event) => {
-      if (!rewindController?.hasSnapshot || !lastAnswerState || event.key !== "Backspace" || event.defaultPrevented) {
+      if (!rewindController?.hasSnapshot || !isResolvedReviewBackspaceIntent({
+        event,
+        dom: marumoriDom,
+        expectedResolution: lastAnswerState
+      })) {
         return;
       }
       rewindController.trackNativeIntent("keyboard").finally(updateRewindButton);

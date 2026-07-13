@@ -5,7 +5,7 @@ cannot prove compatibility with MaruMori's authenticated live DOM, userscript
 manager injection, Web Audio activation, or visual output. Complete this checklist
 against the generated production artifact before claiming browser parity.
 
-Fourteen production-bundle contracts now automate route cleanup, answer/wrapper
+The production-bundle contracts automate route cleanup, answer/wrapper
 processing, multi-layout word completion, finalization, rewind,
 persistence/session remount, first-input/per-prompt timer ownership, and serialized
 timeout in installed Firefox and Safari without contacting MaruMori. Run
@@ -116,6 +116,9 @@ covered.
       unchanged in manager storage.
 - [ ] Complete answers across reloads and confirm seven-day score/combo/multiplier
       records persist.
+- [ ] Seed impossible (`2026-02-31`) and future local-date record keys; confirm they
+      are removed and the repaired `mmRecords` value is persisted without losing
+      valid current/leap-day records.
 - [ ] After creating a rewind snapshot, reset seven-day records and then rewind;
       confirm gameplay rewinds but HUD and stored records remain empty.
 - [ ] Test around a local DST boundary or with a controlled clock and confirm records
@@ -211,8 +214,11 @@ covered.
 - [ ] Repeat after an incorrect answer.
 - [ ] Use MaruMori's native redo/undo/rewind control and confirm exactly one local
       restoration.
-- [ ] Press Backspace and confirm it tracks native intent without duplicate
-      programmatic processing.
+- [ ] Press Backspace from the active resolved answer/wrapper and confirm it tracks
+      native intent without duplicate programmatic processing.
+- [ ] Press Backspace while editing an unresolved answer, an unrelated text field,
+      a Settings range/control, and contenteditable content; confirm normal deletion
+      remains intact and no rewind transaction is armed.
 - [ ] Trigger rapid HUD/native/Backspace intents and confirm one pending transaction
       and one commit.
 - [ ] Remove, hide, disable, duplicate, or ambiguously label the native capability;

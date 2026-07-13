@@ -9,6 +9,7 @@ import {
     getRollingRecords,
     normalizeRecords,
     pruneRecords,
+    recordKeyToTime,
     serializeRecords,
     updateRollingRecords,
 } from '../../src/gameplay/records.js';
@@ -34,6 +35,47 @@ describe('record normalization', () => {
                 '2026-07-11': { score: 0, combo: 0, multiplier: 1 },
             },
         });
+    });
+
+    it('accepts only real local calendar dates through the explicit current day', () => {
+        const time = new Date(2026, 6, 12, 18);
+        expect(
+            normalizeRecords(
+                {
+                    days: {
+                        '2024-02-29': { score: 10, combo: 1, multiplier: 1 },
+                        '2026-02-29': { score: 20, combo: 2, multiplier: 2 },
+                        '2026-00-10': { score: 30, combo: 3, multiplier: 3 },
+                        '2026-13-01': { score: 40, combo: 4, multiplier: 4 },
+                        '2026-07-12': { score: 50, combo: 5, multiplier: 5 },
+                        '2026-07-13': { score: 60, combo: 6, multiplier: 6 },
+                    },
+                },
+                time,
+            ),
+        ).toEqual({
+            days: {
+                '2024-02-29': { score: 10, combo: 1, multiplier: 1 },
+                '2026-07-12': { score: 50, combo: 5, multiplier: 5 },
+            },
+        });
+
+        expect(Number.isNaN(recordKeyToTime('2026-02-29'))).toBe(true);
+        expect(Number.isFinite(recordKeyToTime('2024-02-29'))).toBe(true);
+    });
+
+    it('is deterministic and idempotent for an explicit time', () => {
+        const time = new Date(2026, 6, 12, 18);
+        const source = {
+            days: {
+                '2026-07-12': { score: '50.9', combo: 5.8, multiplier: '2.4' },
+                '2026-07-32': { score: 900, combo: 90, multiplier: 9 },
+            },
+        };
+        const first = normalizeRecords(source, time);
+
+        expect(normalizeRecords(source, time)).toEqual(first);
+        expect(normalizeRecords(first, time)).toEqual(first);
     });
 
     it('produces a stable sorted signature', () => {
@@ -87,6 +129,29 @@ describe('rolling record window', () => {
         expect(pruned.days).not.toHaveProperty('2026-10-20');
         expect(pruned.days).toHaveProperty('2026-10-21');
         expect(pruned.days).toHaveProperty('2026-10-27');
+        expect(Object.keys(pruned.days)).toHaveLength(7);
+    });
+
+    it('uses seven local calendar days across a spring-forward DST transition', () => {
+        process.env.TZ = 'Europe/Brussels';
+        const now = new Date(2026, 2, 30, 12);
+        const source = {
+            days: Object.fromEntries(
+                Array.from({ length: 8 }, (_, index) => {
+                    const day = 23 + index;
+                    return [`2026-03-${day}`, { score: day, combo: day, multiplier: 1 }];
+                }),
+            ),
+        };
+
+        const cutoff = new Date(getRecordWindowCutoff(now));
+        expect(cutoff.getHours()).toBe(0);
+        expect(getRecordKey(cutoff)).toBe('2026-03-24');
+
+        const pruned = pruneRecords(source, now);
+        expect(pruned.days).not.toHaveProperty('2026-03-23');
+        expect(pruned.days).toHaveProperty('2026-03-24');
+        expect(pruned.days).toHaveProperty('2026-03-30');
         expect(Object.keys(pruned.days)).toHaveLength(7);
     });
 
@@ -160,5 +225,49 @@ describe('rolling record window', () => {
             combo: 2,
             multiplier: 1,
         });
+    });
+
+    it('persists corrupt and future-key removal even without a record improvement', () => {
+        const time = new Date(2026, 6, 12, 12);
+        const result = updateRollingRecords(
+            {
+                days: {
+                    '2026-07-12': { score: 100, combo: 5, multiplier: 2 },
+                    '2026-07-13': { score: 900, combo: 90, multiplier: 9 },
+                    '2026-07-32': { score: 800, combo: 80, multiplier: 8 },
+                },
+            },
+            { score: 10, answerStreak: 1, multiplier: 1 },
+            time,
+        );
+
+        expect(result.changed).toBe(true);
+        expect(result.records).toEqual({
+            days: {
+                '2026-07-12': { score: 100, combo: 5, multiplier: 2 },
+            },
+        });
+
+        const repeated = updateRollingRecords(
+            result.records,
+            { score: 10, answerStreak: 1, multiplier: 1 },
+            time,
+        );
+        expect(repeated).toEqual({ records: result.records, changed: false });
+    });
+
+    it('persists value normalization even without a record improvement', () => {
+        const result = updateRollingRecords(
+            {
+                days: {
+                    '2026-07-12': { score: '100', combo: 5, multiplier: 2 },
+                },
+            },
+            { score: 10, answerStreak: 1, multiplier: 1 },
+            new Date(2026, 6, 12, 12),
+        );
+
+        expect(result.changed).toBe(true);
+        expect(result.records.days['2026-07-12'].score).toBe(100);
     });
 });
