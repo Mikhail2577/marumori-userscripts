@@ -127,10 +127,10 @@ backgrounds require authenticated real-browser validation.
 
 ## 8. Publish
 
-Publish the reviewed production `.user.js` and `.meta.js` through the repository's
-`main` branch. The canonical raw URLs are:
+Publish the reviewed production userscript to Greasy Fork and the `.meta.js` through
+the repository's `main` branch. The canonical distribution URLs are:
 
-- `https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/dist/marumori_even_more_gamified.user.js`
+- `https://update.greasyfork.org/scripts/587129/MaruMori%20Even%20More%20Gamified%20-%20Updated.user.js`
 - `https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/dist/marumori_even_more_gamified.meta.js`
 
 Ensure both URLs serve the reviewed files and the published metadata version

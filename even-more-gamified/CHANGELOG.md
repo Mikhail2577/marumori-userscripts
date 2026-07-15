@@ -4,6 +4,8 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ## Unreleased
 
+## 2026-07-15 - v3.9.1
+
 ### Changed
 
 - Split Theme Preview into a build-selected feature: the published daily artifact
@@ -20,8 +22,9 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ### Fixed
 
-- Pointed generated download/update metadata at this repository's canonical
-  `main`-branch artifacts and added OpenAI Codex to the author attribution.
+- Pointed generated downloads at the Greasy Fork install endpoint while keeping
+  update checks on this repository's canonical `main`-branch metadata, and added
+  OpenAI Codex to the author attribution.
 - Restored mounting on the live review page by recognizing `#time-me` as the
   review-session container instead of incorrectly requiring the sibling answer
   wrapper to be inside the `#main` question prompt.

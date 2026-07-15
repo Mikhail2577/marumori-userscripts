@@ -18,7 +18,7 @@ const FLAVOR_METADATA = Object.freeze({
         name: 'MaruMori Even More Gamified - Updated',
         namespace: 'marumori-gamify',
         downloadUrl:
-            'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/dist/marumori_even_more_gamified.user.js',
+            'https://update.greasyfork.org/scripts/587129/MaruMori%20Even%20More%20Gamified%20-%20Updated.user.js',
         updateUrl:
             'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/dist/marumori_even_more_gamified.meta.js',
     }),

@@ -450,7 +450,7 @@ describe('source architecture invariants', () => {
         ).toEqual([]);
     });
 
-    it('pins generated metadata and source assets to full Git commit revisions', async () => {
+    it('keeps distribution endpoints stable and pins source assets to Git revisions', async () => {
         const sourceFiles = await Promise.all([
             readSourceTree(path.join(PROJECT_ROOT, 'src')),
             readSourceTree(path.join(PROJECT_ROOT, 'build')),
@@ -466,18 +466,22 @@ describe('source architecture invariants', () => {
             }
         }
 
-        const distributionUrls = new Set(
-            [...USER_SCRIPT_METADATA.matchAll(/^\/\/ @(?:downloadURL|updateURL)\s+(\S+)$/gmu)].map(
-                (match) => match[1],
-            ),
-        );
+        const distributionEntries = [
+            ...USER_SCRIPT_METADATA.matchAll(/^\/\/ @(downloadURL|updateURL)\s+(\S+)$/gmu),
+        ].map((match) => [match[1], match[2]]);
+        const distributionUrls = new Set(distributionEntries.map(([, url]) => url));
+        const distributionByDirective = Object.fromEntries(distributionEntries);
         expect(distributionUrls.size, 'Expected one download URL and one update URL').toBe(2);
-        for (const url of distributionUrls) {
-            expect(
-                rawGitHubRevision(url),
-                `Distribution URL must follow the stable main branch: ${url}`,
-            ).toBe('main');
-        }
+        expect(
+            distributionByDirective.downloadURL,
+            'Downloads must use the direct Greasy Fork install endpoint',
+        ).toBe(
+            'https://update.greasyfork.org/scripts/587129/MaruMori%20Even%20More%20Gamified%20-%20Updated.user.js',
+        );
+        expect(
+            rawGitHubRevision(distributionByDirective.updateURL),
+            'Update metadata must follow the stable GitHub main branch',
+        ).toBe('main');
 
         const assetReferences = references.filter(({ url }) => !distributionUrls.has(url));
         expect(
