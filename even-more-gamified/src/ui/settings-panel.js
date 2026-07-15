@@ -25,7 +25,7 @@ const TOGGLES = [
     ['fontChallengeEnabled', 'Font Challenge'],
 ];
 
-function createPanelElement(document, settings, getMusicModeLabel, getThemeLabel) {
+function createPanelElement(document, settings, getMusicModeLabel, getThemeLabel, panelExtension) {
     const rows = TOGGLES.map(
         ([key, label]) => `
             <div class="mm-setting-row">
@@ -80,17 +80,7 @@ function createPanelElement(document, settings, getMusicModeLabel, getThemeLabel
                 ${getThemeLabel(settings.pinnedBackgroundTheme)}
             </button>
         </div>
-        <div class="mm-preview-title">THEME PREVIEW</div>
-        <div class="mm-preview-grid">
-            <button class="mm-preview-btn" type="button" data-preview-event="correct">CORRECT</button>
-            <button class="mm-preview-btn" type="button" data-preview-event="incorrect">WRONG</button>
-            <button class="mm-preview-btn" type="button" data-preview-event="combo">COMBO</button>
-            <button class="mm-preview-btn" type="button" data-preview-event="milestone">MILESTONE</button>
-            <button class="mm-preview-btn" type="button" data-preview-event="timeout">TIMEOUT</button>
-            <button class="mm-preview-btn" type="button" data-preview-event="wordComplete">WORD CLEAR</button>
-            <button class="mm-preview-btn" type="button" data-preview-event="sessionComplete">SESSION</button>
-            <button class="mm-preview-btn" type="button" data-preview-event="all">PREVIEW ALL</button>
-        </div>
+        ${panelExtension?.markup || ''}
         <button class="mm-btn-outline" id="mm-pin-bg">PIN CURRENT BACKGROUND</button>
         <button class="mm-btn-outline" id="mm-use-pinned-bg">USE PINNED BACKGROUND</button>
         <button class="mm-btn-outline" id="mm-reset-hud">RESET HUD POSITION</button>
@@ -116,7 +106,7 @@ export function createSettingsPanelController({
     onTimerDurationChanged,
     onMusicStyleChanged,
     onMusicVolumeChanged,
-    onPreviewThemeEvent,
+    panelExtension = null,
     applyBackgroundTheme,
     onBackgroundThemeChanged,
     onResetHudPosition,
@@ -134,7 +124,13 @@ export function createSettingsPanelController({
         );
     }
 
-    const panel = createPanelElement(document, settings, getMusicModeLabel, getThemeLabel);
+    const panel = createPanelElement(
+        document,
+        settings,
+        getMusicModeLabel,
+        getThemeLabel,
+        panelExtension,
+    );
     const listeners = [];
     let installed = false;
 
@@ -233,11 +229,7 @@ export function createSettingsPanelController({
             scheduleSettingsSave();
         });
 
-        panel.querySelectorAll('[data-preview-event]').forEach((button) => {
-            listen(button, 'click', (event) => {
-                onPreviewThemeEvent(event.currentTarget.dataset.previewEvent);
-            });
-        });
+        panelExtension?.install?.({ panel, listen });
 
         listen(panel.querySelector('#mm-bg-theme'), 'click', () => {
             const themeIds = getThemeIds();

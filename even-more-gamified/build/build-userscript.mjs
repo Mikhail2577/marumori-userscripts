@@ -3,13 +3,38 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
 
-import { GENERATED_NOTICE, OUTPUT_FILES, USER_SCRIPT_METADATA } from './metadata.mjs';
+import {
+    GENERATED_NOTICE_BY_FLAVOR,
+    OUTPUT_FILES_BY_FLAVOR,
+    requireUserscriptFlavor,
+    USERSCRIPT_FLAVORS,
+    USER_SCRIPT_METADATA_BY_FLAVOR,
+} from './metadata.mjs';
 import { validateMetadataSource, validateUserscriptSource } from './validate-build.mjs';
 
 const BUILD_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(BUILD_DIRECTORY, '..');
 const DEFAULT_ENTRY_POINT = path.join(PROJECT_ROOT, 'src', 'index.js');
 const DEFAULT_DIST_DIRECTORY = path.join(PROJECT_ROOT, 'dist');
+const THEME_PREVIEW_MODULES = Object.freeze({
+    [USERSCRIPT_FLAVORS.daily]: path.join(
+        PROJECT_ROOT,
+        'src',
+        'debug',
+        'theme-preview-disabled.js',
+    ),
+    [USERSCRIPT_FLAVORS.debug]: path.join(PROJECT_ROOT, 'src', 'debug', 'theme-preview-enabled.js'),
+});
+
+function themePreviewPlugin(flavor) {
+    const modulePath = THEME_PREVIEW_MODULES[flavor];
+    return {
+        name: 'theme-preview-flavor',
+        setup(esbuild) {
+            esbuild.onResolve({ filter: /^#theme-preview$/ }, () => ({ path: modulePath }));
+        },
+    };
+}
 
 function inlineCssPlugin() {
     return {
@@ -87,20 +112,29 @@ async function atomicWrite(filePath, contents) {
 
 export async function buildUserscript({
     entryPoint = DEFAULT_ENTRY_POINT,
+    flavor = USERSCRIPT_FLAVORS.daily,
     mode = 'production',
-    outdir = DEFAULT_DIST_DIRECTORY,
+    outdir,
     log = true,
 } = {}) {
     if (mode !== 'production' && mode !== 'development') {
         throw new Error(`Unknown build mode: ${mode}`);
     }
 
+    requireUserscriptFlavor(flavor);
     const development = mode === 'development';
-    const resolvedOutdir = path.resolve(outdir);
-    const userscriptPath = path.join(resolvedOutdir, OUTPUT_FILES.userscript);
-    const metadataPath = path.join(resolvedOutdir, OUTPUT_FILES.metadata);
+    const outputFiles = OUTPUT_FILES_BY_FLAVOR[flavor];
+    const metadata = USER_SCRIPT_METADATA_BY_FLAVOR[flavor];
+    const generatedNotice = GENERATED_NOTICE_BY_FLAVOR[flavor];
+    const defaultOutdir =
+        flavor === USERSCRIPT_FLAVORS.debug
+            ? path.join(DEFAULT_DIST_DIRECTORY, 'debug')
+            : DEFAULT_DIST_DIRECTORY;
+    const resolvedOutdir = path.resolve(outdir ?? defaultOutdir);
+    const userscriptPath = path.join(resolvedOutdir, outputFiles.userscript);
+    const metadataPath = path.join(resolvedOutdir, outputFiles.metadata);
     const sourceMapPath = `${userscriptPath}.map`;
-    const banner = `${USER_SCRIPT_METADATA}\n\n${GENERATED_NOTICE}\n"use strict";`;
+    const banner = `${metadata}\n\n${generatedNotice}\n"use strict";`;
 
     const result = await build({
         absWorkingDir: PROJECT_ROOT,
@@ -116,7 +150,7 @@ export async function buildUserscript({
         minify: false,
         outfile: userscriptPath,
         platform: 'browser',
-        plugins: [inlineCssPlugin()],
+        plugins: [themePreviewPlugin(flavor), inlineCssPlugin()],
         sourcemap: development ? 'external' : false,
         sourcesContent: development,
         splitting: false,
@@ -129,11 +163,11 @@ export async function buildUserscript({
 
     const bundledSource = outputText(result, userscriptPath);
     const userscriptSource = development
-        ? `${bundledSource.trimEnd()}\n//# sourceMappingURL=${OUTPUT_FILES.userscript}.map\n`
+        ? `${bundledSource.trimEnd()}\n//# sourceMappingURL=${outputFiles.userscript}.map\n`
         : bundledSource;
-    const metadataSource = `${USER_SCRIPT_METADATA}\n`;
-    validateUserscriptSource(userscriptSource, { production: !development });
-    validateMetadataSource(metadataSource);
+    const metadataSource = `${metadata}\n`;
+    validateUserscriptSource(userscriptSource, { flavor, production: !development });
+    validateMetadataSource(metadataSource, { flavor });
 
     await mkdir(resolvedOutdir, { recursive: true });
     await Promise.all([
@@ -154,6 +188,7 @@ export async function buildUserscript({
 
     return {
         metadataPath,
+        flavor,
         mode,
         sourceMapPath: development ? sourceMapPath : null,
         userscriptPath,
@@ -168,6 +203,10 @@ function parseCliArguments(argv) {
             options.mode = 'development';
         } else if (argument === '--prod' || argument === '--mode=production') {
             options.mode = 'production';
+        } else if (argument === '--daily' || argument === '--flavor=daily') {
+            options.flavor = USERSCRIPT_FLAVORS.daily;
+        } else if (argument === '--debug' || argument === '--flavor=debug') {
+            options.flavor = USERSCRIPT_FLAVORS.debug;
         } else if (argument.startsWith('--outdir=')) {
             options.outdir = argument.slice('--outdir='.length);
         } else if (argument.startsWith('--entry=')) {

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { buildUserscript } from './build-userscript.mjs';
-import { OUTPUT_FILES } from './metadata.mjs';
+import { OUTPUT_FILES, USERSCRIPT_FLAVORS } from './metadata.mjs';
 import { validateBuildArtifacts } from './validate-build.mjs';
 
 const BUILD_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
@@ -54,20 +54,28 @@ export async function verifyReleaseArtifacts({
     try {
         await buildProject({
             entryPoint,
+            flavor: USERSCRIPT_FLAVORS.daily,
             log: false,
             mode: 'production',
             outdir: firstOutdir,
         });
         await buildProject({
             entryPoint,
+            flavor: USERSCRIPT_FLAVORS.daily,
             log: false,
             mode: 'production',
             outdir: secondOutdir,
         });
 
         await Promise.all([
-            validateBuildArtifacts({ distDirectory: firstOutdir }),
-            validateBuildArtifacts({ distDirectory: secondOutdir }),
+            validateBuildArtifacts({
+                distDirectory: firstOutdir,
+                flavor: USERSCRIPT_FLAVORS.daily,
+            }),
+            validateBuildArtifacts({
+                distDirectory: secondOutdir,
+                flavor: USERSCRIPT_FLAVORS.daily,
+            }),
         ]);
 
         for (const fileName of Object.values(OUTPUT_FILES)) {
@@ -93,7 +101,10 @@ export async function verifyReleaseArtifacts({
             );
         }
 
-        await validateBuildArtifacts({ distDirectory: resolvedDistDirectory });
+        await validateBuildArtifacts({
+            distDirectory: resolvedDistDirectory,
+            flavor: USERSCRIPT_FLAVORS.daily,
+        });
 
         return Object.freeze({
             metadataPath: path.join(resolvedDistDirectory, OUTPUT_FILES.metadata),

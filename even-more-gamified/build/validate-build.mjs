@@ -4,10 +4,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse } from 'acorn';
 
 import {
-    GENERATED_NOTICE,
-    OUTPUT_FILES,
+    GENERATED_NOTICE_BY_FLAVOR,
+    OUTPUT_FILES_BY_FLAVOR,
     PACKAGE_VERSION,
-    USER_SCRIPT_METADATA,
+    requireUserscriptFlavor,
+    USERSCRIPT_FLAVORS,
+    USER_SCRIPT_METADATA_BY_FLAVOR,
 } from './metadata.mjs';
 
 const METADATA_START = '// ==UserScript==';
@@ -21,8 +23,6 @@ const REQUIRED_SINGLETON_DIRECTIVES = Object.freeze([
     'author',
     'icon',
     'license',
-    'downloadURL',
-    'updateURL',
 ]);
 const REQUIRED_GRANTS = Object.freeze(['GM_setValue', 'GM_getValue', 'GM_getResourceURL']);
 const REQUIRED_RESOURCES = Object.freeze(['mmShrineGarden', 'mmNightview']);
@@ -118,7 +118,11 @@ export function parseMetadataBlock(block) {
     return directives;
 }
 
-export function validateMetadataBlock(block, { requireCanonical = true } = {}) {
+export function validateMetadataBlock(
+    block,
+    { flavor = USERSCRIPT_FLAVORS.daily, requireCanonical = true } = {},
+) {
+    requireUserscriptFlavor(flavor);
     const directives = parseMetadataBlock(block);
 
     for (const key of REQUIRED_SINGLETON_DIRECTIVES) {
@@ -185,19 +189,33 @@ export function validateMetadataBlock(block, { requireCanonical = true } = {}) {
         }
     }
 
-    const downloadUrl = requireHttpsUrl(valuesFor(directives, 'downloadURL')[0], 'downloadURL');
-    if (!downloadUrl.pathname.endsWith('.user.js')) {
-        fail('@downloadURL must point to a .user.js file.');
+    const published = flavor === USERSCRIPT_FLAVORS.daily;
+    for (const directive of ['downloadURL', 'updateURL']) {
+        const expectedCount = published ? 1 : 0;
+        if (valuesFor(directives, directive).length !== expectedCount) {
+            fail(
+                published
+                    ? `Daily metadata must contain exactly one @${directive} directive.`
+                    : `Debug metadata must not contain an @${directive} directive.`,
+            );
+        }
     }
 
-    const updateUrl = requireHttpsUrl(valuesFor(directives, 'updateURL')[0], 'updateURL');
-    if (!updateUrl.pathname.endsWith('.meta.js')) {
-        fail('@updateURL must point to a .meta.js file.');
+    if (published) {
+        const downloadUrl = requireHttpsUrl(valuesFor(directives, 'downloadURL')[0], 'downloadURL');
+        if (!downloadUrl.pathname.endsWith('.user.js')) {
+            fail('@downloadURL must point to a .user.js file.');
+        }
+
+        const updateUrl = requireHttpsUrl(valuesFor(directives, 'updateURL')[0], 'updateURL');
+        if (!updateUrl.pathname.endsWith('.meta.js')) {
+            fail('@updateURL must point to a .meta.js file.');
+        }
     }
 
     requireHttpsUrl(valuesFor(directives, 'icon')[0], 'icon');
 
-    if (requireCanonical && block !== USER_SCRIPT_METADATA) {
+    if (requireCanonical && block !== USER_SCRIPT_METADATA_BY_FLAVOR[flavor]) {
         fail('The generated userscript metadata does not exactly match build/metadata.mjs.');
     }
 
@@ -390,15 +408,21 @@ function validateBundleShape(ast) {
     }
 }
 
-export function validateUserscriptSource(source, { production = true } = {}) {
+export function validateUserscriptSource(
+    source,
+    { flavor = USERSCRIPT_FLAVORS.daily, production = true } = {},
+) {
+    requireUserscriptFlavor(flavor);
+    const expectedMetadata = USER_SCRIPT_METADATA_BY_FLAVOR[flavor];
+    const expectedNotice = GENERATED_NOTICE_BY_FLAVOR[flavor];
     const metadata = extractMetadataBlock(source);
-    validateMetadataBlock(metadata);
+    validateMetadataBlock(metadata, { flavor });
 
     if (production && SOURCE_MAP_REFERENCE.test(source)) {
         fail('Production userscripts must not contain a source-map reference.');
     }
 
-    const expectedPrefix = `${USER_SCRIPT_METADATA}\n\n${GENERATED_NOTICE}\n"use strict";\n`;
+    const expectedPrefix = `${expectedMetadata}\n\n${expectedNotice}\n"use strict";\n`;
     if (!source.startsWith(expectedPrefix)) {
         fail(
             'The generated-file notice and strict-mode directive must immediately follow metadata.',
@@ -422,21 +446,33 @@ export function validateUserscriptSource(source, { production = true } = {}) {
     return true;
 }
 
-export function validateMetadataSource(source) {
+export function validateMetadataSource(source, { flavor = USERSCRIPT_FLAVORS.daily } = {}) {
+    requireUserscriptFlavor(flavor);
+    const expectedMetadata = USER_SCRIPT_METADATA_BY_FLAVOR[flavor];
     const metadata = extractMetadataBlock(source);
-    validateMetadataBlock(metadata);
+    validateMetadataBlock(metadata, { flavor });
 
-    if (source !== `${USER_SCRIPT_METADATA}\n`) {
+    if (source !== `${expectedMetadata}\n`) {
         fail('The .meta.js file must contain only the canonical metadata block and one newline.');
     }
     return true;
 }
 
-export async function validateBuildArtifacts({ distDirectory } = {}) {
+export async function validateBuildArtifacts({
+    distDirectory,
+    flavor = USERSCRIPT_FLAVORS.daily,
+    production = true,
+} = {}) {
+    requireUserscriptFlavor(flavor);
     const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-    const resolvedDistDirectory = path.resolve(distDirectory ?? path.join(projectRoot, 'dist'));
-    const userscriptPath = path.join(resolvedDistDirectory, OUTPUT_FILES.userscript);
-    const metadataPath = path.join(resolvedDistDirectory, OUTPUT_FILES.metadata);
+    const defaultDistDirectory =
+        flavor === USERSCRIPT_FLAVORS.debug
+            ? path.join(projectRoot, 'dist', 'debug')
+            : path.join(projectRoot, 'dist');
+    const resolvedDistDirectory = path.resolve(distDirectory ?? defaultDistDirectory);
+    const outputFiles = OUTPUT_FILES_BY_FLAVOR[flavor];
+    const userscriptPath = path.join(resolvedDistDirectory, outputFiles.userscript);
+    const metadataPath = path.join(resolvedDistDirectory, outputFiles.metadata);
 
     const [userscriptSource, metadataSource, directoryEntries] = await Promise.all([
         readFile(userscriptPath, 'utf8'),
@@ -448,12 +484,12 @@ export async function validateBuildArtifacts({ distDirectory } = {}) {
         .filter((entry) => entry.isFile() && entry.name.endsWith('.map'))
         .map((entry) => entry.name)
         .sort();
-    if (sourceMaps.length > 0) {
+    if (production && sourceMaps.length > 0) {
         fail(`Production dist must not contain source maps: ${sourceMaps.join(', ')}.`);
     }
 
-    validateUserscriptSource(userscriptSource);
-    validateMetadataSource(metadataSource);
+    validateUserscriptSource(userscriptSource, { flavor, production });
+    validateMetadataSource(metadataSource, { flavor });
 
     const userscriptVersion = valuesFor(
         parseMetadataBlock(extractMetadataBlock(userscriptSource)),
@@ -473,24 +509,32 @@ export async function validateBuildArtifacts({ distDirectory } = {}) {
 }
 
 function parseCliArguments(argv) {
-    let distDirectory;
+    const options = {};
 
     for (let index = 0; index < argv.length; index += 1) {
         const argument = argv[index];
         if (argument === '--dist') {
-            distDirectory = argv[index + 1];
-            if (!distDirectory) {
+            options.distDirectory = argv[index + 1];
+            if (!options.distDirectory) {
                 fail('--dist requires a directory.');
             }
             index += 1;
         } else if (argument.startsWith('--dist=')) {
-            distDirectory = argument.slice('--dist='.length);
+            options.distDirectory = argument.slice('--dist='.length);
+        } else if (argument === '--daily' || argument === '--flavor=daily') {
+            options.flavor = USERSCRIPT_FLAVORS.daily;
+        } else if (argument === '--debug' || argument === '--flavor=debug') {
+            options.flavor = USERSCRIPT_FLAVORS.debug;
+        } else if (argument === '--dev' || argument === '--mode=development') {
+            options.production = false;
+        } else if (argument === '--prod' || argument === '--mode=production') {
+            options.production = true;
         } else {
             fail(`Unknown argument: ${argument}`);
         }
     }
 
-    return { distDirectory };
+    return options;
 }
 
 const isCli =

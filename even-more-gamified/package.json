@@ -3,12 +3,16 @@
     "version": "3.9.0",
     "private": true,
     "type": "module",
+    "imports": {
+        "#theme-preview": "./src/debug/theme-preview-disabled.js"
+    },
     "engines": {
         "node": ">=24"
     },
     "scripts": {
         "build": "node build/build-userscript.mjs --mode=production",
         "build:dev": "node build/build-userscript.mjs --mode=development",
+        "build:debug": "node build/build-userscript.mjs --flavor=debug --mode=development",
         "validate:build": "node build/validate-build.mjs",
         "verify:release": "node build/verify-release.mjs",
         "lint": "eslint src build tests *.config.js",

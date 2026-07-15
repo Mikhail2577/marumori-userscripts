@@ -1407,33 +1407,6 @@ body.mm-shake-hard {
     color: var(--mm-theme-panel-muted, #aaa);
     border-color: var(--mm-theme-control-border, rgba(255, 255, 255, 0.16));
 }
-.mm-preview-title {
-    margin: 10px 0 5px;
-    padding-top: 8px;
-    border-top: 1px solid var(--mm-theme-panel-divider, rgba(255, 255, 255, 0.1));
-    color: var(--mm-theme-accent, #f90);
-    font-size: 8px;
-}
-.mm-preview-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 5px;
-    margin-bottom: 4px;
-}
-.mm-preview-btn {
-    background: var(--mm-theme-control-bg, transparent);
-    border: 1px solid var(--mm-theme-control-border, rgba(255, 255, 255, 0.2));
-    color: var(--mm-theme-panel-muted, #aaa);
-    font-family: inherit;
-    font-size: 7px;
-    padding: 4px 5px;
-    border-radius: 4px;
-    cursor: pointer;
-}
-.mm-preview-btn:hover {
-    border-color: var(--mm-theme-button, #f90);
-    color: var(--mm-theme-button, #f90);
-}
 #mm-vol-slider,
 #mm-music-vol-slider {
     -webkit-appearance: none;

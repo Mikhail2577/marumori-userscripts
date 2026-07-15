@@ -57,6 +57,7 @@ npm run check
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
 | `npm run build`          | Creates a readable production IIFE and metadata file under `dist/`; removes a stale development map.                           |
 | `npm run build:dev`      | Creates the same installable shape with retained function names and an external `.user.js.map`.                                |
+| `npm run build:debug`    | Creates the separate local debug userscript, Theme Preview controls, metadata, and source map under ignored `dist/debug/`.     |
 | `npm run test`           | Runs the Vitest unit, integration, regression, and build suites once.                                                          |
 | `npm run test:watch`     | Runs Vitest in watch mode.                                                                                                     |
 | `npm run test:browser`   | Builds and runs the account-free production-bundle contracts in installed Firefox and Safari.                                  |
@@ -66,10 +67,12 @@ npm run check
 | `npm run verify:release` | Builds the real source twice in temporary directories, validates both artifacts, and compares them byte-for-byte with `dist/`. |
 | `npm run check`          | Runs lint, all tests, non-mutating release verification, generated syntax validation, and formatting checks.                   |
 
-`npm run build` is the only release command that updates `dist/`. `npm run check`
-is deliberately non-mutating: it fails when committed artifacts are absent or
-stale instead of repairing them. Run focused tests while developing, then run
-`npm run build` followed by the full check before handing off an artifact.
+`npm run build` is the only release command that updates the committed daily
+artifacts. `npm run build:debug` writes only ignored local files under
+`dist/debug/`. `npm run check` is deliberately non-mutating: it fails when
+committed daily artifacts are absent or stale instead of repairing them. Run
+focused tests while developing, then run `npm run build` followed by the full
+check before handing off an artifact.
 
 The root GitHub Actions workflow runs `npm ci` and `npm run check` on Node.js 24
 for every push and pull request. It intentionally excludes account-required GUI
@@ -80,12 +83,16 @@ browser tests and publication credentials.
 - Edit [`src/`](../src/), [`build/`](../build/), tests, configuration, or
   documentation.
 - Never hand-edit files under [`dist/`](../dist/). Rebuild them.
+- Treat `dist/debug/` as disposable local output. It has a separate userscript
+  identity and intentionally has no download or update URL.
 - Keep storage-key compatibility unless a deliberate migration and regression test
   accompany a change.
 
 Production output is intentionally readable rather than minified for debugging and
-userscript-host review. Development output adds an external source map. Both modes
-place the metadata block at byte zero and the generated-file warning immediately
+userscript-host review. Development output adds an external source map. Build flavor
+is independent from output mode: daily selects the disabled Theme Preview feature,
+while debug selects the enabled feature and its separate CSS. Every combination
+places the metadata block at byte zero and the generated-file warning immediately
 after it.
 
 ## Test layout
@@ -114,13 +121,18 @@ are documented in [Local browser testing](./BROWSER-TESTING.md).
 dist/
 ├── marumori_even_more_gamified.user.js
 ├── marumori_even_more_gamified.meta.js
-└── marumori_even_more_gamified.user.js.map  # development only
+├── marumori_even_more_gamified.user.js.map  # daily development only
+└── debug/                                     # ignored local output
+    ├── marumori_even_more_gamified.debug.user.js
+    ├── marumori_even_more_gamified.debug.meta.js
+    └── marumori_even_more_gamified.debug.user.js.map
 ```
 
 The installable script contains bundled JavaScript and CSS. `SHRINE` and
 `NIGHT VIEW` remain explicitly declared non-executable image resources. There is
 no runtime npm dependency, module loader, code splitting, or remote executable
-JavaScript.
+JavaScript. The debug identity uses separate GM storage; disable the daily script
+before enabling it so two application instances never target the same page.
 
 ## Working discipline
 

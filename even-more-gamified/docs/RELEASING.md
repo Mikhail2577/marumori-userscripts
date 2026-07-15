@@ -2,6 +2,8 @@
 
 The release artifact is generated from the authoritative modules under `src/`.
 Files under `dist/` are reviewed build outputs and must not be edited by hand.
+The ignored `dist/debug/` flavor is for local testing and is never published as
+part of the daily release channel.
 
 ## 1. Confirm the starting state
 
@@ -58,6 +60,11 @@ then verifies lint, tests, metadata/bundle security rules, generated syntax,
 formatting, and release reproducibility. It builds the complete source twice under
 a temporary OS directory and compares both `.user.js` and `.meta.js` byte-for-byte
 with committed `dist/`.
+
+`npm run build:debug` is not a release step. It creates
+`dist/debug/marumori_even_more_gamified.debug.user.js` with a separate local
+identity, Theme Preview controls, and a source map. It has no download/update URL
+and must not be enabled alongside the daily userscript.
 
 `npm run check` never updates `dist/`; a stale or missing artifact is a failure. If
 source changes after the gate, rerun `npm run build` and then `npm run check`. If

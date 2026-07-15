@@ -10,8 +10,11 @@ import {
     createUserscriptMetadata,
     GENERATED_NOTICE,
     OUTPUT_FILES,
+    OUTPUT_FILES_BY_FLAVOR,
     PACKAGE_VERSION,
+    USERSCRIPT_FLAVORS,
     USER_SCRIPT_METADATA,
+    USER_SCRIPT_METADATA_BY_FLAVOR,
 } from '../../build/metadata.mjs';
 import {
     BuildValidationError,
@@ -21,6 +24,12 @@ import {
 } from '../../build/validate-build.mjs';
 
 const temporaryDirectories = [];
+const THEME_PREVIEW_SENTINELS = Object.freeze([
+    'THEME PREVIEW',
+    'data-preview-event',
+    '.mm-preview-btn',
+    'Theme preview changed gameplay state',
+]);
 
 async function temporaryDirectory() {
     const directory = await mkdtemp(path.join(tmpdir(), 'mm-userscript-build-'));
@@ -80,6 +89,14 @@ describe('userscript build', () => {
         ).rejects.toThrow(/Dynamic import/u);
     });
 
+    it('rejects unknown flavor names before building', async () => {
+        const workspace = await temporaryDirectory();
+
+        await expect(
+            buildUserscript({ flavor: 'toString', log: false, outdir: workspace }),
+        ).rejects.toThrow(/Unknown userscript flavor/u);
+    });
+
     it('emits an external source map for development builds', async () => {
         const workspace = await temporaryDirectory();
         const entryPoint = path.join(workspace, 'index.js');
@@ -102,6 +119,90 @@ describe('userscript build', () => {
         );
         expect(JSON.parse(sourceMap).sources).toHaveLength(1);
     });
+
+    it('builds deterministic, flavor-isolated daily and debug artifacts', async () => {
+        const workspace = await temporaryDirectory();
+        const dailyOutdir = path.join(workspace, 'daily');
+        const firstDebugOutdir = path.join(workspace, 'debug-first');
+        const secondDebugOutdir = path.join(workspace, 'debug-second');
+
+        const [dailyResult, firstDebugResult, secondDebugResult] = await Promise.all([
+            buildUserscript({
+                flavor: USERSCRIPT_FLAVORS.daily,
+                log: false,
+                mode: 'production',
+                outdir: dailyOutdir,
+            }),
+            buildUserscript({
+                flavor: USERSCRIPT_FLAVORS.debug,
+                log: false,
+                mode: 'development',
+                outdir: firstDebugOutdir,
+            }),
+            buildUserscript({
+                flavor: USERSCRIPT_FLAVORS.debug,
+                log: false,
+                mode: 'development',
+                outdir: secondDebugOutdir,
+            }),
+        ]);
+
+        const [dailySource, firstDebugSource, secondDebugSource, firstMap, secondMap] =
+            await Promise.all([
+                readFile(dailyResult.userscriptPath, 'utf8'),
+                readFile(firstDebugResult.userscriptPath, 'utf8'),
+                readFile(secondDebugResult.userscriptPath, 'utf8'),
+                readFile(firstDebugResult.sourceMapPath, 'utf8'),
+                readFile(secondDebugResult.sourceMapPath, 'utf8'),
+            ]);
+
+        for (const sentinel of THEME_PREVIEW_SENTINELS) {
+            expect(
+                dailySource,
+                `Daily artifact contains debug sentinel: ${sentinel}`,
+            ).not.toContain(sentinel);
+            expect(
+                firstDebugSource,
+                `Debug artifact is missing preview sentinel: ${sentinel}`,
+            ).toContain(sentinel);
+        }
+        expect(firstDebugSource).toBe(secondDebugSource);
+        expect(firstMap).toBe(secondMap);
+        expect(path.basename(dailyResult.userscriptPath)).toBe(OUTPUT_FILES.userscript);
+        expect(path.basename(firstDebugResult.userscriptPath)).toBe(
+            OUTPUT_FILES_BY_FLAVOR.debug.userscript,
+        );
+        expect(path.basename(firstDebugResult.metadataPath)).toBe(
+            OUTPUT_FILES_BY_FLAVOR.debug.metadata,
+        );
+        expect(path.basename(firstDebugResult.sourceMapPath)).toBe(
+            `${OUTPUT_FILES_BY_FLAVOR.debug.userscript}.map`,
+        );
+        expect(firstDebugSource).toContain(
+            `//# sourceMappingURL=${OUTPUT_FILES_BY_FLAVOR.debug.userscript}.map`,
+        );
+        expect(firstDebugSource).toContain('// Edit files under src/ and run npm run build:debug.');
+        await expect(
+            validateBuildArtifacts({
+                distDirectory: firstDebugOutdir,
+                flavor: USERSCRIPT_FLAVORS.debug,
+                production: false,
+            }),
+        ).resolves.toMatchObject({ userscriptPath: firstDebugResult.userscriptPath });
+    });
+
+    it('keeps ordinary module resolution daily-safe and makes debug builds explicit', async () => {
+        const packageJson = JSON.parse(
+            await readFile(new URL('../../package.json', import.meta.url), 'utf8'),
+        );
+
+        expect(packageJson.imports?.['#theme-preview']).toBe(
+            './src/debug/theme-preview-disabled.js',
+        );
+        expect(packageJson.scripts?.['build:debug']).toBe(
+            'node build/build-userscript.mjs --flavor=debug --mode=development',
+        );
+    });
 });
 
 describe('build validation', () => {
@@ -121,6 +222,32 @@ describe('build validation', () => {
             'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/main/even-more-gamified/dist/marumori_even_more_gamified.meta.js',
         ]);
         expect(validateUserscriptSource(fixtureBundle())).toBe(true);
+    });
+
+    it('uses an isolated, local-only identity for debug metadata', () => {
+        const metadata = USER_SCRIPT_METADATA_BY_FLAVOR.debug;
+        const directives = validateMetadataBlock(metadata, {
+            flavor: USERSCRIPT_FLAVORS.debug,
+        });
+
+        expect(directives.get('name')).toEqual(['MaruMori Even More Gamified - Debug Preview']);
+        expect(directives.get('namespace')).toEqual(['marumori-gamify-debug-preview']);
+        expect(directives.get('version')).toEqual([PACKAGE_VERSION]);
+        expect(directives.has('downloadURL')).toBe(false);
+        expect(directives.has('updateURL')).toBe(false);
+    });
+
+    it('rejects metadata under the wrong flavor policy', () => {
+        expect(() =>
+            validateMetadataBlock(USER_SCRIPT_METADATA_BY_FLAVOR.debug, {
+                flavor: USERSCRIPT_FLAVORS.daily,
+            }),
+        ).toThrow(/Daily metadata must contain exactly one @downloadURL/u);
+        expect(() =>
+            validateMetadataBlock(USER_SCRIPT_METADATA, {
+                flavor: USERSCRIPT_FLAVORS.debug,
+            }),
+        ).toThrow(/Debug metadata must not contain an @downloadURL/u);
     });
 
     it('rejects metadata whose version differs from package.json', () => {

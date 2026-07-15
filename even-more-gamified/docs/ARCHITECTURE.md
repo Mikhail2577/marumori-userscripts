@@ -1,8 +1,10 @@
 # Architecture
 
-MaruMori Even More Gamified is authored as ES modules and built into one readable,
-strict-mode IIFE. The installed userscript has no runtime module loader, npm
-dependency, code splitting, or remote executable JavaScript.
+MaruMori Even More Gamified is authored as ES modules and built into readable,
+strict-mode IIFEs. The published daily userscript and local debug userscript share
+one source tree and differ only through a build-selected Theme Preview feature.
+Neither installed artifact has a runtime module loader, npm dependency, code
+splitting, or remote executable JavaScript.
 
 ## Ownership and invariants
 
@@ -33,6 +35,7 @@ dependency, code splitting, or remote executable JavaScript.
 | [`src/backgrounds/`](../src/backgrounds/)       | Canvas lifecycle, bundled arcade CSS, sizing/pixel budgets, shared drawing primitives, and focused modules for each theme renderer.        |
 | [`src/font-challenge/`](../src/font-challenge/) | Font allowlist, exact inline-style restoration, optional stylesheet lifecycle, and bounded cache.                                          |
 | [`src/storage/`](../src/storage/)               | Stable keys and settings normalization/migration.                                                                                          |
+| [`src/debug/`](../src/debug/)                   | Build-selected enabled/disabled Theme Preview feature, local test controls, and preview-only CSS.                                          |
 | [`src/utils/`](../src/utils/)                   | Small DOM, scheduling, JSON, and numeric helpers.                                                                                          |
 | [`tests/`](../tests/)                           | Unit, fixture-backed integration, regression, and generated-build tests.                                                                   |
 
@@ -240,6 +243,12 @@ ES2020 browser target, no splitting, and a CSS-inlining plugin. It prepends the
 canonical metadata, generated-file warning, and strict directive before emitting
 one IIFE. `package.json` is the authoritative version source; both generated
 artifacts receive that exact version through [`build/metadata.mjs`](../build/metadata.mjs).
+
+The build resolves `#theme-preview` by flavor. Daily selects an inert module with
+no controls or preview CSS. Debug selects the full simulator and writes a separate,
+local-only identity under ignored `dist/debug/`. Flavor is independent from
+production/development mode, so the release check remains daily-only while local
+debug output can retain names and a source map.
 
 [`build/validate-build.mjs`](../build/validate-build.mjs) parses metadata and the
 executable AST. It rejects malformed metadata, unexpected grants/resources,

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { buildUserscript } from '../../build/build-userscript.mjs';
-import { OUTPUT_FILES } from '../../build/metadata.mjs';
+import { OUTPUT_FILES, USERSCRIPT_FLAVORS } from '../../build/metadata.mjs';
 import { verifyReleaseArtifacts } from '../../build/verify-release.mjs';
 
 const temporaryDirectories = [];
@@ -48,8 +48,10 @@ describe('non-mutating release verification', () => {
         const fixture = await createFixtureRelease();
         const before = await readReleaseArtifacts(fixture.distDirectory);
         let buildCount = 0;
+        const buildFlavors = [];
         const countedBuild = (options) => {
             buildCount += 1;
+            buildFlavors.push(options.flavor);
             return buildUserscript(options);
         };
 
@@ -62,6 +64,7 @@ describe('non-mutating release verification', () => {
 
         const after = await readReleaseArtifacts(fixture.distDirectory);
         expect(buildCount).toBe(2);
+        expect(buildFlavors).toEqual([USERSCRIPT_FLAVORS.daily, USERSCRIPT_FLAVORS.daily]);
         expect(after).toEqual(before);
         expect(await readdir(fixture.temporaryRoot)).toEqual([]);
     });

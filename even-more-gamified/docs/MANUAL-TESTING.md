@@ -59,6 +59,14 @@ covered.
       `eval`, or `new Function` appears in the console/network log.
 - [ ] Keep DevTools open and record exceptions, rejected promises, warnings, layout
       thrashing, and unexpected network requests.
+- [ ] Run `npm run build:debug`, temporarily disable the daily userscript, and
+      install `dist/debug/marumori_even_more_gamified.debug.user.js`.
+- [ ] Confirm the debug identity has no download/update URL, contains all eight Theme
+      Preview controls, and uses storage isolated from the daily identity.
+- [ ] Exercise every preview event and `PREVIEW ALL`; confirm presentation effects
+      run without changing score, streaks, records, rewind ownership, or timer state.
+- [ ] Re-enable only the daily artifact and confirm the Theme Preview heading/buttons
+      are absent while all real gameplay effects and settings remain available.
 
 ## Route, mount, and lifecycle
 

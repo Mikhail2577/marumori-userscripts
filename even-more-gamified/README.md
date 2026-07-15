@@ -63,13 +63,23 @@ Requires Node.js 24 or newer.
 npm install
 npm run build
 npm run build:dev
+npm run build:debug
 npm run test
 npm run check
 ```
 
 - `src/` is authoritative.
-- `dist/*.user.js`, `dist/*.meta.js`, and the development source map are generated.
+- `npm run build` generates the daily userscript under `dist/`.
+- `npm run build:debug` generates the local debug userscript at
+  `dist/debug/marumori_even_more_gamified.debug.user.js`, with Theme Preview
+  controls and a source map.
+- `dist/debug/` is intentionally ignored; it is a local testing artifact, not a
+  published update channel.
 - Generated files must not be edited by hand.
+
+The daily and debug userscripts have separate manager identities and storage. Do
+not enable both on the same page: disable the daily script while using the debug
+build.
 
 See [Development](./docs/DEVELOPMENT.md),
 [Architecture](./docs/ARCHITECTURE.md), and

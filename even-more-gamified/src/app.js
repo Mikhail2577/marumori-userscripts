@@ -50,6 +50,7 @@ import { createHudController } from './ui/hud-controller.js';
 import { createSettingsPanelController } from './ui/settings-panel.js';
 import { createSummaryDialogController } from './ui/summary-dialog.js';
 import BASE_STYLES from './ui/styles.css';
+import { createThemePreviewFeature, THEME_PREVIEW_STYLES } from '#theme-preview';
 import { clamp } from './utils/clamp.js';
 import { subscribeMediaQuery } from './utils/media-query.js';
 
@@ -208,7 +209,6 @@ let summaryDialogController = null;
 let documentClickHandler = null;
 let documentKeyHandler = null;
 let domSyncRaf = null;
-let previewAllTimer = null;
 let sessionRemountPending = false;
 let els = {};
 
@@ -419,6 +419,23 @@ function playThemeSound(eventType, context = {}) {
     void sfxPlayer.playThemeSound(eventType, context);
 }
 
+const themePreviewFeature = createThemePreviewFeature({
+    getAnchor: () => getInputWrapper() || els.hud || null,
+    getGameplayState: () => state,
+    getRecordsSignature: () => getRecordsSignature(records),
+    isRewindAvailable: () => Boolean(rewindController?.hasSnapshot),
+    getTimerState: () => timerState,
+    actions: {
+        flashScreen,
+        playThemeSound,
+        showBanner,
+        spawnCelebrationBurst,
+        spawnFloat,
+        spawnThemeParticles,
+        triggerAnswerBoxAccent,
+    },
+});
+
 function playCorrectSound() {
     playThemeSound('correct', { answerStreak: state.answerStreak });
 }
@@ -470,7 +487,7 @@ function injectStyles() {
     if (document.getElementById('mm-gamify-styles')) return;
     const s = document.createElement('style');
     s.id = 'mm-gamify-styles';
-    s.textContent = BASE_STYLES;
+    s.textContent = BASE_STYLES + THEME_PREVIEW_STYLES;
     document.head.appendChild(s);
 }
 
@@ -517,7 +534,7 @@ function injectUI() {
             }
             syncAudioUnlockPolicy();
         },
-        onPreviewThemeEvent: previewThemeEvent,
+        panelExtension: themePreviewFeature?.panelExtension,
         applyBackgroundTheme: (theme) => ThemeManager.applyTheme(theme, { persist: true }),
         onBackgroundThemeChanged() {
             restartArcadeBackdrop();
@@ -1010,174 +1027,6 @@ function handleAnswerTimeout(ownership) {
     applyTimeoutPenalty();
     invalidateAnswerTimerOwnership(ownership);
     return true;
-}
-
-const THEME_PREVIEW_EVENTS = [
-    'correct',
-    'combo',
-    'wordComplete',
-    'milestone',
-    'timeout',
-    'incorrect',
-    'sessionComplete',
-];
-const THEME_PREVIEW_DELAY_MS = 360;
-const PREVIEW_STATE_KEYS = [
-    'answerStreak',
-    'wordStreak',
-    'multiplier',
-    'score',
-    'lastCompleted',
-    'sessionCorrect',
-    'sessionIncorrect',
-    'sessionWords',
-    'sessionStart',
-    'bestStreak',
-    'bestMultiplier',
-    'sessionActive',
-];
-
-function getPreviewAnchor() {
-    return getInputWrapper() || els.hud || null;
-}
-
-function getPreviewStateInvariant() {
-    return {
-        state: Object.fromEntries(PREVIEW_STATE_KEYS.map((key) => [key, state[key]])),
-        records: getRecordsSignature(records),
-        rewindAvailable: Boolean(rewindController?.hasSnapshot),
-        timer: {
-            running: timerState.running,
-            expired: timerState.expired,
-            currentQuestionId: timerState.currentQuestionId,
-            awardedForQuestionId: timerState.awardedForQuestionId,
-        },
-    };
-}
-
-function warnIfPreviewChangedState(before, eventType) {
-    const after = getPreviewStateInvariant();
-    if (JSON.stringify(before) !== JSON.stringify(after)) {
-        console.warn('[MMGamify] Theme preview changed gameplay state:', {
-            eventType,
-            before,
-            after,
-        });
-    }
-}
-
-function runThemePreviewEvent(eventType) {
-    const anchor = getPreviewAnchor();
-    const soundContext = {
-        answerStreak: Math.max(5, state.answerStreak || 5),
-        wordStreak: Math.max(2, state.wordStreak || 2),
-        multiplier: Math.max(3, state.multiplier || 3),
-    };
-
-    if (eventType === 'correct') {
-        playThemeSound('correct', soundContext);
-        flashScreen(true);
-        triggerAnswerBoxAccent('correct', anchor);
-        spawnFloat('+100', 'correct', anchor);
-        spawnThemeParticles('correct', anchor);
-        return true;
-    }
-
-    if (eventType === 'incorrect') {
-        playThemeSound('incorrect');
-        flashScreen(false);
-        triggerAnswerBoxAccent('incorrect', anchor);
-        spawnFloat('WRONG', 'incorrect', anchor);
-        spawnThemeParticles('incorrect', anchor);
-        return true;
-    }
-
-    if (eventType === 'combo') {
-        playThemeSound('multiplierUp', soundContext);
-        showBanner('mm-mult-banner', '3x COMBO!');
-        triggerAnswerBoxAccent('multiplierUp', anchor);
-        spawnFloat('MULT x3', 'correct', anchor);
-        spawnThemeParticles('multiplierUp', anchor);
-        spawnCelebrationBurst('multiplierUp', anchor);
-        return true;
-    }
-
-    if (eventType === 'milestone') {
-        playThemeSound('multiplierUp', soundContext);
-        showBanner('mm-milestone-banner', 'UNSTOPPABLE!');
-        triggerAnswerBoxAccent('milestone', anchor);
-        spawnFloat('UNSTOPPABLE!', 'milestone', anchor);
-        spawnThemeParticles('milestone', anchor);
-        spawnCelebrationBurst('milestone', anchor);
-        return true;
-    }
-
-    if (eventType === 'timeout') {
-        playThemeSound('timeout');
-        flashScreen(false);
-        triggerAnswerBoxAccent('timeout', anchor);
-        spawnFloat('TIME UP', 'incorrect', anchor);
-        spawnThemeParticles('timeout', anchor);
-        return true;
-    }
-
-    if (eventType === 'wordComplete') {
-        playThemeSound('wordComplete', soundContext);
-        triggerAnswerBoxAccent('wordComplete', anchor);
-        spawnFloat('WORD CLEAR!', 'wordwin', anchor);
-        spawnThemeParticles('wordComplete', anchor);
-        spawnCelebrationBurst('wordComplete', anchor);
-        return true;
-    }
-
-    if (eventType === 'sessionComplete') {
-        playThemeSound('sessionComplete');
-        showBanner('mm-milestone-banner', 'SESSION COMPLETE');
-        spawnThemeParticles('sessionComplete', anchor);
-        spawnCelebrationBurst('sessionComplete', anchor);
-        return true;
-    }
-
-    return false;
-}
-
-function previewOneThemeEvent(eventType) {
-    const before = getPreviewStateInvariant();
-    const didPreview = runThemePreviewEvent(eventType);
-    if (didPreview) warnIfPreviewChangedState(before, eventType);
-    return didPreview;
-}
-
-function previewAllThemeEvents() {
-    if (previewAllTimer) {
-        clearTimeout(previewAllTimer);
-        previewAllTimer = null;
-    }
-
-    let index = 0;
-    const runNext = () => {
-        const eventType = THEME_PREVIEW_EVENTS[index];
-        if (!eventType) {
-            previewAllTimer = null;
-            return;
-        }
-        previewOneThemeEvent(eventType);
-        index++;
-        if (index >= THEME_PREVIEW_EVENTS.length) {
-            previewAllTimer = null;
-            return;
-        }
-        previewAllTimer = setTimeout(runNext, THEME_PREVIEW_DELAY_MS);
-    };
-    runNext();
-}
-
-function previewThemeEvent(eventType) {
-    if (eventType === 'all') {
-        previewAllThemeEvents();
-        return;
-    }
-    previewOneThemeEvent(eventType);
 }
 
 const canvasBackgroundController = createCanvasBackgroundController({
@@ -1686,10 +1535,7 @@ function cleanup() {
     hudController = null;
     settingsPanelController?.cleanup();
     settingsPanelController = null;
-    if (previewAllTimer) {
-        clearTimeout(previewAllTimer);
-        previewAllTimer = null;
-    }
+    themePreviewFeature?.cleanup();
     transientEffects.cleanup();
     stopAnswerTimer();
     comboTimerCompositor?.dispose();

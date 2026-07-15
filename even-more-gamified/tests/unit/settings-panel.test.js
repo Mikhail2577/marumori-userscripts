@@ -14,7 +14,6 @@ function createController(overrides = {}) {
         onTimerDurationChanged: vi.fn(),
         onMusicStyleChanged: vi.fn(),
         onMusicVolumeChanged: vi.fn(),
-        onPreviewThemeEvent: vi.fn(),
         applyBackgroundTheme: vi.fn((theme) => {
             settings.backgroundTheme = theme;
         }),
@@ -30,6 +29,7 @@ function createController(overrides = {}) {
         getThemeId: (theme) => theme,
         getThemeLabel: (theme) => theme.toUpperCase(),
         normalizeTheme: (theme) => theme,
+        panelExtension: overrides.panelExtension,
         ...callbacks,
     });
     document.body.appendChild(controller.element);
@@ -113,19 +113,41 @@ describe('settings panel controller', () => {
         second.controller.cleanup();
     });
 
-    it('keeps theme controls and preview callbacks explicitly wired', () => {
+    it('keeps theme controls wired and omits optional panel extensions by default', () => {
         const { callbacks, controller, settings } = createController();
 
         controller.element.querySelector('#mm-bg-theme').click();
         controller.element.querySelector('#mm-pin-bg').click();
-        controller.element.querySelector('[data-preview-event="timeout"]').click();
 
         expect(callbacks.applyBackgroundTheme).toHaveBeenCalledWith('matrix');
         expect(callbacks.onBackgroundThemeChanged).toHaveBeenCalledWith('matrix');
         expect(settings.backgroundTheme).toBe('matrix');
         expect(settings.pinnedBackgroundTheme).toBe('matrix');
         expect(controller.element.querySelector('#mm-bg-theme').textContent).toContain('MATRIX');
-        expect(callbacks.onPreviewThemeEvent).toHaveBeenCalledWith('timeout');
+        expect(controller.element.querySelector('[data-panel-extension]')).toBeNull();
+    });
+
+    it('mounts a generic panel extension and owns its registered listeners', () => {
+        const onExtensionClick = vi.fn();
+        const install = vi.fn(({ panel, listen }) => {
+            listen(panel.querySelector('[data-panel-extension]'), 'click', onExtensionClick);
+        });
+        const { controller } = createController({
+            panelExtension: {
+                markup: '<button type="button" data-panel-extension>EXTENSION</button>',
+                install,
+            },
+        });
+        const button = controller.element.querySelector('[data-panel-extension]');
+
+        button.click();
+
+        expect(install).toHaveBeenCalledOnce();
+        expect(onExtensionClick).toHaveBeenCalledOnce();
+
+        controller.cleanup();
+        button.click();
+        expect(onExtensionClick).toHaveBeenCalledOnce();
     });
 
     it('disables style cycling for theme-owned music modes', () => {

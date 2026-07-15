@@ -6,6 +6,10 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ### Changed
 
+- Split Theme Preview into a build-selected feature: the published daily artifact
+  excludes its controls, simulator, diagnostics, and CSS, while
+  `npm run build:debug` creates a separate local debug userscript with the existing
+  preview behavior and a source map.
 - Removed app-unused storage serialization wrappers and the composite storage-key
   alias, and routed summary accuracy through the shared calculation without
   changing persisted keys or scoring behavior.
