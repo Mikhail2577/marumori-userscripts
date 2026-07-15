@@ -12,11 +12,6 @@ and themed backgrounds without requiring npm or a module loader after installati
 3. Install that file in the manager.
 4. Start a review at `https://marumori.io/study-lists/reviews`.
 
-The root-level
-[`marumori_even_more_gamified.user.js`](./marumori_even_more_gamified.user.js)
-is the preserved legacy reference, not the modular build output. Do not run both
-scripts at the same time.
-
 ## Highlights
 
 - Persistent, draggable arcade HUD with compact mode.
@@ -75,8 +70,6 @@ npm run check
 - `src/` is authoritative.
 - `dist/*.user.js`, `dist/*.meta.js`, and the development source map are generated.
 - Generated files must not be edited by hand.
-- The preserved root-level userscript is excluded from the modular build and kept
-  for behavioral comparison.
 
 See [Development](./docs/DEVELOPMENT.md),
 [Architecture](./docs/ARCHITECTURE.md), and
@@ -110,5 +103,5 @@ matrix, before making a parity claim.
 
 ## License
 
-The userscript metadata declares `WTFPL`, matching the preserved script header.
-The repository includes the full text in [../LICENSE](../LICENSE).
+The userscript metadata declares `WTFPL`; the repository includes the full text in
+[../LICENSE](../LICENSE).

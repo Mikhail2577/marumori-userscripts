@@ -1,4 +1,8 @@
 import { SHRINE_IMAGE_URL } from '../../config/themes.js';
+import {
+    createManagedBackgroundImage,
+    drawDriftingCoverImage,
+} from './image-background-helpers.js';
 
 const SHRINE_LANTERN_POINTS = Object.freeze([
     Object.freeze({ x: 0.68, y: 0.44 }),
@@ -8,10 +12,17 @@ const SHRINE_LANTERN_POINTS = Object.freeze([
 
 export function createShrineRenderer(runtime) {
     const { ctx, theme, document, isLiteMode, prefersReducedMotion, requestRender } = runtime;
-    let shrineImage;
-    let shrineImageReady = false;
-    let shrineDirectFallbackTried = false;
     let shrinePetals = [];
+    const shrineBackground = createManagedBackgroundImage({
+        document,
+        resourceName: 'mmShrineGarden',
+        directUrl: SHRINE_IMAGE_URL,
+        shouldRequestRender: () => prefersReducedMotion() || isLiteMode(),
+        requestRender,
+        onFailure: () => {
+            console.warn('[MMGamify] Shrine background resource failed to load.');
+        },
+    });
 
     function resetShrinePetal(petal = {}, randomY = false) {
         petal.x = Math.random() * runtime.width;
@@ -33,42 +44,11 @@ export function createShrineRenderer(runtime) {
             ? 0
             : Math.max(8, Math.min(18, Math.floor(runtime.width / 130)));
         shrinePetals = Array.from({ length: petalCount }, () => resetShrinePetal({}, true));
-        if (shrineImage) return;
-
-        shrineImage = document.createElement('img');
-        shrineImage.decoding = 'async';
-        shrineImage.onload = () => {
-            shrineImageReady = true;
-            if (prefersReducedMotion() || isLiteMode()) {
-                requestRender();
-            }
-        };
-        const loadShrineDirectly = () => {
-            if (shrineDirectFallbackTried) {
-                shrineImageReady = false;
-                console.warn('[MMGamify] Shrine background resource failed to load.');
-                return;
-            }
-            shrineDirectFallbackTried = true;
-            shrineImage.crossOrigin = 'anonymous';
-            shrineImage.referrerPolicy = 'no-referrer';
-            shrineImage.src = SHRINE_IMAGE_URL;
-        };
-        shrineImage.onerror = loadShrineDirectly;
-        try {
-            Promise.resolve(GM_getResourceURL('mmShrineGarden'))
-                .then((resourceUrl) => {
-                    if (!resourceUrl) throw new Error('Empty shrine resource URL');
-                    shrineImage.src = resourceUrl;
-                })
-                .catch(loadShrineDirectly);
-        } catch {
-            loadShrineDirectly();
-        }
+        shrineBackground.load();
     }
 
     function drawShrineImage(t) {
-        if (!shrineImageReady) {
+        if (!shrineBackground.ready) {
             const fallback = ctx.createLinearGradient(0, 0, 0, runtime.height);
             fallback.addColorStop(0, '#17212a');
             fallback.addColorStop(1, '#05090a');
@@ -77,30 +57,20 @@ export function createShrineRenderer(runtime) {
             return;
         }
 
-        const imageRatio = shrineImage.naturalWidth / shrineImage.naturalHeight;
-        const viewportRatio = runtime.width / runtime.height;
-        const animated = !isLiteMode() && !prefersReducedMotion();
-        const scale = 1.012 + (animated ? Math.sin(t * 0.08) * 0.002 : 0);
-        let drawWidth;
-        let drawHeight;
-
-        if (imageRatio > viewportRatio) {
-            drawHeight = runtime.height * scale;
-            drawWidth = drawHeight * imageRatio;
-        } else {
-            drawWidth = runtime.width * scale;
-            drawHeight = drawWidth / imageRatio;
-        }
-
-        const driftX = animated ? Math.sin(t * 0.035) * 2.5 : 0;
-        const driftY = animated ? Math.cos(t * 0.028) * 1.5 : 0;
-        ctx.drawImage(
-            shrineImage,
-            (runtime.width - drawWidth) / 2 + driftX,
-            (runtime.height - drawHeight) / 2 + driftY,
-            drawWidth,
-            drawHeight,
-        );
+        drawDriftingCoverImage({
+            ctx,
+            image: shrineBackground.image,
+            width: runtime.width,
+            height: runtime.height,
+            time: t,
+            animated: !isLiteMode() && !prefersReducedMotion(),
+            baseScale: 1.012,
+            scalePulseRate: 0.08,
+            driftXRate: 0.035,
+            driftXDistance: 2.5,
+            driftYRate: 0.028,
+            driftYDistance: 1.5,
+        });
     }
 
     function drawShrineLanternGlow(t) {

@@ -1,13 +1,9 @@
-const RUNNING = 'running';
-
-function outcome(ok, status, reason, extra = {}) {
-    return Object.freeze({ ok, status, reason, ...extra });
-}
-
-function normalizeVolume(value) {
-    const volume = Number(value);
-    return Number.isFinite(volume) ? Math.max(0, volume) : 0;
-}
+import {
+    AUDIO_CONTEXT_RUNNING,
+    createAudioErrorReporter,
+    createAudioOutcome,
+    normalizeAudioVolume,
+} from './runtime-helpers.js';
 
 /**
  * Keeps SFX policy separate from synthesis. `scheduleSfx` may reuse the legacy
@@ -29,16 +25,9 @@ export function createSfxPlayer({
     }
 
     const blockedListeners = new Set();
+    const warn = createAudioErrorReporter(onError);
     let generation = 0;
     let disposed = false;
-
-    function warn(error, operation) {
-        try {
-            onError(error, operation);
-        } catch {
-            // Diagnostics must not alter sound playback.
-        }
-    }
 
     function notifyNeedsUnlock() {
         for (const listener of blockedListeners) {
@@ -60,14 +49,14 @@ export function createSfxPlayer({
 
     function schedule(context, eventType, eventContext, ownerGeneration) {
         if (disposed || ownerGeneration !== generation) {
-            return outcome(false, 'cancelled', 'stale-owner');
+            return createAudioOutcome(false, 'cancelled', 'stale-owner');
         }
-        if (!isEnabled()) return outcome(false, 'skipped', 'disabled');
-        const volume = normalizeVolume(getVolume());
-        if (volume <= 0) return outcome(false, 'skipped', 'zero-volume');
-        if (!context || context.state !== RUNNING || !audio.isRunning(context)) {
+        if (!isEnabled()) return createAudioOutcome(false, 'skipped', 'disabled');
+        const volume = normalizeAudioVolume(getVolume());
+        if (volume <= 0) return createAudioOutcome(false, 'skipped', 'zero-volume');
+        if (!context || context.state !== AUDIO_CONTEXT_RUNNING || !audio.isRunning(context)) {
             notifyNeedsUnlock();
-            return outcome(false, 'blocked', 'context-not-running');
+            return createAudioOutcome(false, 'blocked', 'context-not-running');
         }
 
         try {
@@ -78,22 +67,22 @@ export function createSfxPlayer({
                 eventContext,
                 volume,
             });
-            return outcome(true, 'scheduled', 'sfx-scheduled', { scheduled });
+            return createAudioOutcome(true, 'scheduled', 'sfx-scheduled', { scheduled });
         } catch (error) {
             warn(error, 'schedule-sfx');
-            return outcome(false, 'failed', 'scheduler-error');
+            return createAudioOutcome(false, 'failed', 'scheduler-error');
         }
     }
 
     function play(eventType, eventContext = {}) {
         if (disposed) {
-            return Promise.resolve(outcome(false, 'cancelled', 'disposed'));
+            return Promise.resolve(createAudioOutcome(false, 'cancelled', 'disposed'));
         }
         if (!isEnabled()) {
-            return Promise.resolve(outcome(false, 'skipped', 'disabled'));
+            return Promise.resolve(createAudioOutcome(false, 'skipped', 'disabled'));
         }
-        if (normalizeVolume(getVolume()) <= 0) {
-            return Promise.resolve(outcome(false, 'skipped', 'zero-volume'));
+        if (normalizeAudioVolume(getVolume()) <= 0) {
+            return Promise.resolve(createAudioOutcome(false, 'skipped', 'zero-volume'));
         }
 
         const ownerGeneration = generation;

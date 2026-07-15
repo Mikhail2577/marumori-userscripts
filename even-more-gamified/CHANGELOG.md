@@ -4,6 +4,16 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ## Unreleased
 
+### Changed
+
+- Removed app-unused storage serialization wrappers and the composite storage-key
+  alias, and routed summary accuracy through the shared calculation without
+  changing persisted keys or scoring behavior.
+- Removed the archived pre-modular userscript and completed audit diary, retaining
+  active validation work in the manual checklist.
+- Consolidated shared theme identifiers, audio helpers, and image-background loading
+  without changing the installed feature set.
+
 ### Fixed
 
 - Pointed generated download/update metadata at this repository's canonical
@@ -168,12 +178,12 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 - Automatically suppresses CRT effects in `LITE` while preserving the saved CRT
   preference for `BALANCED` and `MAX`.
 - Added persistent `MAX`, `BALANCED`, and `LITE` visual profiles:
-  - `MAX` synchronizes canvas and timer animation with the display refresh rate.
-  - `BALANCED`, the default, preserves the original effect density while capping
-    canvas rendering at 60 FPS and the timer at 30 FPS.
-  - `LITE` uses 70% canvas resolution, 12 FPS backgrounds, and a 5 FPS timer
-    while reducing particles, popup frequency, full-page effects, procedural
-    music, blur, shadows, and challenge webfonts.
+    - `MAX` synchronizes canvas and timer animation with the display refresh rate.
+    - `BALANCED`, the default, preserves the original effect density while capping
+      canvas rendering at 60 FPS and the timer at 30 FPS.
+    - `LITE` uses 70% canvas resolution, 12 FPS backgrounds, and a 5 FPS timer
+      while reducing particles, popup frequency, full-page effects, procedural
+      music, blur, shadows, and challenge webfonts.
 - Migrated the previous Performance Mode setting to `LITE`.
 - Paused canvas rendering completely while the tab is hidden.
 - Narrowed correctness and counter observers to their review elements and
@@ -201,57 +211,57 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 - Bumped the userscript version to `3.4.1` so managers detect this update.
 - Renamed the userscript to `MaruMori Even More Gamified - Updated`.
 - Added a first-answer timer grace period:
-  - The initial review item starts with the timer paused.
-  - The timer begins when the user enters the first character in the answer field.
-  - All later review items in the session are timed immediately.
+    - The initial review item starts with the timer paused.
+    - The timer begins when the user enters the first character in the answer field.
+    - All later review items in the session are timed immediately.
 - Added optional procedural background music, disabled by default:
-  - Subtle `LO-FI` and `RETRO` soundtrack styles.
-  - Independent music volume control.
-  - Self-contained Web Audio synthesis with no external audio files.
-  - Starts after a browser-approved user interaction.
-  - Fades out on session completion and pauses while the tab is hidden.
-  - Expanded Lo-fi progression and melody variation to reduce repetition.
+    - Subtle `LO-FI` and `RETRO` soundtrack styles.
+    - Independent music volume control.
+    - Self-contained Web Audio synthesis with no external audio files.
+    - Starts after a browser-approved user interaction.
+    - Fades out on session completion and pauses while the tab is hidden.
+    - Expanded Lo-fi progression and melody variation to reduce repetition.
 - Added a draggable HUD with saved position.
 - Added a `RESET HUD POSITION` settings action.
 - Added local/system fallback fonts for the arcade HUD.
 - Added reduced-motion support for animations, flashes, shakes, banners, and floating effects.
 - Added a Rewind system:
-  - HUD `REWIND` button.
-  - State snapshots before correct/incorrect answers.
-  - Restore support for score, combo, multiplier, word streak, session stats, and rolling records.
-  - Native redo/undo click detection.
-  - Backspace undo detection.
+    - HUD `REWIND` button.
+    - State snapshots before correct/incorrect answers.
+    - Restore support for score, combo, multiplier, word streak, session stats, and rolling records.
+    - Native redo/undo click detection.
+    - Backspace undo detection.
 - Added rolling 7-day records:
-  - Best score.
-  - Best combo.
-  - Best multiplier.
-  - HUD `7D BEST` display.
-  - `RESET 7D RECORDS` settings action.
+    - Best score.
+    - Best combo.
+    - Best multiplier.
+    - HUD `7D BEST` display.
+    - `RESET 7D RECORDS` settings action.
 - Added per-word timer behavior so every unresolved word starts with an active timer.
 - Added `Timeout Fail` difficulty option.
 - Added `Font Challenge` difficulty option:
-  - Randomizes the reviewed item font.
-  - Hover temporarily reveals the original font.
-  - Click rerolls the font.
-  - Shift-click locks/unlocks the current challenge font.
-  - Supports local Japanese fonts and selected Google webfonts.
+    - Randomizes the reviewed item font.
+    - Hover temporarily reveals the original font.
+    - Click rerolls the font.
+    - Shift-click locks/unlocks the current challenge font.
+    - Supports local Japanese fonts and selected Google webfonts.
 - Added difficulty XP bonus display in the HUD.
 - Added XP scaling for difficulty options:
-  - `Timeout Fail`: `x1.25`.
-  - `Font Challenge`: `x1.15`.
-  - Combined: approximately `x1.44`.
+    - `Timeout Fail`: `x1.25`.
+    - `Font Challenge`: `x1.15`.
+    - Combined: approximately `x1.44`.
 - Added a background theme selector:
-  - `DEFAULT`.
-  - `STARFIELD`.
-  - `NEBULA`.
-  - `GRID`.
-  - `GAME CENTER`.
-  - `SHRINE`.
-  - `MATRIX`.
-  - `VOID`.
+    - `DEFAULT`.
+    - `STARFIELD`.
+    - `NEBULA`.
+    - `GRID`.
+    - `GAME CENTER`.
+    - `SHRINE`.
+    - `MATRIX`.
+    - `VOID`.
 - Added pinned background defaults:
-  - `PIN CURRENT BACKGROUND` makes the active background the default for future sessions.
-  - `USE PINNED BACKGROUND` restores that pinned background immediately.
+    - `PIN CURRENT BACKGROUND` makes the active background the default for future sessions.
+    - `USE PINNED BACKGROUND` restores that pinned background immediately.
 - Added nebula cloud rendering.
 - Added retro perspective grid rendering.
 - Added matrix backdrop rendering.
@@ -261,10 +271,10 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 - Added word-clear shooting star triggers.
 - Expanded word-clear celebrations from 8 emoji variants to 27 celebration variants.
 - Added four celebration animation styles:
-  - `pop`.
-  - `rise`.
-  - `spin`.
-  - `burst`.
+    - `pop`.
+    - `rise`.
+    - `spin`.
+    - `burst`.
 - Added a painterly `SHRINE` background resource with a Shinto shrine, Zen
   garden, subtle lantern breathing, camera drift, and sparse maple petals.
 - Added a static `SHRINE` rendering path for reduced-motion users.
@@ -311,10 +321,10 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 - Added safer rolling-record parsing and pruning.
 - Added native input value setting for timeout auto-fail compatibility with framework-controlled inputs.
 - Added fallback submit behavior for timeout auto-fail:
-  - Visible button lookup.
-  - Input-wrapper click hotspot.
-  - Enter key dispatch.
-  - Form `requestSubmit`.
+    - Visible button lookup.
+    - Input-wrapper click hotspot.
+    - Enter key dispatch.
+    - Form `requestSubmit`.
 - Restores the previous input value if timeout auto-fail cannot resolve the answer.
 - Cleans up observers, timers, animation frames, drag state, font challenge state, and arcade overlays when leaving review pages.
 - Avoids re-injecting duplicate styles and UI elements.
@@ -322,12 +332,12 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 ### Dev / Repo
 
 - Moved the userscript into its own project directory:
-  - `even-more-gamified/`.
+    - `even-more-gamified/`.
 - Added npm project metadata.
 - Added ESLint configuration for userscript globals.
 - Added `npm test` checks:
-  - `node --check marumori_even_more_gamified.user.js`.
-  - `eslint marumori_even_more_gamified.user.js`.
+    - `node --check marumori_even_more_gamified.user.js`.
+    - `eslint marumori_even_more_gamified.user.js`.
 - Added project README.
 - Added root repository README for a multi-userscript MaruMori repo.
 - Added root `LICENSE` file using WTFPL, matching the original userscript license.

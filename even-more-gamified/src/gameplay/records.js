@@ -1,5 +1,4 @@
 import { RECORD_WINDOW_DAYS } from '../config/constants.js';
-import { safeJsonParse } from '../utils/json.js';
 
 const RECORD_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const RECORD_DAY_FIELDS = ['score', 'combo', 'multiplier'];
@@ -78,14 +77,6 @@ export function normalizeRecords(raw = {}, time = Date.now()) {
     }
 
     return next;
-}
-
-export function deserializeRecords(value, time = Date.now()) {
-    return normalizeRecords(safeJsonParse(value, {}), time);
-}
-
-export function serializeRecords(records) {
-    return JSON.stringify(records);
 }
 
 export function getRecordsSignature(source = {}, time = Date.now()) {

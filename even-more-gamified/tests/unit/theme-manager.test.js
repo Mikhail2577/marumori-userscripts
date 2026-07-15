@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { normalizeBackgroundTheme } from '../../src/config/theme-identifiers.js';
 import {
     createThemeManager,
     mergeThemeObjects,
@@ -50,6 +51,7 @@ describe('theme manager', () => {
     });
 
     it('normalizes aliases, removed themes, and invalid fallbacks', () => {
+        expect(normalizeThemeId).toBe(normalizeBackgroundTheme);
         expect(normalizeThemeId(' gameCenter ')).toBe('gamecenter');
         expect(normalizeThemeId('GAME_CENTER')).toBe('gamecenter');
         expect(normalizeThemeId('aurora')).toBe('starfield');

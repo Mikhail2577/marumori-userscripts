@@ -11,8 +11,6 @@ dependency, code splitting, or remote executable JavaScript.
 - [`dist/marumori_even_more_gamified.user.js`](../dist/marumori_even_more_gamified.user.js)
   and [`dist/marumori_even_more_gamified.meta.js`](../dist/marumori_even_more_gamified.meta.js)
   are generated artifacts.
-- [`marumori_even_more_gamified.user.js`](../marumori_even_more_gamified.user.js)
-  is the preserved legacy behavior reference and fallback. It is not a build input.
 - Persistent keys remain `mmSettings`, `mmRecords`, and
   `mmLockedChallengeFont`.
 - Delayed gameplay work must carry session/question ownership and be cancellable.

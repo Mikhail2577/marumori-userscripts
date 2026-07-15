@@ -10,9 +10,6 @@ export const BACKGROUND_THEME_IDS = Object.freeze([
     'void',
 ]);
 
-// Legacy name retained for low-risk integration with the current UI.
-export const BACKGROUND_THEMES = BACKGROUND_THEME_IDS;
-
 export const THEME_ALIASES = Object.freeze({
     game_center: 'gamecenter',
     gameCenter: 'gamecenter',
@@ -85,8 +82,6 @@ export const SPEED_XP_TIERS = Object.freeze(
         },
     ].map(Object.freeze),
 );
-
-export const TIMER_TIER_CLASSES = Object.freeze(SPEED_XP_TIERS.map((tier) => tier.key));
 
 export const MILESTONES = Object.freeze({
     10: 'ON FIRE!',

@@ -1,17 +1,12 @@
+import { createAudioErrorReporter } from './runtime-helpers.js';
+
 /**
  * Schedules short Web Audio tones while retaining ownership of every oscillator.
  * Delayed oscillators can therefore be stopped when a session is hidden or torn down.
  */
 export function createToneScheduler({ onError = () => {} } = {}) {
     const activeOscillators = new Map();
-
-    function warn(error, operation) {
-        try {
-            onError(error, operation);
-        } catch {
-            // Diagnostics must not interfere with audio cleanup.
-        }
-    }
+    const warn = createAudioErrorReporter(onError);
 
     function schedule({
         context,

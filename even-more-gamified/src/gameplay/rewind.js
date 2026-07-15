@@ -523,8 +523,5 @@ export function createTransactionalRewind({
         get hasRecoveryCandidate() {
             return Boolean(recentRecovery);
         },
-        get isInvokingNative() {
-            return programmaticInvocationDepth > 0;
-        },
     });
 }

@@ -50,7 +50,6 @@ covered.
 - [ ] Confirm the production build has no `.user.js.map` and no source-map URL.
 - [ ] Install only
       [`dist/marumori_even_more_gamified.user.js`](../dist/marumori_even_more_gamified.user.js).
-- [ ] Keep the root legacy reference disabled; never run both scripts together.
 - [ ] Confirm the manager recognizes metadata at install/update time.
 - [ ] Confirm name, version, match, author, icon, license, grants, update/download
       URLs, and both image resources are correct.
@@ -58,8 +57,6 @@ covered.
       `GM_getResourceURL`.
 - [ ] Confirm no `@require`, runtime module-loader request, remote JavaScript, worker,
       `eval`, or `new Function` appears in the console/network log.
-- [ ] Compare a clean-profile session with the preserved legacy reference in a
-      separate profile. Do not enable both at once.
 - [ ] Keep DevTools open and record exceptions, rejected promises, warnings, layout
       thrashing, and unexpected network requests.
 
@@ -128,14 +125,18 @@ covered.
 
 ## Core gameplay and HUD
 
-- [ ] Submit a correct answer and compare score, answer streak, multiplier, accuracy,
-      timed XP, sounds, float, flash, shake, and HUD text with the reference.
+- [ ] Submit a correct answer and verify score, answer streak, multiplier, accuracy,
+      timed XP, sounds, float, flash, shake, and HUD text against the documented
+      scoring rules and enabled settings.
 - [ ] Submit an incorrect answer and compare penalty, combo reset, accuracy, no timed
       bonus, warning sound/tint/float/shake, and optional failure flash.
 - [ ] On a multi-part word, confirm reading/meaning answers update answer metrics but
       do not advance word streak individually. Complete the last sibling and advance
       until MaruMori's completed-item counter changes; verify word streak,
       word-complete sound, celebrations, and `WORDS DONE` advance exactly once.
+- [ ] Repeat the complete multi-part reading/meaning progression in Safari with an
+      installed manager where supported; do not infer this live result from the
+      account-free browser contract alone.
 - [ ] Answer a prompt incorrectly and confirm accuracy/combo change while word streak
       and the completed-item counter remain unchanged; retry/requeue must not reset
       the session HUD.
@@ -305,6 +306,9 @@ covered.
       forced-reflow storm or retained effect nodes after their lifetime.
 - [ ] Toggle each independent visual setting and confirm it does not disable unrelated
       gameplay or presentation.
+- [ ] Profile CRT off/on with `DEFAULT` and one animated background, including active,
+      completed-session, reduced-motion, and hidden-tab states; record compositor or
+      energy wakeups in Firefox and Safari where tooling permits.
 
 ## Backgrounds, themes, and resources
 
@@ -338,14 +342,18 @@ covered.
 ## Performance and cleanup
 
 - [ ] Profile idle CPU on `DEFAULT` and each animated background with no answers.
-- [ ] Record observer callback/reconciliation rate during idle, typing, answer
-      resolution, settings interaction, and userscript-only effects.
+- [ ] Record observer callback/reconciliation count and elapsed time during idle,
+      typing, normal answers, wrapper replacement, timeout, rewind, same-route
+      remount, settings interaction, and userscript-only effects.
 - [ ] Count active animation-frame loops and confirm no duplicates after background
       switches, route transitions, wrapper replacement, or same-route second session.
 - [ ] Finish a session with an animated background; confirm its last frame remains,
       drawing stops behind and after the summary, and confirmed final rewind resumes
       exactly one loop.
 - [ ] Measure canvas frame time in `MAX`, `BALANCED`, and `LITE` at 1080p and 4K.
+- [ ] For `MATRIX` at the same profile/viewport combinations, record CPU/frame time,
+      glyph-rasterization pressure, garbage collection, and retained memory before
+      considering a glyph cache or density change.
 - [ ] Confirm backing canvas dimensions respect profile pixel budgets and remain
       visually acceptable when capped.
 - [ ] Confirm `BALANCED` canvas work does not exceed its roughly 60 FPS ceiling and
@@ -375,6 +383,9 @@ covered.
       as MaruMori Submit/Wrong/Next/rewind capabilities.
 - [ ] Test ambiguous/missing host DOM and confirm the script warns concisely in
       development, avoids arbitrary clicks, and leaves MaruMori usable.
+- [ ] Inspect review variants and nearby non-review routes for unintended styling of
+      host text inputs, cards, shadows, transparency, or layout by broad arcade CSS
+      selectors; record a concrete collision before narrowing compatibility rules.
 - [ ] Test restrictive CSP/network failure where practical and confirm optional
       fonts/images fail gracefully without weakening script policy.
 - [ ] Confirm there is no telemetry, analytics, secret, token, broad `unsafeWindow`,
@@ -386,9 +397,11 @@ covered.
 - [ ] All required primary browser/manager rows have a recorded full or smoke run.
 - [ ] No critical console errors, stale actions, double advancement, false rewind,
       unbounded loop/allocation, or security regression remains.
-- [ ] Any visual or DOM differences from the legacy reference are explained as an
-      intentional fix or recorded as a release blocker/risk.
+- [ ] Any intentional visual or DOM behavior changes are documented; unexplained
+      differences from the documented contracts are recorded as a release blocker.
 - [ ] The exact tested artifact hash is recorded.
+- [ ] After publication, both canonical raw `.user.js` and `.meta.js` URLs serve the
+      reviewed version and bytes (or recorded hashes) from the intended branch/tag.
 - [ ] Remaining browser-specific limitations are documented in release notes.
 
 If any required row or scenario was not executed, report it as unverified. Do not

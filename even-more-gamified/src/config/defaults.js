@@ -26,9 +26,6 @@ export const DEFAULT_SETTINGS = Object.freeze({
     hudCollapsed: false,
 });
 
-// Kept as an export alias to make the initial legacy integration mechanical.
-export const DEFAULTS = DEFAULT_SETTINGS;
-
 export const BOOLEAN_SETTING_KEYS = Object.freeze([
     'sfxEnabled',
     'visualsEnabled',
@@ -45,5 +42,3 @@ export const BOOLEAN_SETTING_KEYS = Object.freeze([
     'musicEnabled',
     'hudCollapsed',
 ]);
-
-export const BOOL_SETTINGS = BOOLEAN_SETTING_KEYS;

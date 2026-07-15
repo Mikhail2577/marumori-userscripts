@@ -1,4 +1,4 @@
-import { DEFAULTS } from '../config/defaults.js';
+import { DEFAULT_SETTINGS } from '../config/defaults.js';
 import {
     MUSIC_STYLES,
     MUSIC_STYLE_LABELS,
@@ -191,7 +191,7 @@ export function createSettingsPanelController({
         });
 
         listen(panel.querySelector('#mm-vol-slider'), 'input', (event) => {
-            settings.volume = clamp(event.target.value, 0, 1, DEFAULTS.volume);
+            settings.volume = clamp(event.target.value, 0, 1, DEFAULT_SETTINGS.volume);
             onSfxVolumeChanged(settings.volume);
             scheduleSettingsSave();
         });
@@ -228,7 +228,7 @@ export function createSettingsPanelController({
         });
 
         listen(panel.querySelector('#mm-music-vol-slider'), 'input', (event) => {
-            settings.musicVolume = clamp(event.target.value, 0, 0.5, DEFAULTS.musicVolume);
+            settings.musicVolume = clamp(event.target.value, 0, 0.5, DEFAULT_SETTINGS.musicVolume);
             onMusicVolumeChanged(settings.musicVolume);
             scheduleSettingsSave();
         });

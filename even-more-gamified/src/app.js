@@ -1,4 +1,3 @@
-// Presentation integration migrated from the preserved legacy userscript.
 // Correctness, platform, configuration, and lifecycle policy live in focused modules.
 
 import { MILESTONES } from './config/constants.js';
@@ -24,7 +23,7 @@ import { createCrtController } from './effects/crt.js';
 import { createTransientEffectsController } from './effects/transient-effects.js';
 import { createFontChallengeController } from './font-challenge/controller.js';
 import { createAnswerTimerOwnershipController } from './gameplay/answer-timer-ownership.js';
-import { getGrade } from './gameplay/grades.js';
+import { calculateAccuracy, getGrade } from './gameplay/grades.js';
 import { createFirstInputGate } from './gameplay/first-input-gate.js';
 import {
     getRecordsSignature,
@@ -1334,8 +1333,7 @@ function handleWordComplete() {
 function showSummary() {
     stopMusic(0.6);
     playSessionEndSound();
-    const total = state.sessionCorrect + state.sessionIncorrect;
-    const acc = total > 0 ? Math.round((state.sessionCorrect / total) * 100) : 0;
+    const acc = calculateAccuracy(state.sessionCorrect, state.sessionIncorrect);
     const elapsed = Math.round((Date.now() - state.sessionStart) / 1000);
     const { label: g, color: c } = getGrade(acc, state.score);
 

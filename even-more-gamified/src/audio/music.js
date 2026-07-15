@@ -1,17 +1,10 @@
-const RUNNING = 'running';
-
-function outcome(ok, status, reason, extra = {}) {
-    return Object.freeze({ ok, status, reason, ...extra });
-}
-
-function defaultScheduler() {
-    return globalThis;
-}
-
-function normalizeVolume(value) {
-    const volume = Number(value);
-    return Number.isFinite(volume) ? Math.max(0, volume) : 0;
-}
+import {
+    AUDIO_CONTEXT_RUNNING,
+    createAudioErrorReporter,
+    createAudioOutcome,
+    defaultAudioScheduler,
+    normalizeAudioVolume,
+} from './runtime-helpers.js';
 
 function defaultCreateDestination({ context, volume, fadeInSeconds }) {
     const destination = context.createGain();
@@ -55,7 +48,8 @@ export function createMusicController({
         throw new TypeError('Music requires a pattern scheduler');
     }
 
-    const clock = scheduler ?? defaultScheduler();
+    const clock = scheduler ?? defaultAudioScheduler();
+    const warn = createAudioErrorReporter(onError);
     const blockedListeners = new Set();
     const retiredDestinations = new Map();
     let generation = 0;
@@ -66,14 +60,6 @@ export function createMusicController({
     let restartTimer = null;
     let startAttempt = null;
     let disposed = false;
-
-    function warn(error, operation) {
-        try {
-            onError(error, operation);
-        } catch {
-            // Diagnostics must not alter playback state.
-        }
-    }
 
     function notifyNeedsUnlock(reason) {
         for (const listener of blockedListeners) {
@@ -99,7 +85,7 @@ export function createMusicController({
         if (isLiteMode()) return 'lite-mode';
         if (!isSessionActive()) return 'inactive-session';
         if (!isVisible()) return 'hidden';
-        if (normalizeVolume(getVolume()) <= 0) return 'zero-volume';
+        if (normalizeAudioVolume(getVolume()) <= 0) return 'zero-volume';
         return null;
     }
 
@@ -187,24 +173,24 @@ export function createMusicController({
     function blockForReadiness(reason) {
         stop({ fadeSeconds: 0 });
         notifyNeedsUnlock(reason);
-        return outcome(false, 'blocked', reason);
+        return createAudioOutcome(false, 'blocked', reason);
     }
 
     function scheduleNext(ownerGeneration) {
         if (ownerGeneration !== generation || !destination || !activeContext) {
-            return outcome(false, 'cancelled', 'stale-owner');
+            return createAudioOutcome(false, 'cancelled', 'stale-owner');
         }
 
         const ineligible = eligibility();
         if (ineligible) {
             stop({ fadeSeconds: ineligible === 'hidden' ? 0 : 0.15 });
-            return outcome(false, 'skipped', ineligible);
+            return createAudioOutcome(false, 'skipped', ineligible);
         }
-        if (activeContext.state !== RUNNING || !audio.isRunning(activeContext)) {
+        if (activeContext.state !== AUDIO_CONTEXT_RUNNING || !audio.isRunning(activeContext)) {
             return blockForReadiness('context-not-running');
         }
 
-        const volume = normalizeVolume(getVolume());
+        const volume = normalizeAudioVolume(getVolume());
         let scheduled;
         try {
             // This is the only call site for theme note creation. It is guarded by
@@ -219,13 +205,13 @@ export function createMusicController({
         } catch (error) {
             warn(error, 'schedule-pattern');
             stop({ fadeSeconds: 0 });
-            return outcome(false, 'failed', 'scheduler-error');
+            return createAudioOutcome(false, 'failed', 'scheduler-error');
         }
 
         const duration = Number(typeof scheduled === 'number' ? scheduled : scheduled?.duration);
         if (!Number.isFinite(duration) || duration <= 0) {
             stop({ fadeSeconds: 0 });
-            return outcome(false, 'failed', 'invalid-pattern-duration');
+            return createAudioOutcome(false, 'failed', 'invalid-pattern-duration');
         }
 
         patternIndex += 1;
@@ -234,22 +220,22 @@ export function createMusicController({
             scheduleTimer = null;
             scheduleNext(ownerGeneration);
         }, delay);
-        return outcome(true, 'scheduled', 'pattern-scheduled', { duration });
+        return createAudioOutcome(true, 'scheduled', 'pattern-scheduled', { duration });
     }
 
     function start({ context: suppliedContext } = {}) {
         const ineligible = eligibility();
         if (ineligible) {
             if (destination) stop({ fadeSeconds: 0.15 });
-            return Promise.resolve(outcome(false, 'skipped', ineligible));
+            return Promise.resolve(createAudioOutcome(false, 'skipped', ineligible));
         }
         if (
             destination &&
             activeContext &&
-            activeContext.state === RUNNING &&
+            activeContext.state === AUDIO_CONTEXT_RUNNING &&
             audio.isRunning(activeContext)
         ) {
-            return Promise.resolve(outcome(true, 'playing', 'already-started'));
+            return Promise.resolve(createAudioOutcome(true, 'playing', 'already-started'));
         }
         if (startAttempt) return startAttempt;
 
@@ -262,18 +248,22 @@ export function createMusicController({
         const attempt = Promise.resolve(readyContext)
             .then((context) => {
                 if (disposed || ownerGeneration !== generation) {
-                    return outcome(false, 'cancelled', 'stale-owner');
+                    return createAudioOutcome(false, 'cancelled', 'stale-owner');
                 }
                 const currentIneligible = eligibility();
                 if (currentIneligible) {
-                    return outcome(false, 'skipped', currentIneligible);
+                    return createAudioOutcome(false, 'skipped', currentIneligible);
                 }
-                if (!context || context.state !== RUNNING || !audio.isRunning(context)) {
+                if (
+                    !context ||
+                    context.state !== AUDIO_CONTEXT_RUNNING ||
+                    !audio.isRunning(context)
+                ) {
                     notifyNeedsUnlock('context-not-running');
-                    return outcome(false, 'blocked', 'context-not-running');
+                    return createAudioOutcome(false, 'blocked', 'context-not-running');
                 }
 
-                const volume = normalizeVolume(getVolume());
+                const volume = normalizeAudioVolume(getVolume());
                 try {
                     destination = createDestination({
                         context,
@@ -283,19 +273,19 @@ export function createMusicController({
                 } catch (error) {
                     warn(error, 'create-destination');
                     destination = null;
-                    return outcome(false, 'failed', 'destination-error');
+                    return createAudioOutcome(false, 'failed', 'destination-error');
                 }
 
                 if (!destination || !audio.isRunning(context)) {
                     disconnectNow(destination);
                     destination = null;
                     notifyNeedsUnlock('context-not-running');
-                    return outcome(false, 'blocked', 'context-not-running');
+                    return createAudioOutcome(false, 'blocked', 'context-not-running');
                 }
                 activeContext = context;
                 const scheduled = scheduleNext(ownerGeneration);
                 if (!scheduled.ok) return scheduled;
-                return outcome(true, 'playing', 'started');
+                return createAudioOutcome(true, 'playing', 'started');
             })
             .finally(() => {
                 if (startAttempt === attempt) startAttempt = null;
@@ -319,13 +309,13 @@ export function createMusicController({
         const ineligible = eligibility();
         if (ineligible) {
             stop({ fadeSeconds: 0.15 });
-            return Promise.resolve(outcome(false, 'skipped', ineligible));
+            return Promise.resolve(createAudioOutcome(false, 'skipped', ineligible));
         }
         return start();
     }
 
     function setVolume(value = getVolume()) {
-        const volume = normalizeVolume(value);
+        const volume = normalizeAudioVolume(value);
         if (volume <= 0) {
             stop({ fadeSeconds: 0.1 });
             return false;
@@ -356,16 +346,12 @@ export function createMusicController({
         stop,
         stopMusic: stop,
         restart,
-        restartMusic: restart,
         sync,
         setVolume,
         onNeedsUnlock,
         dispose,
         get isPlaying() {
             return Boolean(destination);
-        },
-        get currentPatternIndex() {
-            return patternIndex;
         },
     });
 }

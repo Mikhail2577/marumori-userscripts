@@ -1,8 +1,7 @@
 # Releasing
 
-The release artifact is generated from `src/`; the root-level legacy userscript
-remains a comparison reference. Do not replace or delete that reference as part of
-a routine release.
+The release artifact is generated from the authoritative modules under `src/`.
+Files under `dist/` are reviewed build outputs and must not be edited by hand.
 
 ## 1. Confirm the starting state
 
@@ -55,10 +54,10 @@ npm run check
 ```
 
 The explicit build updates `dist/` and removes any development `.map`. The check
-then verifies preserved legacy syntax, lint, tests, metadata/bundle security rules,
-generated syntax, formatting, and release reproducibility. It builds the complete
-source twice under a temporary OS directory and compares both `.user.js` and
-`.meta.js` byte-for-byte with committed `dist/`.
+then verifies lint, tests, metadata/bundle security rules, generated syntax,
+formatting, and release reproducibility. It builds the complete source twice under
+a temporary OS directory and compares both `.user.js` and `.meta.js` byte-for-byte
+with committed `dist/`.
 
 `npm run check` never updates `dist/`; a stale or missing artifact is a failure. If
 source changes after the gate, rerun `npm run build` and then `npm run check`. If
@@ -106,12 +105,7 @@ git diff -- dist/marumori_even_more_gamified.user.js
 ```
 
 The generated userscript diff can be large; review its metadata first, then inspect
-the bundled sections corresponding to changed source modules. Verify that the
-preserved root-level script did not change unintentionally:
-
-```sh
-git diff -- marumori_even_more_gamified.user.js
-```
+the bundled sections corresponding to changed source modules.
 
 ## 7. Validate in browsers
 

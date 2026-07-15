@@ -2,13 +2,23 @@
 // Keep values stable unless a deliberate theme/audio behavior change is documented.
 
 import { MUSIC_PRESETS, SOUND_PRESETS } from './audio-presets.js';
+import { BACKGROUND_THEME_IDS } from './constants.js';
+
+export {
+    BACKGROUND_THEME_IDS as BACKGROUND_THEMES,
+    MUSIC_STYLES,
+    MUSIC_STYLE_LABELS,
+    PERFORMANCE_PROFILES,
+    PERFORMANCE_PROFILE_LABELS,
+    REMOVED_BACKGROUND_THEME_FALLBACKS,
+    THEME_ALIASES,
+    TIMER_SECONDS_PRESETS,
+} from './constants.js';
 
 export const THEME_DEFINITIONS = {
     default: {
         id: 'default',
         label: 'Default',
-        identity: 'Modern arcade',
-        mood: 'Fast, energetic, satisfying',
         colors: {
             accent: '#ff9900',
             secondary: '#77ccff',
@@ -45,8 +55,6 @@ export const THEME_DEFINITIONS = {
     starfield: {
         id: 'starfield',
         label: 'Starfield',
-        identity: 'Space exploration',
-        mood: 'Calm, futuristic, floating',
         colors: {
             accent: '#7dd3fc',
             secondary: '#e0f2fe',
@@ -83,8 +91,6 @@ export const THEME_DEFINITIONS = {
     nebula: {
         id: 'nebula',
         label: 'Nebula',
-        identity: 'Cosmic magic',
-        mood: 'Mystical, celestial, beautiful',
         colors: {
             accent: '#f0abfc',
             secondary: '#93c5fd',
@@ -121,8 +127,6 @@ export const THEME_DEFINITIONS = {
     grid: {
         id: 'grid',
         label: 'Grid',
-        identity: 'Cyberpunk / Tron',
-        mood: 'Fast digital combat',
         colors: {
             accent: '#00e5ff',
             secondary: '#38bdf8',
@@ -159,8 +163,6 @@ export const THEME_DEFINITIONS = {
     gamecenter: {
         id: 'gamecenter',
         label: 'Game Center',
-        identity: '1980s Japanese arcade',
-        mood: 'Bright, nostalgic, energetic',
         colors: {
             accent: '#ff2bd6',
             secondary: '#00d9ff',
@@ -197,8 +199,6 @@ export const THEME_DEFINITIONS = {
     shrine: {
         id: 'shrine',
         label: 'Shrine',
-        identity: 'Traditional Japan',
-        mood: 'Peaceful, spiritual, elegant',
         colors: {
             accent: '#f6d36b',
             secondary: '#fff7d6',
@@ -235,8 +235,6 @@ export const THEME_DEFINITIONS = {
     nightview: {
         id: 'nightview',
         label: 'Night View',
-        identity: 'Moonlit Japanese folk festival',
-        mood: 'Soothing, lantern-lit, nostalgic',
         colors: {
             accent: '#f8d27a',
             secondary: '#9cc8ff',
@@ -273,8 +271,6 @@ export const THEME_DEFINITIONS = {
     matrix: {
         id: 'matrix',
         label: 'Matrix',
-        identity: 'Cyber infiltration',
-        mood: 'Hacking into a system',
         colors: {
             accent: '#00ff88',
             secondary: '#00cc66',
@@ -311,8 +307,6 @@ export const THEME_DEFINITIONS = {
     void: {
         id: 'void',
         label: 'Void',
-        identity: 'Minimalism',
-        mood: 'Silent focus',
         colors: {
             accent: '#e5e7eb',
             secondary: '#9ca3af',
@@ -494,25 +488,13 @@ export const THEME_PRESENTATION_STYLES = {
     },
 };
 
-export const THEME_ALIASES = {
-    game_center: 'gamecenter',
-    gameCenter: 'gamecenter',
-    game_center_theme: 'gamecenter',
-};
-
-export const BACKGROUND_THEMES = Object.freeze(Object.keys(THEME_DEFINITIONS));
-
 export const CANVAS_BACKGROUND_THEMES = Object.freeze(
-    BACKGROUND_THEMES.filter((theme) => THEME_DEFINITIONS[theme].background.allowCanvasEffects),
+    BACKGROUND_THEME_IDS.filter((theme) => THEME_DEFINITIONS[theme].background.allowCanvasEffects),
 );
 
 export const SHOOTING_STAR_THEMES = Object.freeze(
-    BACKGROUND_THEMES.filter((theme) => THEME_DEFINITIONS[theme].background.shootingStars),
+    BACKGROUND_THEME_IDS.filter((theme) => THEME_DEFINITIONS[theme].background.shootingStars),
 );
-
-export const MUSIC_STYLES = ['lofi', 'retro'];
-
-export const MUSIC_STYLE_LABELS = { lofi: 'LO-FI', retro: 'RETRO' };
 
 export const THEME_MUSIC_MODE_LABELS = {
     arcadeLofi: 'STYLE',
@@ -526,28 +508,11 @@ export const THEME_MUSIC_MODE_LABELS = {
     voidSilence: 'FOCUS',
 };
 
-export const PERFORMANCE_PROFILES = ['max', 'balanced', 'lite'];
-
-export const PERFORMANCE_PROFILE_LABELS = {
-    max: 'MAX',
-    balanced: 'BALANCED',
-    lite: 'LITE',
-};
-
-export const TIMER_SECONDS_PRESETS = [10, 15, 30, 45, 60, 90];
-
 export const BACKGROUND_THEME_LABELS = Object.freeze(
     Object.fromEntries(
-        BACKGROUND_THEMES.map((theme) => [theme, THEME_DEFINITIONS[theme].label.toUpperCase()]),
+        BACKGROUND_THEME_IDS.map((theme) => [theme, THEME_DEFINITIONS[theme].label.toUpperCase()]),
     ),
 );
-
-export const REMOVED_BACKGROUND_THEME_FALLBACKS = {
-    aurora: 'starfield',
-    rain: 'default',
-    constellation: 'starfield',
-    snow: 'default',
-};
 
 export const SHRINE_IMAGE_URL =
     'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/' +
@@ -558,8 +523,6 @@ export const NIGHTVIEW_IMAGE_URL =
     'https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/' +
     'f997afc94074989ec324590d7df08960a2633f52/' +
     'even-more-gamified/assets/nightview.png';
-
-export const RESOLVED_BACKDROP_OPACITY = 0.5;
 
 export const FLOATING_TEXT_PRESETS = {
     arcadeClassic: {

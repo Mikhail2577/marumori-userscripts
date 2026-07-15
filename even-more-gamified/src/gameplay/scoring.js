@@ -65,8 +65,6 @@ export function evaluateTimedXpAward({ settings = DEFAULT_SETTINGS, timerState, 
     };
 }
 
-export const getTimedXpAward = evaluateTimedXpAward;
-
 export function getCurrentXpBonusMultiplier({
     settings = DEFAULT_SETTINGS,
     timerState,

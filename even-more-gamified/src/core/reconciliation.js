@@ -29,15 +29,11 @@ export function createReconciler(reconcile, { schedule } = {}) {
             });
             return true;
         },
-        flush: run,
         dispose() {
             active = false;
             pending = false;
             reasons.clear();
             generation += 1;
-        },
-        get pending() {
-            return pending;
         },
     });
 }

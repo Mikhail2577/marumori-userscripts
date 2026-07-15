@@ -107,7 +107,6 @@
       }
     ].map(Object.freeze)
   );
-  var TIMER_TIER_CLASSES = Object.freeze(SPEED_XP_TIERS.map((tier) => tier.key));
   var MILESTONES = Object.freeze({
     10: "ON FIRE!",
     25: "UNSTOPPABLE!",
@@ -995,7 +994,6 @@
     hudPosition: null,
     hudCollapsed: false
   });
-  var DEFAULTS = DEFAULT_SETTINGS;
   var BOOLEAN_SETTING_KEYS = Object.freeze([
     "sfxEnabled",
     "visualsEnabled",
@@ -1012,6 +1010,19 @@
     "musicEnabled",
     "hudCollapsed"
   ]);
+
+  // src/config/theme-identifiers.js
+  var hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+  function normalizeBackgroundTheme(theme, fallback = DEFAULT_SETTINGS.backgroundTheme) {
+    const raw = typeof theme === "string" ? theme.trim() : "";
+    const alias = THEME_ALIASES[raw] || THEME_ALIASES[raw.toLowerCase()];
+    const candidate = alias || raw;
+    if (BACKGROUND_THEME_IDS.includes(candidate)) return candidate;
+    if (hasOwn(REMOVED_BACKGROUND_THEME_FALLBACKS, candidate)) {
+      return REMOVED_BACKGROUND_THEME_FALLBACKS[candidate];
+    }
+    return BACKGROUND_THEME_IDS.includes(fallback) ? fallback : DEFAULT_SETTINGS.backgroundTheme;
+  }
 
   // src/config/theme-presets.js
   function mergeEventPreset(preset = {}, eventType = "default") {
@@ -1030,8 +1041,6 @@
     default: {
       id: "default",
       label: "Default",
-      identity: "Modern arcade",
-      mood: "Fast, energetic, satisfying",
       colors: {
         accent: "#ff9900",
         secondary: "#77ccff",
@@ -1068,8 +1077,6 @@
     starfield: {
       id: "starfield",
       label: "Starfield",
-      identity: "Space exploration",
-      mood: "Calm, futuristic, floating",
       colors: {
         accent: "#7dd3fc",
         secondary: "#e0f2fe",
@@ -1106,8 +1113,6 @@
     nebula: {
       id: "nebula",
       label: "Nebula",
-      identity: "Cosmic magic",
-      mood: "Mystical, celestial, beautiful",
       colors: {
         accent: "#f0abfc",
         secondary: "#93c5fd",
@@ -1144,8 +1149,6 @@
     grid: {
       id: "grid",
       label: "Grid",
-      identity: "Cyberpunk / Tron",
-      mood: "Fast digital combat",
       colors: {
         accent: "#00e5ff",
         secondary: "#38bdf8",
@@ -1182,8 +1185,6 @@
     gamecenter: {
       id: "gamecenter",
       label: "Game Center",
-      identity: "1980s Japanese arcade",
-      mood: "Bright, nostalgic, energetic",
       colors: {
         accent: "#ff2bd6",
         secondary: "#00d9ff",
@@ -1220,8 +1221,6 @@
     shrine: {
       id: "shrine",
       label: "Shrine",
-      identity: "Traditional Japan",
-      mood: "Peaceful, spiritual, elegant",
       colors: {
         accent: "#f6d36b",
         secondary: "#fff7d6",
@@ -1258,8 +1257,6 @@
     nightview: {
       id: "nightview",
       label: "Night View",
-      identity: "Moonlit Japanese folk festival",
-      mood: "Soothing, lantern-lit, nostalgic",
       colors: {
         accent: "#f8d27a",
         secondary: "#9cc8ff",
@@ -1296,8 +1293,6 @@
     matrix: {
       id: "matrix",
       label: "Matrix",
-      identity: "Cyber infiltration",
-      mood: "Hacking into a system",
       colors: {
         accent: "#00ff88",
         secondary: "#00cc66",
@@ -1334,8 +1329,6 @@
     void: {
       id: "void",
       label: "Void",
-      identity: "Minimalism",
-      mood: "Silent focus",
       colors: {
         accent: "#e5e7eb",
         secondary: "#9ca3af",
@@ -1515,20 +1508,12 @@
       floatLabelColor: "#e5e7eb"
     }
   };
-  var THEME_ALIASES2 = {
-    game_center: "gamecenter",
-    gameCenter: "gamecenter",
-    game_center_theme: "gamecenter"
-  };
-  var BACKGROUND_THEMES = Object.freeze(Object.keys(THEME_DEFINITIONS));
   var CANVAS_BACKGROUND_THEMES = Object.freeze(
-    BACKGROUND_THEMES.filter((theme) => THEME_DEFINITIONS[theme].background.allowCanvasEffects)
+    BACKGROUND_THEME_IDS.filter((theme) => THEME_DEFINITIONS[theme].background.allowCanvasEffects)
   );
   var SHOOTING_STAR_THEMES = Object.freeze(
-    BACKGROUND_THEMES.filter((theme) => THEME_DEFINITIONS[theme].background.shootingStars)
+    BACKGROUND_THEME_IDS.filter((theme) => THEME_DEFINITIONS[theme].background.shootingStars)
   );
-  var MUSIC_STYLES2 = ["lofi", "retro"];
-  var MUSIC_STYLE_LABELS2 = { lofi: "LO-FI", retro: "RETRO" };
   var THEME_MUSIC_MODE_LABELS = {
     arcadeLofi: "STYLE",
     starfieldAmbient: "AMBIENT",
@@ -1540,24 +1525,11 @@
     matrixPulse: "PULSE",
     voidSilence: "FOCUS"
   };
-  var PERFORMANCE_PROFILES2 = ["max", "balanced", "lite"];
-  var PERFORMANCE_PROFILE_LABELS2 = {
-    max: "MAX",
-    balanced: "BALANCED",
-    lite: "LITE"
-  };
-  var TIMER_SECONDS_PRESETS2 = [10, 15, 30, 45, 60, 90];
   var BACKGROUND_THEME_LABELS = Object.freeze(
     Object.fromEntries(
-      BACKGROUND_THEMES.map((theme) => [theme, THEME_DEFINITIONS[theme].label.toUpperCase()])
+      BACKGROUND_THEME_IDS.map((theme) => [theme, THEME_DEFINITIONS[theme].label.toUpperCase()])
     )
   );
-  var REMOVED_BACKGROUND_THEME_FALLBACKS2 = {
-    aurora: "starfield",
-    rain: "default",
-    constellation: "starfield",
-    snow: "default"
-  };
   var SHRINE_IMAGE_URL = "https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/f997afc94074989ec324590d7df08960a2633f52/even-more-gamified/assets/shrine-garden.jpg";
   var NIGHTVIEW_IMAGE_URL = "https://raw.githubusercontent.com/Mikhail2577/marumori-userscripts/f997afc94074989ec324590d7df08960a2633f52/even-more-gamified/assets/nightview.png";
   var FLOATING_TEXT_PRESETS = {
@@ -2026,7 +1998,6 @@
   }
 
   // src/config/theme-manager.js
-  var hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
   function isPlainObject(value) {
     return Boolean(value) && typeof value === "object" && !Array.isArray(value);
   }
@@ -2036,16 +2007,6 @@
       next[key] = isPlainObject(value) && isPlainObject(next[key]) ? mergeThemeObjects(next[key], value) : value;
     }
     return next;
-  }
-  function normalizeThemeId(theme, fallback = DEFAULTS.backgroundTheme) {
-    const raw = typeof theme === "string" ? theme.trim() : "";
-    const alias = THEME_ALIASES2[raw] || THEME_ALIASES2[raw.toLowerCase()];
-    const candidate = alias || raw;
-    if (hasOwn(THEME_DEFINITIONS, candidate)) return candidate;
-    if (hasOwn(REMOVED_BACKGROUND_THEME_FALLBACKS2, candidate)) {
-      return REMOVED_BACKGROUND_THEME_FALLBACKS2[candidate];
-    }
-    return hasOwn(THEME_DEFINITIONS, fallback) ? fallback : DEFAULTS.backgroundTheme;
   }
   function getPreset(collection, presetName, fallbackName) {
     return collection[presetName] || collection[fallbackName];
@@ -2128,14 +2089,14 @@
     const resolvedThemeCache = /* @__PURE__ */ new Map();
     let lastAppliedCssThemeId = null;
     function getBackgroundTheme() {
-      return getSettings?.()?.backgroundTheme ?? DEFAULTS.backgroundTheme;
+      return getSettings?.()?.backgroundTheme ?? DEFAULT_SETTINGS.backgroundTheme;
     }
     function resolveThemeDefinition(themeId) {
-      const normalized = normalizeThemeId(themeId);
+      const normalized = normalizeBackgroundTheme(themeId);
       const cached = resolvedThemeCache.get(normalized);
       if (cached) return cached;
-      const theme = normalized === DEFAULTS.backgroundTheme ? THEME_DEFINITIONS[DEFAULTS.backgroundTheme] : mergeThemeObjects(
-        THEME_DEFINITIONS[DEFAULTS.backgroundTheme],
+      const theme = normalized === DEFAULT_SETTINGS.backgroundTheme ? THEME_DEFINITIONS[DEFAULT_SETTINGS.backgroundTheme] : mergeThemeObjects(
+        THEME_DEFINITIONS[DEFAULT_SETTINGS.backgroundTheme],
         THEME_DEFINITIONS[normalized]
       );
       const resolved = { ...theme, id: normalized };
@@ -2144,10 +2105,10 @@
     }
     return {
       getThemeIds() {
-        return BACKGROUND_THEMES;
+        return BACKGROUND_THEME_IDS;
       },
       getThemeId(themeId = getBackgroundTheme()) {
-        return normalizeThemeId(themeId);
+        return normalizeBackgroundTheme(themeId);
       },
       getThemeLabel(themeId = getBackgroundTheme()) {
         return BACKGROUND_THEME_LABELS[this.getThemeId(themeId)] || this.getActiveTheme(themeId).label.toUpperCase();
@@ -2203,15 +2164,6 @@
         const preset = getPreset(MUSIC_PRESETS, presetName, "arcadeLofi");
         return { ...preset, id: presetName };
       },
-      getEffectPreset(eventType) {
-        return {
-          floatingText: this.getFloatingTextPreset(eventType),
-          particles: this.getParticlePreset(eventType),
-          combo: this.getComboPreset(eventType),
-          celebration: this.getCelebrationPreset(eventType),
-          budget: this.getEffectBudget(eventType)
-        };
-      },
       getEffectBudget(_eventType) {
         const theme = this.getActiveTheme();
         const intensity = theme.intensity || {};
@@ -2229,7 +2181,7 @@
         };
       },
       applyTheme(themeId, { persist = true, save = false } = {}) {
-        const normalized = normalizeThemeId(themeId);
+        const normalized = normalizeBackgroundTheme(themeId);
         if (persist) getSettings().backgroundTheme = normalized;
         const theme = this.applyCssVariables(normalized);
         if (documentRef.body) {
@@ -3300,6 +3252,98 @@
     return Object.freeze({ init: initNebula, draw: drawNebula });
   }
 
+  // src/backgrounds/renderers/image-background-helpers.js
+  function createManagedBackgroundImage({
+    document: document2,
+    resourceName,
+    directUrl,
+    shouldRequestRender,
+    requestRender,
+    onFailure
+  }) {
+    let image;
+    let ready = false;
+    let directFallbackTried = false;
+    function loadDirectly() {
+      if (directFallbackTried) {
+        ready = false;
+        onFailure();
+        return;
+      }
+      directFallbackTried = true;
+      image.crossOrigin = "anonymous";
+      image.referrerPolicy = "no-referrer";
+      image.src = directUrl;
+    }
+    function load() {
+      if (image) return;
+      image = document2.createElement("img");
+      image.decoding = "async";
+      image.onload = () => {
+        ready = true;
+        if (shouldRequestRender()) requestRender();
+      };
+      image.onerror = loadDirectly;
+      try {
+        Promise.resolve(GM_getResourceURL(resourceName)).then((resourceUrl) => {
+          if (!resourceUrl) {
+            loadDirectly();
+            return;
+          }
+          image.src = resourceUrl;
+        }).catch(loadDirectly);
+      } catch {
+        loadDirectly();
+      }
+    }
+    return Object.freeze({
+      load,
+      get image() {
+        return image;
+      },
+      get ready() {
+        return ready;
+      }
+    });
+  }
+  function drawDriftingCoverImage({
+    ctx,
+    image,
+    width,
+    height,
+    time,
+    animated,
+    baseScale,
+    scalePulseRate,
+    scalePulseAmount = 2e-3,
+    driftXRate,
+    driftXDistance,
+    driftYRate,
+    driftYDistance
+  }) {
+    const imageRatio = image.naturalWidth / image.naturalHeight;
+    const viewportRatio = width / height;
+    const scale = baseScale + (animated ? Math.sin(time * scalePulseRate) * scalePulseAmount : 0);
+    let drawWidth;
+    let drawHeight;
+    if (imageRatio > viewportRatio) {
+      drawHeight = height * scale;
+      drawWidth = drawHeight * imageRatio;
+    } else {
+      drawWidth = width * scale;
+      drawHeight = drawWidth / imageRatio;
+    }
+    const driftX = animated ? Math.sin(time * driftXRate) * driftXDistance : 0;
+    const driftY = animated ? Math.cos(time * driftYRate) * driftYDistance : 0;
+    ctx.drawImage(
+      image,
+      (width - drawWidth) / 2 + driftX,
+      (height - drawHeight) / 2 + driftY,
+      drawWidth,
+      drawHeight
+    );
+  }
+
   // src/backgrounds/renderers/nightview-renderer.js
   var NIGHTVIEW_LANTERN_POINTS = Object.freeze([
     Object.freeze({ x: 0.077, y: 0.69, radius: 0.95, phase: 0.4 }),
@@ -3309,11 +3353,18 @@
   ]);
   function createNightviewRenderer(runtime) {
     const { ctx, theme, document: document2, isLiteMode: isLiteMode2, prefersReducedMotion: prefersReducedMotion2, requestRender } = runtime;
-    let nightviewImage;
-    let nightviewImageReady = false;
-    let nightviewDirectFallbackTried = false;
     let nightviewFireflies = [];
     let nightviewStars = [];
+    const nightviewBackground = createManagedBackgroundImage({
+      document: document2,
+      resourceName: "mmNightview",
+      directUrl: NIGHTVIEW_IMAGE_URL,
+      shouldRequestRender: () => prefersReducedMotion2() || isLiteMode2(),
+      requestRender,
+      onFailure: () => {
+        console.warn("[MMGamify] Night View background resource failed to load.");
+      }
+    });
     function resetNightviewFirefly(firefly = {}, randomY = false) {
       firefly.x = Math.random() * runtime.width;
       firefly.y = randomY ? runtime.height * (0.52 + Math.random() * 0.43) : runtime.height + 8 + Math.random() * runtime.height * 0.16;
@@ -3341,38 +3392,10 @@
         speed: 0.55 + Math.random() * 1.25,
         hue: Math.random() < 0.7 ? 212 : 46
       }));
-      if (nightviewImage) return;
-      nightviewImage = document2.createElement("img");
-      nightviewImage.decoding = "async";
-      nightviewImage.onload = () => {
-        nightviewImageReady = true;
-        if (prefersReducedMotion2() || isLiteMode2()) {
-          requestRender();
-        }
-      };
-      const loadNightviewDirectly = () => {
-        if (nightviewDirectFallbackTried) {
-          nightviewImageReady = false;
-          console.warn("[MMGamify] Night View background resource failed to load.");
-          return;
-        }
-        nightviewDirectFallbackTried = true;
-        nightviewImage.crossOrigin = "anonymous";
-        nightviewImage.referrerPolicy = "no-referrer";
-        nightviewImage.src = NIGHTVIEW_IMAGE_URL;
-      };
-      nightviewImage.onerror = loadNightviewDirectly;
-      try {
-        Promise.resolve(GM_getResourceURL("mmNightview")).then((resourceUrl) => {
-          if (!resourceUrl) throw new Error("Empty nightview resource URL");
-          nightviewImage.src = resourceUrl;
-        }).catch(loadNightviewDirectly);
-      } catch {
-        loadNightviewDirectly();
-      }
+      nightviewBackground.load();
     }
     function drawNightviewImage(t) {
-      if (!nightviewImageReady) {
+      if (!nightviewBackground.ready) {
         const fallback = ctx.createLinearGradient(0, 0, 0, runtime.height);
         fallback.addColorStop(0, "#071326");
         fallback.addColorStop(0.55, "#050b18");
@@ -3381,28 +3404,20 @@
         ctx.fillRect(0, 0, runtime.width, runtime.height);
         return;
       }
-      const imageRatio = nightviewImage.naturalWidth / nightviewImage.naturalHeight;
-      const viewportRatio = runtime.width / runtime.height;
-      const animated = !isLiteMode2() && !prefersReducedMotion2();
-      const scale = 1.01 + (animated ? Math.sin(t * 0.06) * 2e-3 : 0);
-      let drawWidth;
-      let drawHeight;
-      if (imageRatio > viewportRatio) {
-        drawHeight = runtime.height * scale;
-        drawWidth = drawHeight * imageRatio;
-      } else {
-        drawWidth = runtime.width * scale;
-        drawHeight = drawWidth / imageRatio;
-      }
-      const driftX = animated ? Math.sin(t * 0.03) * 2.1 : 0;
-      const driftY = animated ? Math.cos(t * 0.026) * 1.2 : 0;
-      ctx.drawImage(
-        nightviewImage,
-        (runtime.width - drawWidth) / 2 + driftX,
-        (runtime.height - drawHeight) / 2 + driftY,
-        drawWidth,
-        drawHeight
-      );
+      drawDriftingCoverImage({
+        ctx,
+        image: nightviewBackground.image,
+        width: runtime.width,
+        height: runtime.height,
+        time: t,
+        animated: !isLiteMode2() && !prefersReducedMotion2(),
+        baseScale: 1.01,
+        scalePulseRate: 0.06,
+        driftXRate: 0.03,
+        driftXDistance: 2.1,
+        driftYRate: 0.026,
+        driftYDistance: 1.2
+      });
     }
     function drawNightviewMoonGlow(t) {
       const pulse = prefersReducedMotion2() ? 1 : 0.88 + Math.sin(t * 0.52) * 0.12;
@@ -3574,10 +3589,17 @@
   ]);
   function createShrineRenderer(runtime) {
     const { ctx, theme, document: document2, isLiteMode: isLiteMode2, prefersReducedMotion: prefersReducedMotion2, requestRender } = runtime;
-    let shrineImage;
-    let shrineImageReady = false;
-    let shrineDirectFallbackTried = false;
     let shrinePetals = [];
+    const shrineBackground = createManagedBackgroundImage({
+      document: document2,
+      resourceName: "mmShrineGarden",
+      directUrl: SHRINE_IMAGE_URL,
+      shouldRequestRender: () => prefersReducedMotion2() || isLiteMode2(),
+      requestRender,
+      onFailure: () => {
+        console.warn("[MMGamify] Shrine background resource failed to load.");
+      }
+    });
     function resetShrinePetal(petal = {}, randomY = false) {
       petal.x = Math.random() * runtime.width;
       petal.y = randomY ? Math.random() * runtime.height : -12 - Math.random() * runtime.height * 0.18;
@@ -3593,38 +3615,10 @@
     function initShrine() {
       const petalCount = isLiteMode2() ? 0 : Math.max(8, Math.min(18, Math.floor(runtime.width / 130)));
       shrinePetals = Array.from({ length: petalCount }, () => resetShrinePetal({}, true));
-      if (shrineImage) return;
-      shrineImage = document2.createElement("img");
-      shrineImage.decoding = "async";
-      shrineImage.onload = () => {
-        shrineImageReady = true;
-        if (prefersReducedMotion2() || isLiteMode2()) {
-          requestRender();
-        }
-      };
-      const loadShrineDirectly = () => {
-        if (shrineDirectFallbackTried) {
-          shrineImageReady = false;
-          console.warn("[MMGamify] Shrine background resource failed to load.");
-          return;
-        }
-        shrineDirectFallbackTried = true;
-        shrineImage.crossOrigin = "anonymous";
-        shrineImage.referrerPolicy = "no-referrer";
-        shrineImage.src = SHRINE_IMAGE_URL;
-      };
-      shrineImage.onerror = loadShrineDirectly;
-      try {
-        Promise.resolve(GM_getResourceURL("mmShrineGarden")).then((resourceUrl) => {
-          if (!resourceUrl) throw new Error("Empty shrine resource URL");
-          shrineImage.src = resourceUrl;
-        }).catch(loadShrineDirectly);
-      } catch {
-        loadShrineDirectly();
-      }
+      shrineBackground.load();
     }
     function drawShrineImage(t) {
-      if (!shrineImageReady) {
+      if (!shrineBackground.ready) {
         const fallback = ctx.createLinearGradient(0, 0, 0, runtime.height);
         fallback.addColorStop(0, "#17212a");
         fallback.addColorStop(1, "#05090a");
@@ -3632,28 +3626,20 @@
         ctx.fillRect(0, 0, runtime.width, runtime.height);
         return;
       }
-      const imageRatio = shrineImage.naturalWidth / shrineImage.naturalHeight;
-      const viewportRatio = runtime.width / runtime.height;
-      const animated = !isLiteMode2() && !prefersReducedMotion2();
-      const scale = 1.012 + (animated ? Math.sin(t * 0.08) * 2e-3 : 0);
-      let drawWidth;
-      let drawHeight;
-      if (imageRatio > viewportRatio) {
-        drawHeight = runtime.height * scale;
-        drawWidth = drawHeight * imageRatio;
-      } else {
-        drawWidth = runtime.width * scale;
-        drawHeight = drawWidth / imageRatio;
-      }
-      const driftX = animated ? Math.sin(t * 0.035) * 2.5 : 0;
-      const driftY = animated ? Math.cos(t * 0.028) * 1.5 : 0;
-      ctx.drawImage(
-        shrineImage,
-        (runtime.width - drawWidth) / 2 + driftX,
-        (runtime.height - drawHeight) / 2 + driftY,
-        drawWidth,
-        drawHeight
-      );
+      drawDriftingCoverImage({
+        ctx,
+        image: shrineBackground.image,
+        width: runtime.width,
+        height: runtime.height,
+        time: t,
+        animated: !isLiteMode2() && !prefersReducedMotion2(),
+        baseScale: 1.012,
+        scalePulseRate: 0.08,
+        driftXRate: 0.035,
+        driftXDistance: 2.5,
+        driftYRate: 0.028,
+        driftYDistance: 1.5
+      });
     }
     function drawShrineLanternGlow(t) {
       if (runtime.width / runtime.height < 1.15) return;
@@ -4219,18 +4205,33 @@
     });
   }
 
-  // src/adapters/audio-context.js
-  var RUNNING = "running";
-  var CLOSED = "closed";
-  function defaultCreateContext() {
-    const AudioContextConstructor = globalThis.AudioContext ?? globalThis.webkitAudioContext;
-    return AudioContextConstructor ? new AudioContextConstructor() : null;
+  // src/audio/runtime-helpers.js
+  var AUDIO_CONTEXT_RUNNING = "running";
+  function createAudioOutcome(ok, status, reason, extra = {}) {
+    return Object.freeze({ ok, status, reason, ...extra });
   }
-  function report(onError, error, operation) {
+  function normalizeAudioVolume(value) {
+    const volume = Number(value);
+    return Number.isFinite(volume) ? Math.max(0, volume) : 0;
+  }
+  function reportAudioError(onError, error, operation) {
     try {
       onError(error, operation);
     } catch {
     }
+  }
+  function createAudioErrorReporter(onError) {
+    return (error, operation) => reportAudioError(onError, error, operation);
+  }
+  function defaultAudioScheduler() {
+    return globalThis;
+  }
+
+  // src/adapters/audio-context.js
+  var CLOSED = "closed";
+  function defaultCreateContext() {
+    const AudioContextConstructor = globalThis.AudioContext ?? globalThis.webkitAudioContext;
+    return AudioContextConstructor ? new AudioContextConstructor() : null;
   }
   var AudioContextAdapter = class {
     constructor({ createContext = defaultCreateContext, onError = () => {
@@ -4253,10 +4254,12 @@
       return this.context;
     }
     get runningContext() {
-      return this.context?.state === RUNNING ? this.context : null;
+      return this.context?.state === AUDIO_CONTEXT_RUNNING ? this.context : null;
     }
     isRunning(context = this.context) {
-      return Boolean(context && context === this.context && context.state === RUNNING);
+      return Boolean(
+        context && context === this.context && context.state === AUDIO_CONTEXT_RUNNING
+      );
     }
     subscribe(listener) {
       if (typeof listener !== "function") {
@@ -4271,7 +4274,7 @@
         try {
           listener(context.state, context);
         } catch (error) {
-          report(this.onError, error, "state-listener");
+          reportAudioError(this.onError, error, "state-listener");
         }
       }
     }
@@ -4297,7 +4300,7 @@
         this.attachContext(context);
         return context;
       } catch (error) {
-        report(this.onError, error, "create");
+        reportAudioError(this.onError, error, "create");
         return null;
       }
     }
@@ -4305,7 +4308,7 @@
       this.intentGeneration += 1;
       const context = this.getOrCreateContext();
       if (!context) return Promise.resolve(null);
-      if (context.state === RUNNING) return Promise.resolve(context);
+      if (context.state === AUDIO_CONTEXT_RUNNING) return Promise.resolve(context);
       if (this.unlockAttempt?.context === context) {
         return this.unlockAttempt.promise;
       }
@@ -4314,12 +4317,12 @@
       try {
         resumeResult = context.resume();
       } catch (error) {
-        report(this.onError, error, "resume");
+        reportAudioError(this.onError, error, "resume");
         return Promise.resolve(null);
       }
       const attempt = { context, promise: null };
       attempt.promise = Promise.resolve(resumeResult).then(() => this.isRunning(context) ? context : null).catch((error) => {
-        report(this.onError, error, "resume");
+        reportAudioError(this.onError, error, "resume");
         return null;
       }).finally(() => {
         if (this.unlockAttempt === attempt) this.unlockAttempt = null;
@@ -4333,13 +4336,13 @@
       return pendingUnlock.then(async () => {
         if (intent !== this.intentGeneration) return false;
         const context = this.context;
-        if (!context || context.state !== RUNNING) return false;
+        if (!context || context.state !== AUDIO_CONTEXT_RUNNING) return false;
         if (typeof context.suspend !== "function") return false;
         try {
           await context.suspend();
-          return context.state !== RUNNING;
+          return context.state !== AUDIO_CONTEXT_RUNNING;
         } catch (error) {
-          report(this.onError, error, "suspend");
+          reportAudioError(this.onError, error, "suspend");
           return false;
         }
       });
@@ -5054,17 +5057,8 @@
       requestReconcile,
       start,
       stop,
-      get currentUrl() {
-        return currentUrl?.href ?? null;
-      },
       get isReviewRoute() {
         return routeRelevant;
-      },
-      get isStarted() {
-        return started;
-      },
-      get observedRoot() {
-        return observerRoot;
       }
     });
   }
@@ -5116,13 +5110,6 @@
   }
 
   // src/audio/lifecycle.js
-  var RUNNING2 = "running";
-  function outcome(ok, status, reason) {
-    return Object.freeze({ ok, status, reason });
-  }
-  function defaultScheduler() {
-    return globalThis;
-  }
   function createAudioLifecycle({
     audio,
     music,
@@ -5147,7 +5134,8 @@
     if (!target?.addEventListener || !target?.removeEventListener) {
       throw new TypeError("Audio lifecycle target must be an EventTarget");
     }
-    const clock = scheduler ?? defaultScheduler();
+    const clock = scheduler ?? defaultAudioScheduler();
+    const warn = createAudioErrorReporter(onError);
     let installed = false;
     let gestureArmed = false;
     let gestureHandler = null;
@@ -5158,12 +5146,6 @@
     let removeAudioStateListener = null;
     let removeMusicBlockedListener = null;
     let removeSfxBlockedListener = null;
-    function warn(error, operation) {
-      try {
-        onError(error, operation);
-      } catch {
-      }
-    }
     function hidden() {
       try {
         return Boolean(isHidden());
@@ -5209,7 +5191,7 @@
     }
     function handleAudioState(state2) {
       if (!installed || hidden()) return;
-      if (state2 === RUNNING2) {
+      if (state2 === AUDIO_CONTEXT_RUNNING) {
         if (!unlocking) {
           disarmGestureUnlock();
           void music.start({ context: audio.runningContext });
@@ -5232,10 +5214,10 @@
     }
     function resume() {
       if (!installed) {
-        return Promise.resolve(outcome(false, "cancelled", "not-installed"));
+        return Promise.resolve(createAudioOutcome(false, "cancelled", "not-installed"));
       }
       if (hidden()) {
-        return Promise.resolve(outcome(false, "skipped", "hidden"));
+        return Promise.resolve(createAudioOutcome(false, "skipped", "hidden"));
       }
       clearSuspendTimer();
       if (startAttempt) return startAttempt;
@@ -5249,34 +5231,34 @@
         unlocking = false;
         warn(error, "unlock");
         armGestureUnlock();
-        return Promise.resolve(outcome(false, "blocked", "unlock-error"));
+        return Promise.resolve(createAudioOutcome(false, "blocked", "unlock-error"));
       }
       const attempt = Promise.resolve(ready).then(async (context) => {
         if (!installed || ownerGeneration !== generation || hidden()) {
-          return outcome(false, "cancelled", "stale-owner");
+          return createAudioOutcome(false, "cancelled", "stale-owner");
         }
         unlocking = false;
-        if (!context || context.state !== RUNNING2 || !audio.isRunning(context)) {
+        if (!context || context.state !== AUDIO_CONTEXT_RUNNING || !audio.isRunning(context)) {
           armGestureUnlock();
-          return outcome(false, "blocked", "context-not-running");
+          return createAudioOutcome(false, "blocked", "context-not-running");
         }
         disarmGestureUnlock();
         await music.start({ context });
         if (!installed || ownerGeneration !== generation || hidden()) {
-          return outcome(false, "cancelled", "stale-owner");
+          return createAudioOutcome(false, "cancelled", "stale-owner");
         }
         if (!audio.isRunning(context)) {
           armGestureUnlock();
-          return outcome(false, "blocked", "context-not-running");
+          return createAudioOutcome(false, "blocked", "context-not-running");
         }
-        return outcome(true, "ready", "audio-running");
+        return createAudioOutcome(true, "ready", "audio-running");
       }).catch((error) => {
         warn(error, "resume");
         if (installed && ownerGeneration === generation) {
           unlocking = false;
           armGestureUnlock();
         }
-        return outcome(false, "blocked", "unlock-error");
+        return createAudioOutcome(false, "blocked", "unlock-error");
       }).finally(() => {
         if (startAttempt === attempt) {
           unlocking = false;
@@ -5348,17 +5330,12 @@
     }
     return Object.freeze({
       install,
-      installMusicLifecycle: install,
       cleanup: cleanup2,
-      uninstallMusicLifecycle: cleanup2,
       resume,
       armGestureUnlock,
       disarmGestureUnlock,
       scheduleSuspend,
       dispose,
-      get isInstalled() {
-        return installed;
-      },
       get isGestureArmed() {
         return gestureArmed;
       }
@@ -5366,17 +5343,6 @@
   }
 
   // src/audio/music.js
-  var RUNNING3 = "running";
-  function outcome2(ok, status, reason, extra = {}) {
-    return Object.freeze({ ok, status, reason, ...extra });
-  }
-  function defaultScheduler2() {
-    return globalThis;
-  }
-  function normalizeVolume(value) {
-    const volume = Number(value);
-    return Number.isFinite(volume) ? Math.max(0, volume) : 0;
-  }
   function defaultCreateDestination({ context, volume, fadeInSeconds }) {
     const destination = context.createGain();
     destination.gain.setValueAtTime(0, context.currentTime);
@@ -5414,7 +5380,8 @@
     if (typeof schedulePattern !== "function") {
       throw new TypeError("Music requires a pattern scheduler");
     }
-    const clock = scheduler ?? defaultScheduler2();
+    const clock = scheduler ?? defaultAudioScheduler();
+    const warn = createAudioErrorReporter(onError);
     const blockedListeners = /* @__PURE__ */ new Set();
     const retiredDestinations = /* @__PURE__ */ new Map();
     let generation = 0;
@@ -5425,12 +5392,6 @@
     let restartTimer = null;
     let startAttempt = null;
     let disposed = false;
-    function warn(error, operation) {
-      try {
-        onError(error, operation);
-      } catch {
-      }
-    }
     function notifyNeedsUnlock(reason) {
       for (const listener of blockedListeners) {
         try {
@@ -5453,7 +5414,7 @@
       if (isLiteMode2()) return "lite-mode";
       if (!isSessionActive()) return "inactive-session";
       if (!isVisible()) return "hidden";
-      if (normalizeVolume(getVolume()) <= 0) return "zero-volume";
+      if (normalizeAudioVolume(getVolume()) <= 0) return "zero-volume";
       return null;
     }
     function clearTimer(name) {
@@ -5531,21 +5492,21 @@
     function blockForReadiness(reason) {
       stop({ fadeSeconds: 0 });
       notifyNeedsUnlock(reason);
-      return outcome2(false, "blocked", reason);
+      return createAudioOutcome(false, "blocked", reason);
     }
     function scheduleNext(ownerGeneration) {
       if (ownerGeneration !== generation || !destination || !activeContext) {
-        return outcome2(false, "cancelled", "stale-owner");
+        return createAudioOutcome(false, "cancelled", "stale-owner");
       }
       const ineligible = eligibility();
       if (ineligible) {
         stop({ fadeSeconds: ineligible === "hidden" ? 0 : 0.15 });
-        return outcome2(false, "skipped", ineligible);
+        return createAudioOutcome(false, "skipped", ineligible);
       }
-      if (activeContext.state !== RUNNING3 || !audio.isRunning(activeContext)) {
+      if (activeContext.state !== AUDIO_CONTEXT_RUNNING || !audio.isRunning(activeContext)) {
         return blockForReadiness("context-not-running");
       }
-      const volume = normalizeVolume(getVolume());
+      const volume = normalizeAudioVolume(getVolume());
       let scheduled;
       try {
         scheduled = schedulePattern({
@@ -5558,12 +5519,12 @@
       } catch (error) {
         warn(error, "schedule-pattern");
         stop({ fadeSeconds: 0 });
-        return outcome2(false, "failed", "scheduler-error");
+        return createAudioOutcome(false, "failed", "scheduler-error");
       }
       const duration = Number(typeof scheduled === "number" ? scheduled : scheduled?.duration);
       if (!Number.isFinite(duration) || duration <= 0) {
         stop({ fadeSeconds: 0 });
-        return outcome2(false, "failed", "invalid-pattern-duration");
+        return createAudioOutcome(false, "failed", "invalid-pattern-duration");
       }
       patternIndex += 1;
       const delay = Math.max(minimumScheduleDelayMs, (duration - scheduleOverlapSeconds) * 1e3);
@@ -5571,33 +5532,33 @@
         scheduleTimer = null;
         scheduleNext(ownerGeneration);
       }, delay);
-      return outcome2(true, "scheduled", "pattern-scheduled", { duration });
+      return createAudioOutcome(true, "scheduled", "pattern-scheduled", { duration });
     }
     function start({ context: suppliedContext } = {}) {
       const ineligible = eligibility();
       if (ineligible) {
         if (destination) stop({ fadeSeconds: 0.15 });
-        return Promise.resolve(outcome2(false, "skipped", ineligible));
+        return Promise.resolve(createAudioOutcome(false, "skipped", ineligible));
       }
-      if (destination && activeContext && activeContext.state === RUNNING3 && audio.isRunning(activeContext)) {
-        return Promise.resolve(outcome2(true, "playing", "already-started"));
+      if (destination && activeContext && activeContext.state === AUDIO_CONTEXT_RUNNING && audio.isRunning(activeContext)) {
+        return Promise.resolve(createAudioOutcome(true, "playing", "already-started"));
       }
       if (startAttempt) return startAttempt;
       const ownerGeneration = ++generation;
       const readyContext = suppliedContext && audio.isRunning(suppliedContext) ? Promise.resolve(suppliedContext) : audio.unlock();
       const attempt = Promise.resolve(readyContext).then((context) => {
         if (disposed || ownerGeneration !== generation) {
-          return outcome2(false, "cancelled", "stale-owner");
+          return createAudioOutcome(false, "cancelled", "stale-owner");
         }
         const currentIneligible = eligibility();
         if (currentIneligible) {
-          return outcome2(false, "skipped", currentIneligible);
+          return createAudioOutcome(false, "skipped", currentIneligible);
         }
-        if (!context || context.state !== RUNNING3 || !audio.isRunning(context)) {
+        if (!context || context.state !== AUDIO_CONTEXT_RUNNING || !audio.isRunning(context)) {
           notifyNeedsUnlock("context-not-running");
-          return outcome2(false, "blocked", "context-not-running");
+          return createAudioOutcome(false, "blocked", "context-not-running");
         }
-        const volume = normalizeVolume(getVolume());
+        const volume = normalizeAudioVolume(getVolume());
         try {
           destination = createDestination({
             context,
@@ -5607,18 +5568,18 @@
         } catch (error) {
           warn(error, "create-destination");
           destination = null;
-          return outcome2(false, "failed", "destination-error");
+          return createAudioOutcome(false, "failed", "destination-error");
         }
         if (!destination || !audio.isRunning(context)) {
           disconnectNow(destination);
           destination = null;
           notifyNeedsUnlock("context-not-running");
-          return outcome2(false, "blocked", "context-not-running");
+          return createAudioOutcome(false, "blocked", "context-not-running");
         }
         activeContext = context;
         const scheduled = scheduleNext(ownerGeneration);
         if (!scheduled.ok) return scheduled;
-        return outcome2(true, "playing", "started");
+        return createAudioOutcome(true, "playing", "started");
       }).finally(() => {
         if (startAttempt === attempt) startAttempt = null;
       });
@@ -5639,12 +5600,12 @@
       const ineligible = eligibility();
       if (ineligible) {
         stop({ fadeSeconds: 0.15 });
-        return Promise.resolve(outcome2(false, "skipped", ineligible));
+        return Promise.resolve(createAudioOutcome(false, "skipped", ineligible));
       }
       return start();
     }
     function setVolume(value = getVolume()) {
-      const volume = normalizeVolume(value);
+      const volume = normalizeAudioVolume(value);
       if (volume <= 0) {
         stop({ fadeSeconds: 0.1 });
         return false;
@@ -5673,16 +5634,12 @@
       stop,
       stopMusic: stop,
       restart,
-      restartMusic: restart,
       sync,
       setVolume,
       onNeedsUnlock,
       dispose,
       get isPlaying() {
         return Boolean(destination);
-      },
-      get currentPatternIndex() {
-        return patternIndex;
       }
     });
   }
@@ -5716,14 +5673,6 @@
   }
 
   // src/audio/sfx.js
-  var RUNNING4 = "running";
-  function outcome3(ok, status, reason, extra = {}) {
-    return Object.freeze({ ok, status, reason, ...extra });
-  }
-  function normalizeVolume2(value) {
-    const volume = Number(value);
-    return Number.isFinite(volume) ? Math.max(0, volume) : 0;
-  }
   function createSfxPlayer({
     audio,
     scheduleSfx,
@@ -5741,14 +5690,9 @@
       throw new TypeError("Sound effects require an injected scheduler");
     }
     const blockedListeners = /* @__PURE__ */ new Set();
+    const warn = createAudioErrorReporter(onError);
     let generation = 0;
     let disposed = false;
-    function warn(error, operation) {
-      try {
-        onError(error, operation);
-      } catch {
-      }
-    }
     function notifyNeedsUnlock() {
       for (const listener of blockedListeners) {
         try {
@@ -5767,14 +5711,14 @@
     }
     function schedule(context, eventType, eventContext, ownerGeneration) {
       if (disposed || ownerGeneration !== generation) {
-        return outcome3(false, "cancelled", "stale-owner");
+        return createAudioOutcome(false, "cancelled", "stale-owner");
       }
-      if (!isEnabled()) return outcome3(false, "skipped", "disabled");
-      const volume = normalizeVolume2(getVolume());
-      if (volume <= 0) return outcome3(false, "skipped", "zero-volume");
-      if (!context || context.state !== RUNNING4 || !audio.isRunning(context)) {
+      if (!isEnabled()) return createAudioOutcome(false, "skipped", "disabled");
+      const volume = normalizeAudioVolume(getVolume());
+      if (volume <= 0) return createAudioOutcome(false, "skipped", "zero-volume");
+      if (!context || context.state !== AUDIO_CONTEXT_RUNNING || !audio.isRunning(context)) {
         notifyNeedsUnlock();
-        return outcome3(false, "blocked", "context-not-running");
+        return createAudioOutcome(false, "blocked", "context-not-running");
       }
       try {
         const scheduled = scheduleSfx({
@@ -5784,21 +5728,21 @@
           eventContext,
           volume
         });
-        return outcome3(true, "scheduled", "sfx-scheduled", { scheduled });
+        return createAudioOutcome(true, "scheduled", "sfx-scheduled", { scheduled });
       } catch (error) {
         warn(error, "schedule-sfx");
-        return outcome3(false, "failed", "scheduler-error");
+        return createAudioOutcome(false, "failed", "scheduler-error");
       }
     }
     function play(eventType, eventContext = {}) {
       if (disposed) {
-        return Promise.resolve(outcome3(false, "cancelled", "disposed"));
+        return Promise.resolve(createAudioOutcome(false, "cancelled", "disposed"));
       }
       if (!isEnabled()) {
-        return Promise.resolve(outcome3(false, "skipped", "disabled"));
+        return Promise.resolve(createAudioOutcome(false, "skipped", "disabled"));
       }
-      if (normalizeVolume2(getVolume()) <= 0) {
-        return Promise.resolve(outcome3(false, "skipped", "zero-volume"));
+      if (normalizeAudioVolume(getVolume()) <= 0) {
+        return Promise.resolve(createAudioOutcome(false, "skipped", "zero-volume"));
       }
       const ownerGeneration = generation;
       const runningContext = audio.runningContext;
@@ -6195,12 +6139,7 @@
   function createToneScheduler({ onError = () => {
   } } = {}) {
     const activeOscillators = /* @__PURE__ */ new Map();
-    function warn(error, operation) {
-      try {
-        onError(error, operation);
-      } catch {
-      }
-    }
+    const warn = createAudioErrorReporter(onError);
     function schedule({
       context,
       destination,
@@ -6334,13 +6273,13 @@
   }
 
   // src/core/lifecycle.js
-  function defaultScheduler3() {
+  function defaultScheduler() {
     return globalThis;
   }
   var LifecycleScope = class {
     constructor({ generation = 0, isCurrent = () => true, scheduler } = {}) {
       this.generation = generation;
-      this.scheduler = scheduler ?? defaultScheduler3();
+      this.scheduler = scheduler ?? defaultScheduler();
       this.isCurrentGeneration = isCurrent;
       this.active = true;
       this.cleanups = /* @__PURE__ */ new Set();
@@ -6402,7 +6341,7 @@
   };
   var LifecycleController = class {
     constructor({ scheduler } = {}) {
-      this.scheduler = scheduler ?? defaultScheduler3();
+      this.scheduler = scheduler ?? defaultScheduler();
       this.sessionGeneration = 0;
       this.questionGeneration = 0;
       this.answerGeneration = 0;
@@ -6602,15 +6541,11 @@
         });
         return true;
       },
-      flush: run,
       dispose() {
         active = false;
         pending = false;
         reasons.clear();
         generation += 1;
-      },
-      get pending() {
-        return pending;
       }
     });
   }
@@ -6857,7 +6792,7 @@
   }
 
   // src/effects/animation-replay.js
-  function defaultScheduler4() {
+  function defaultScheduler2() {
     return {
       requestAnimationFrame: (callback) => globalThis.requestAnimationFrame(callback),
       cancelAnimationFrame: (id) => globalThis.cancelAnimationFrame(id),
@@ -6865,7 +6800,7 @@
       clearTimeout: (id) => globalThis.clearTimeout(id)
     };
   }
-  function createAnimationReplayer({ scheduler = defaultScheduler4() } = {}) {
+  function createAnimationReplayer({ scheduler = defaultScheduler2() } = {}) {
     const entries = /* @__PURE__ */ new Map();
     function cancel(element, { removeClasses = true } = {}) {
       const entry = entries.get(element);
@@ -6957,7 +6892,7 @@
     { icon: "❇️", effect: "pop" },
     { icon: "🪷", effect: "rise" }
   ]);
-  function defaultScheduler5() {
+  function defaultScheduler3() {
     return {
       setTimeout: (callback, delay) => globalThis.setTimeout(callback, delay),
       clearTimeout: (id) => globalThis.clearTimeout(id)
@@ -6976,7 +6911,7 @@
     temporaryEffectSelector,
     celebrations = DEFAULT_CELEBRATIONS,
     animationReplayer = createAnimationReplayer(),
-    scheduler = defaultScheduler5(),
+    scheduler = defaultScheduler3(),
     random = Math.random,
     now = () => globalThis.performance.now()
   } = {}) {
@@ -7284,11 +7219,6 @@
   var SETTINGS_STORAGE_KEY = "mmSettings";
   var RECORDS_STORAGE_KEY = "mmRecords";
   var LOCKED_CHALLENGE_FONT_STORAGE_KEY = "mmLockedChallengeFont";
-  var STORAGE_KEYS = Object.freeze({
-    settings: SETTINGS_STORAGE_KEY,
-    records: RECORDS_STORAGE_KEY,
-    lockedChallengeFont: LOCKED_CHALLENGE_FONT_STORAGE_KEY
-  });
 
   // src/font-challenge/fonts.js
   var FONT_CHALLENGE_LOCAL_FONTS = Object.freeze([
@@ -7848,6 +7778,10 @@
       return accuracyMatches && scoreMatches;
     });
   }
+  function calculateAccuracy(correct, incorrect) {
+    const total = correct + incorrect;
+    return total > 0 ? Math.round(correct / total * 100) : 0;
+  }
 
   // src/gameplay/first-input-gate.js
   function createFirstInputGate({
@@ -8274,20 +8208,20 @@
       transaction.stopObserving = null;
       transaction.removeOwnershipCleanup = null;
     }
-    function settle(transaction, outcome5, { discard = false } = {}) {
+    function settle(transaction, outcome2, { discard = false } = {}) {
       if (pending !== transaction || transaction.settled) return;
       transaction.settled = true;
       cleanupPending(transaction);
       pending = null;
-      if (!outcome5.ok && lifecycle2.owns(transaction.ownership)) {
+      if (!outcome2.ok && lifecycle2.owns(transaction.ownership)) {
         lifecycle2.cancelRewind?.();
       }
       if (discard) captured = null;
-      transaction.resolve(outcome5);
-      if (!outcome5.ok) onFailure(outcome5);
+      transaction.resolve(outcome2);
+      if (!outcome2.ok) onFailure(outcome2);
     }
     function performRestore(record, source, { recovered = false, context } = {}) {
-      let outcome5;
+      let outcome2;
       try {
         cancelSummary();
         const restored = restoreSnapshot(record.snapshot, {
@@ -8301,7 +8235,7 @@
           throw new Error("Lifecycle rejected rewind confirmation");
         }
         captured = null;
-        outcome5 = result2(
+        outcome2 = result2(
           true,
           recovered ? "recovered" : "committed",
           recovered ? "late-confirmed-unresolved" : "confirmed-unresolved",
@@ -8318,7 +8252,7 @@
         );
       } catch (error) {
         lifecycle2.cancelRewind?.();
-        outcome5 = Object.freeze({
+        outcome2 = Object.freeze({
           ...result2(false, "failed", "snapshot-restore-failed", source, {
             transactionGeneration: record.transactionGeneration,
             snapshotIdentity: record.snapshotIdentity,
@@ -8327,18 +8261,18 @@
           error
         });
       }
-      if (outcome5.ok) onCommit(outcome5);
-      else onFailure(outcome5);
-      return outcome5;
+      if (outcome2.ok) onCommit(outcome2);
+      else onFailure(outcome2);
+      return outcome2;
     }
     function commit(transaction, context) {
       if (pending !== transaction || transaction.settled) return false;
       transaction.settled = true;
       cleanupPending(transaction);
       pending = null;
-      const outcome5 = performRestore(transaction, transaction.source, { context });
-      transaction.resolve(outcome5);
-      return outcome5.ok;
+      const outcome2 = performRestore(transaction, transaction.source, { context });
+      transaction.resolve(outcome2);
+      return outcome2.ok;
     }
     function clearRecoveryCandidate(reason, { discard = false, notify = true, keepCapture = false } = {}) {
       const candidate = recentRecovery;
@@ -8395,14 +8329,14 @@
         () => expireRecoveryCandidate(candidate),
         recoveryWindowMs
       );
-      const outcome5 = result2(false, "failed", "confirmation-timeout", transaction.source, {
+      const outcome2 = result2(false, "failed", "confirmation-timeout", transaction.source, {
         transactionGeneration: transaction.transactionGeneration,
         snapshotIdentity: transaction.snapshotIdentity,
         recoveryPending: true,
         recoveryDeadline: candidate.recoveryDeadline
       });
-      transaction.resolve(outcome5);
-      onFailure(outcome5);
+      transaction.resolve(outcome2);
+      onFailure(outcome2);
     }
     function reconcileRecovery() {
       const candidate = recentRecovery;
@@ -8528,14 +8462,14 @@
       }
       const capability = invokeNative ? dom.getNativeRewindCapability?.() : null;
       if (invokeNative && !capability) {
-        const outcome5 = result2(false, "failed", "native-rewind-unavailable", source);
-        onFailure(outcome5);
-        return Promise.resolve(outcome5);
+        const outcome2 = result2(false, "failed", "native-rewind-unavailable", source);
+        onFailure(outcome2);
+        return Promise.resolve(outcome2);
       }
       if (!lifecycle2.beginRewind?.()) {
-        const outcome5 = result2(false, "failed", "lifecycle-not-resolved", source);
-        onFailure(outcome5);
-        return Promise.resolve(outcome5);
+        const outcome2 = result2(false, "failed", "lifecycle-not-resolved", source);
+        onFailure(outcome2);
+        return Promise.resolve(outcome2);
       }
       const transaction = createTransaction(source);
       transaction.stopObserving = dom.observeResolution?.(reconcile) ?? (() => {
@@ -8593,15 +8527,12 @@
       },
       get hasRecoveryCandidate() {
         return Boolean(recentRecovery);
-      },
-      get isInvokingNative() {
-        return programmaticInvocationDepth > 0;
       }
     });
   }
 
   // src/gameplay/timeout-failure.js
-  function outcome4(ok, status, reason, source, extra = {}) {
+  function outcome(ok, status, reason, source, extra = {}) {
     return Object.freeze({ ok, status, reason, source, ...extra });
   }
   function createTimeoutFailureController({
@@ -8691,7 +8622,7 @@
     function suppressAdvance(transaction) {
       settle(
         transaction,
-        outcome4(true, "completed", "automatic-advance-suppressed", transaction.source, {
+        outcome(true, "completed", "automatic-advance-suppressed", transaction.source, {
           strategy: transaction.strategy
         })
       );
@@ -8704,7 +8635,7 @@
       if (!validation.ok) {
         settle(
           transaction,
-          outcome4(
+          outcome(
             false,
             "cancelled",
             `stale-before-advance:${validation.reason}`,
@@ -8719,7 +8650,7 @@
       }
       const next = dom.getCapability?.("next");
       if (!next) {
-        settle(transaction, outcome4(false, "failed", "next-unavailable", transaction.source));
+        settle(transaction, outcome(false, "failed", "next-unavailable", transaction.source));
         return;
       }
       transaction.advanceState = "invoking";
@@ -8729,14 +8660,14 @@
       if (!invoked) {
         settle(
           transaction,
-          outcome4(false, "failed", "next-invocation-failed", transaction.source)
+          outcome(false, "failed", "next-invocation-failed", transaction.source)
         );
         return;
       }
       transaction.advanceState = "done";
       settle(
         transaction,
-        outcome4(true, "advanced", "incorrect-confirmed", transaction.source, {
+        outcome(true, "advanced", "incorrect-confirmed", transaction.source, {
           strategy: transaction.strategy
         })
       );
@@ -8747,7 +8678,7 @@
       if (!validation.ok) {
         settle(
           transaction,
-          outcome4(
+          outcome(
             false,
             "cancelled",
             `stale-before-confirm:${validation.reason}`,
@@ -8766,7 +8697,7 @@
       if (!afterCallback.ok) {
         settle(
           transaction,
-          outcome4(
+          outcome(
             false,
             "cancelled",
             `stale-after-confirm:${afterCallback.reason}`,
@@ -8796,7 +8727,7 @@
       if (!validation.ok) {
         settle(
           transaction,
-          outcome4(
+          outcome(
             false,
             "cancelled",
             `ownership-rejected:${validation.reason}`,
@@ -8813,7 +8744,7 @@
       if (resolution === DOM_RESOLUTION.CORRECT) {
         settle(
           transaction,
-          outcome4(false, "cancelled", "natural-answer-won-race", transaction.source)
+          outcome(false, "cancelled", "natural-answer-won-race", transaction.source)
         );
       }
       return false;
@@ -8849,7 +8780,7 @@
       return transaction;
     }
     function immediateFailure(source, reason, timerOwnership = null) {
-      const failure = outcome4(false, "failed", reason, source, {
+      const failure = outcome(false, "failed", reason, source, {
         ...timerOwnership ? { timerGeneration: timerOwnership.timerGeneration } : {}
       });
       onFailure(failure);
@@ -8861,7 +8792,7 @@
         if (pending.timerOwnership === timerOwnership) return pending.promise;
         settle(
           pending,
-          outcome4(false, "cancelled", "superseded-by-new-timer", pending.source),
+          outcome(false, "cancelled", "superseded-by-new-timer", pending.source),
           { restore: true }
         );
       }
@@ -8880,14 +8811,14 @@
       }
       const transaction = createTransaction(source, timerOwnership);
       if (!validateTransaction(transaction, DOM_RESOLUTION.UNRESOLVED).ok) {
-        settle(transaction, outcome4(false, "cancelled", "stale-owner", source));
+        settle(transaction, outcome(false, "cancelled", "stale-owner", source));
         return transaction.promise;
       }
       transaction.stopObserving = dom.observeResolution?.(reconcile) ?? (() => {
       });
       transaction.removeOwnershipCleanup = lifecycle2.questionScope?.defer(() => {
         if (transaction.committingAdvance) return;
-        settle(transaction, outcome4(false, "cancelled", "stale-owner", source), {
+        settle(transaction, outcome(false, "cancelled", "stale-owner", source), {
           restore: true
         });
       }) ?? (() => {
@@ -8895,7 +8826,7 @@
       transaction.cancelResolutionTimeout = lifecycle2.questionScope?.setTimeout(() => {
         reconcile();
         if (pending === transaction && !transaction.incorrectConfirmed) {
-          settle(transaction, outcome4(false, "failed", "resolution-timeout", source), {
+          settle(transaction, outcome(false, "failed", "resolution-timeout", source), {
             restore: true
           });
         }
@@ -8904,7 +8835,7 @@
       if (!validation.ok) {
         settle(
           transaction,
-          outcome4(false, "cancelled", `stale-before-failure:${validation.reason}`, source)
+          outcome(false, "cancelled", `stale-before-failure:${validation.reason}`, source)
         );
         return transaction.promise;
       }
@@ -8915,10 +8846,10 @@
         if (!validation.ok) {
           settle(
             transaction,
-            outcome4(false, "cancelled", `stale-before-wrong:${validation.reason}`, source)
+            outcome(false, "cancelled", `stale-before-wrong:${validation.reason}`, source)
           );
         } else if (!wrong.invoke()) {
-          settle(transaction, outcome4(false, "failed", "wrong-invocation-failed", source));
+          settle(transaction, outcome(false, "failed", "wrong-invocation-failed", source));
         } else {
           reconcile();
         }
@@ -8927,31 +8858,31 @@
       const input = dom.getAnswerInput?.();
       const submit = dom.getCapability?.("submit");
       if (!input || !submit) {
-        settle(transaction, outcome4(false, "failed", "auto-fail-unavailable", source));
+        settle(transaction, outcome(false, "failed", "auto-fail-unavailable", source));
         return transaction.promise;
       }
       transaction.strategy = "invalid-answer";
       transaction.injectedInput = { input, originalValue: input.value };
       validation = validateTransaction(transaction, DOM_RESOLUTION.UNRESOLVED);
       if (!validation.ok || dom.getAnswerInput?.() !== input) {
-        settle(transaction, outcome4(false, "cancelled", "stale-before-input", source));
+        settle(transaction, outcome(false, "cancelled", "stale-before-input", source));
         return transaction.promise;
       }
       if (!dom.setAnswerValue(input, invalidValue())) {
-        settle(transaction, outcome4(false, "failed", "input-injection-failed", source), {
+        settle(transaction, outcome(false, "failed", "input-injection-failed", source), {
           restore: true
         });
         return transaction.promise;
       }
       validation = validateTransaction(transaction, DOM_RESOLUTION.UNRESOLVED);
       if (!validation.ok || dom.getAnswerInput?.() !== input) {
-        settle(transaction, outcome4(false, "cancelled", "stale-before-submit", source), {
+        settle(transaction, outcome(false, "cancelled", "stale-before-submit", source), {
           restore: true
         });
         return transaction.promise;
       }
       if (!submit.invoke()) {
-        settle(transaction, outcome4(false, "failed", "submit-invocation-failed", source), {
+        settle(transaction, outcome(false, "failed", "submit-invocation-failed", source), {
           restore: true
         });
         return transaction.promise;
@@ -8964,7 +8895,7 @@
       reconcile,
       cancel(reason = "cancelled") {
         if (!pending) return false;
-        settle(pending, outcome4(false, "cancelled", reason, pending.source), { restore: true });
+        settle(pending, outcome(false, "cancelled", reason, pending.source), { restore: true });
         return true;
       },
       get isPending() {
@@ -8974,7 +8905,6 @@
   }
 
   // src/storage/settings.js
-  var hasOwn2 = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
   function readFiniteSettingNumber(value) {
     if (value === null || value === void 0) return null;
     if (typeof value === "string" && value.trim() === "") return null;
@@ -8985,16 +8915,6 @@
     const milliseconds = readFiniteSettingNumber(value);
     if (milliseconds === null) return DEFAULT_SETTINGS.timerSeconds;
     return clamp(milliseconds / 1e3, 5, 120, DEFAULT_SETTINGS.timerSeconds);
-  }
-  function normalizeBackgroundTheme(theme, fallback = DEFAULT_SETTINGS.backgroundTheme) {
-    const raw = typeof theme === "string" ? theme.trim() : "";
-    const alias = THEME_ALIASES[raw] || THEME_ALIASES[raw.toLowerCase()];
-    const candidate = alias || raw;
-    if (BACKGROUND_THEME_IDS.includes(candidate)) return candidate;
-    if (hasOwn2(REMOVED_BACKGROUND_THEME_FALLBACKS, candidate)) {
-      return REMOVED_BACKGROUND_THEME_FALLBACKS[candidate];
-    }
-    return BACKGROUND_THEME_IDS.includes(fallback) ? fallback : DEFAULT_SETTINGS.backgroundTheme;
   }
   function normalizeSettings(raw = {}) {
     const source = raw && typeof raw === "object" ? raw : {};
@@ -9058,7 +8978,7 @@
   function defaultClock2() {
     return globalThis.performance?.now?.() ?? Date.now();
   }
-  function defaultScheduler6() {
+  function defaultScheduler4() {
     return {
       setTimeout(callback, delay) {
         return globalThis.setTimeout(callback, delay);
@@ -9119,7 +9039,7 @@
       wrapper = null,
       tiers = SPEED_XP_TIERS,
       clock = defaultClock2,
-      scheduler = defaultScheduler6(),
+      scheduler = defaultScheduler4(),
       reducedMotion,
       animationMode = "auto",
       onTierChange = () => {
@@ -9883,7 +9803,7 @@
         <div class="mm-setting-row">
             <label>Visual Profile</label>
             <button class="mm-cycle-btn" id="mm-performance-profile" type="button">
-                ${PERFORMANCE_PROFILE_LABELS2[settings2.performanceProfile]}
+                ${PERFORMANCE_PROFILE_LABELS[settings2.performanceProfile]}
             </button>
         </div>
         <div class="mm-setting-row">
@@ -9965,7 +9885,7 @@
     }
     function getMusicModeLabel() {
       const preset = getMusicPreset();
-      if (preset.scheduler === "style") return MUSIC_STYLE_LABELS2[settings2.musicStyle];
+      if (preset.scheduler === "style") return MUSIC_STYLE_LABELS[settings2.musicStyle];
       return THEME_MUSIC_MODE_LABELS[preset.id] || String(preset.scheduler || "theme").toUpperCase();
     }
     const panel = createPanelElement(document2, settings2, getMusicModeLabel, getThemeLabel);
@@ -10015,20 +9935,20 @@
         });
       });
       listen(panel.querySelector("#mm-vol-slider"), "input", (event) => {
-        settings2.volume = clamp(event.target.value, 0, 1, DEFAULTS.volume);
+        settings2.volume = clamp(event.target.value, 0, 1, DEFAULT_SETTINGS.volume);
         onSfxVolumeChanged(settings2.volume);
         scheduleSettingsSave2();
       });
       listen(panel.querySelector("#mm-performance-profile"), "click", (event) => {
-        const current = PERFORMANCE_PROFILES2.indexOf(settings2.performanceProfile);
-        settings2.performanceProfile = PERFORMANCE_PROFILES2[(current + 1) % PERFORMANCE_PROFILES2.length];
-        event.currentTarget.textContent = PERFORMANCE_PROFILE_LABELS2[settings2.performanceProfile];
+        const current = PERFORMANCE_PROFILES.indexOf(settings2.performanceProfile);
+        settings2.performanceProfile = PERFORMANCE_PROFILES[(current + 1) % PERFORMANCE_PROFILES.length];
+        event.currentTarget.textContent = PERFORMANCE_PROFILE_LABELS[settings2.performanceProfile];
         saveSettings2();
         onPerformanceProfileChanged(settings2.performanceProfile);
       });
       listen(panel.querySelector("#mm-timer-seconds"), "click", (event) => {
-        const current = TIMER_SECONDS_PRESETS2.indexOf(settings2.timerSeconds);
-        settings2.timerSeconds = TIMER_SECONDS_PRESETS2[(current + 1) % TIMER_SECONDS_PRESETS2.length];
+        const current = TIMER_SECONDS_PRESETS.indexOf(settings2.timerSeconds);
+        settings2.timerSeconds = TIMER_SECONDS_PRESETS[(current + 1) % TIMER_SECONDS_PRESETS.length];
         event.currentTarget.textContent = `${settings2.timerSeconds} SEC`;
         saveSettings2();
         onTimerDurationChanged(settings2.timerSeconds);
@@ -10038,14 +9958,14 @@
           syncMusicModeButton(event.currentTarget);
           return;
         }
-        const current = MUSIC_STYLES2.indexOf(settings2.musicStyle);
-        settings2.musicStyle = MUSIC_STYLES2[(current + 1) % MUSIC_STYLES2.length];
+        const current = MUSIC_STYLES.indexOf(settings2.musicStyle);
+        settings2.musicStyle = MUSIC_STYLES[(current + 1) % MUSIC_STYLES.length];
         syncMusicModeButton(event.currentTarget);
         saveSettings2();
         onMusicStyleChanged(settings2.musicStyle);
       });
       listen(panel.querySelector("#mm-music-vol-slider"), "input", (event) => {
-        settings2.musicVolume = clamp(event.target.value, 0, 0.5, DEFAULTS.musicVolume);
+        settings2.musicVolume = clamp(event.target.value, 0, 0.5, DEFAULT_SETTINGS.musicVolume);
         onMusicVolumeChanged(settings2.musicVolume);
         scheduleSettingsSave2();
       });
@@ -10304,10 +10224,7 @@
       refs,
       open: show,
       close,
-      cleanup: cleanup2,
-      get isOpen() {
-        return open;
-      }
+      cleanup: cleanup2
     });
   }
 
@@ -11446,8 +11363,7 @@
   function showSummary() {
     stopMusic(0.6);
     playSessionEndSound();
-    const total = state.sessionCorrect + state.sessionIncorrect;
-    const acc = total > 0 ? Math.round(state.sessionCorrect / total * 100) : 0;
+    const acc = calculateAccuracy(state.sessionCorrect, state.sessionIncorrect);
     const elapsed = Math.round((Date.now() - state.sessionStart) / 1e3);
     const { label: g, color: c } = getGrade(acc, state.score);
     const opened = summaryDialogController?.open({
@@ -11625,9 +11541,9 @@
       dom: marumoriDom,
       restoreSnapshot: restoreRewindSnapshot,
       cancelSummary: cancelPendingSummary,
-      onCommit(outcome5) {
+      onCommit(outcome2) {
         sessionFinalizationController?.reopenQuestion(lifecycle.captureOwnership());
-        const rewindProgress = outcome5.progress ?? marumoriDom.getProgress();
+        const rewindProgress = outcome2.progress ?? marumoriDom.getProgress();
         if (Number.isFinite(rewindProgress?.current) && rewindProgress.current < state.lastCompleted) {
           state.lastCompleted = rewindProgress.current;
         }
@@ -11640,11 +11556,11 @@
         updateRewindButton();
         reviewReconciler?.request("rewind-committed");
       },
-      onFailure(outcome5) {
+      onFailure(outcome2) {
         updateRewindButton();
         reviewReconciler?.request("rewind-settled");
-        if (outcome5.status === "failed") {
-          console.warn("[MMGamify] Rewind was not confirmed:", outcome5.reason);
+        if (outcome2.status === "failed") {
+          console.warn("[MMGamify] Rewind was not confirmed:", outcome2.reason);
         }
       }
     });
@@ -11670,12 +11586,12 @@
         });
         reviewReconciler?.request("timeout-incorrect");
       },
-      onUnresolvedFailure(outcome5) {
-        if (outcome5.status === "failed") applyTimeoutPenalty();
+      onUnresolvedFailure(outcome2) {
+        if (outcome2.status === "failed") applyTimeoutPenalty();
       },
-      onFailure(outcome5) {
-        if (outcome5.status === "failed") {
-          console.warn("[MMGamify] Timeout auto-fail stopped:", outcome5.reason);
+      onFailure(outcome2) {
+        if (outcome2.status === "failed") {
+          console.warn("[MMGamify] Timeout auto-fail stopped:", outcome2.reason);
         }
       },
       onSettled(_outcome, context) {

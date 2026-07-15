@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { createUserscriptStorage } from '../../src/adapters/userscript-storage.js';
 import {
-    deserializeRecords,
     emptyRecordDay,
     getRecordKey,
     getRecordsSignature,
@@ -10,7 +10,6 @@ import {
     normalizeRecords,
     pruneRecords,
     recordKeyToTime,
-    serializeRecords,
     updateRollingRecords,
 } from '../../src/gameplay/records.js';
 
@@ -89,16 +88,24 @@ describe('record normalization', () => {
         ).toBe('2026-07-10:10/1/2|2026-07-12:20/2/1');
     });
 
-    it('normalizes stored JSON and serializes the current record shape', () => {
-        const records = deserializeRecords(
-            '{"days":{"2026-07-12":{"score":"20","combo":2,"multiplier":1}}}',
-        );
-        expect(JSON.parse(serializeRecords(records))).toEqual({
+    it('normalizes and stores JSON through the userscript adapter', () => {
+        const values = new Map([
+            ['records', '{"days":{"2026-07-12":{"score":"20","combo":2,"multiplier":1}}}'],
+        ]);
+        const storage = createUserscriptStorage({
+            getValue: (key, fallback) => values.get(key) ?? fallback,
+            setValue: (key, value) => values.set(key, value),
+        });
+        const records = normalizeRecords(storage.getJson('records', {}));
+        expect(storage.setJson('records', records)).toBe(true);
+        expect(JSON.parse(values.get('records'))).toEqual({
             days: {
                 '2026-07-12': { score: 20, combo: 2, multiplier: 1 },
             },
         });
-        expect(deserializeRecords('{broken')).toEqual({ days: {} });
+
+        values.set('records', '{broken');
+        expect(normalizeRecords(storage.getJson('records', {}))).toEqual({ days: {} });
     });
 });
 

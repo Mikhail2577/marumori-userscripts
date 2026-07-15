@@ -22,7 +22,6 @@ const FILES = Object.freeze({
     comboTimer: path.join(PROJECT_ROOT, 'src/ui/combo-timer.js'),
     entry: path.join(PROJECT_ROOT, 'src/index.js'),
     hudController: path.join(PROJECT_ROOT, 'src/ui/hud-controller.js'),
-    legacy: path.join(PROJECT_ROOT, 'marumori_even_more_gamified.user.js'),
     metadata: path.join(PROJECT_ROOT, 'build/metadata.mjs'),
     settingsPanel: path.join(PROJECT_ROOT, 'src/ui/settings-panel.js'),
     uiCss: path.join(PROJECT_ROOT, 'src/ui/styles.css'),
@@ -414,10 +413,9 @@ describe('source architecture invariants', () => {
         expect(uiCss).toMatch(/@keyframes\s+mmShakeHard\b/u);
     });
 
-    it('keeps the preserved root userscript outside the modular source graph', async () => {
-        const [entry, legacy, sourceFiles] = await Promise.all([
+    it('keeps generated userscript artifacts outside the modular source graph', async () => {
+        const [entry, sourceFiles] = await Promise.all([
             readSource(FILES.entry),
-            readSource(FILES.legacy),
             readSourceTree(path.join(PROJECT_ROOT, 'src')),
         ]);
         const entryAst = parseModule(entry, FILES.entry);
@@ -430,27 +428,25 @@ describe('source architecture invariants', () => {
             entryImports.filter((specifier) =>
                 /(?:^|\/)marumori_even_more_gamified\.user\.js$/u.test(specifier),
             ),
-            'src/index.js must bundle modular source, not the preserved legacy artifact',
+            'src/index.js must bundle source modules, not a generated userscript artifact',
         ).toEqual([]);
-        expect(legacy).toMatch(/^\/\/ ==UserScript==$/mu);
-        expect(legacy).toMatch(/^\(function \(\) \{$/mu);
 
-        const legacyImports = [];
+        const userscriptImports = [];
         for (const { filePath, source } of sourceFiles.filter(({ filePath }) =>
             filePath.endsWith('.js'),
         )) {
             const ast = parseModule(source, filePath);
             for (const declaration of findNodes(ast, 'ImportDeclaration')) {
                 if (/\.user\.js$/u.test(declaration.source.value)) {
-                    legacyImports.push(
+                    userscriptImports.push(
                         `${path.relative(PROJECT_ROOT, filePath)} -> ${declaration.source.value}`,
                     );
                 }
             }
         }
         expect(
-            legacyImports,
-            'No modular source file may import a root .user.js reference artifact',
+            userscriptImports,
+            'No modular source file may import a generated .user.js artifact',
         ).toEqual([]);
     });
 

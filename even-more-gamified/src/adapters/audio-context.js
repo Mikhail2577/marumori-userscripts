@@ -1,17 +1,10 @@
-const RUNNING = 'running';
+import { AUDIO_CONTEXT_RUNNING, reportAudioError } from '../audio/runtime-helpers.js';
+
 const CLOSED = 'closed';
 
 function defaultCreateContext() {
     const AudioContextConstructor = globalThis.AudioContext ?? globalThis.webkitAudioContext;
     return AudioContextConstructor ? new AudioContextConstructor() : null;
-}
-
-function report(onError, error, operation) {
-    try {
-        onError(error, operation);
-    } catch {
-        // Diagnostics must never break audio recovery.
-    }
 }
 
 /**
@@ -46,11 +39,13 @@ export class AudioContextAdapter {
     }
 
     get runningContext() {
-        return this.context?.state === RUNNING ? this.context : null;
+        return this.context?.state === AUDIO_CONTEXT_RUNNING ? this.context : null;
     }
 
     isRunning(context = this.context) {
-        return Boolean(context && context === this.context && context.state === RUNNING);
+        return Boolean(
+            context && context === this.context && context.state === AUDIO_CONTEXT_RUNNING,
+        );
     }
 
     subscribe(listener) {
@@ -67,7 +62,7 @@ export class AudioContextAdapter {
             try {
                 listener(context.state, context);
             } catch (error) {
-                report(this.onError, error, 'state-listener');
+                reportAudioError(this.onError, error, 'state-listener');
             }
         }
     }
@@ -98,7 +93,7 @@ export class AudioContextAdapter {
             this.attachContext(context);
             return context;
         } catch (error) {
-            report(this.onError, error, 'create');
+            reportAudioError(this.onError, error, 'create');
             return null;
         }
     }
@@ -107,7 +102,7 @@ export class AudioContextAdapter {
         this.intentGeneration += 1;
         const context = this.getOrCreateContext();
         if (!context) return Promise.resolve(null);
-        if (context.state === RUNNING) return Promise.resolve(context);
+        if (context.state === AUDIO_CONTEXT_RUNNING) return Promise.resolve(context);
         if (this.unlockAttempt?.context === context) {
             return this.unlockAttempt.promise;
         }
@@ -118,7 +113,7 @@ export class AudioContextAdapter {
             // Do not defer this call into a microtask: it may consume user activation.
             resumeResult = context.resume();
         } catch (error) {
-            report(this.onError, error, 'resume');
+            reportAudioError(this.onError, error, 'resume');
             return Promise.resolve(null);
         }
 
@@ -126,7 +121,7 @@ export class AudioContextAdapter {
         attempt.promise = Promise.resolve(resumeResult)
             .then(() => (this.isRunning(context) ? context : null))
             .catch((error) => {
-                report(this.onError, error, 'resume');
+                reportAudioError(this.onError, error, 'resume');
                 return null;
             })
             .finally(() => {
@@ -143,14 +138,14 @@ export class AudioContextAdapter {
         return pendingUnlock.then(async () => {
             if (intent !== this.intentGeneration) return false;
             const context = this.context;
-            if (!context || context.state !== RUNNING) return false;
+            if (!context || context.state !== AUDIO_CONTEXT_RUNNING) return false;
             if (typeof context.suspend !== 'function') return false;
 
             try {
                 await context.suspend();
-                return context.state !== RUNNING;
+                return context.state !== AUDIO_CONTEXT_RUNNING;
             } catch (error) {
-                report(this.onError, error, 'suspend');
+                reportAudioError(this.onError, error, 'suspend');
                 return false;
             }
         });

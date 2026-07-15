@@ -6,8 +6,8 @@ Each userscript lives in its own directory so the repository can grow without mi
 
 ## Scripts
 
-| Userscript | Description |
-| --- | --- |
+| Userscript                                                     | Description                                                                                                                 |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | [MaruMori Even More Gamified - Updated](./even-more-gamified/) | Arcade-style MaruMori review enhancements with scoring, combo tracking, difficulty modes, CRT visuals, and a draggable HUD. |
 
 ## Repository Layout
@@ -16,10 +16,15 @@ Each userscript lives in its own directory so the repository can grow without mi
 marumori-userscripts/
 ├── LICENSE
 ├── even-more-gamified/
-│   ├── marumori_even_more_gamified.user.js
+│   ├── assets/                  # source images for pinned userscript resources
+│   ├── build/                   # userscript build and validation tools
+│   ├── dist/                    # generated install/update artifacts
+│   ├── docs/                    # architecture and workflow guides
+│   ├── src/                     # authoritative modular source
+│   ├── tests/                   # automated and browser contracts
 │   ├── README.md
 │   ├── package.json
-│   └── eslint.config.js
+│   └── package-lock.json
 └── README.md
 ```
 

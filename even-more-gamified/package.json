@@ -11,8 +11,7 @@
         "build:dev": "node build/build-userscript.mjs --mode=development",
         "validate:build": "node build/validate-build.mjs",
         "verify:release": "node build/verify-release.mjs",
-        "check:legacy": "node --check marumori_even_more_gamified.user.js",
-        "lint": "eslint src build tests *.config.js marumori_even_more_gamified.user.js",
+        "lint": "eslint src build tests *.config.js",
         "format": "prettier --write \"src/**/*.{js,css}\" \"build/**/*.mjs\" \"tests/**/*.{html,js}\" \"*.config.js\" README.md \"docs/**/*.md\" package.json",
         "format:check": "prettier --check \"src/**/*.{js,css}\" \"build/**/*.mjs\" \"tests/**/*.{html,js}\" \"*.config.js\" README.md \"docs/**/*.md\" package.json",
         "test": "vitest run",
@@ -20,7 +19,7 @@
         "test:browser:firefox": "npm run build && node tests/browser/run-browser-contract.js --browser=firefox",
         "test:browser:safari": "npm run build && node tests/browser/run-browser-contract.js --browser=safari",
         "test:watch": "vitest",
-        "check": "npm run check:legacy && npm run lint && npm run test && npm run verify:release && node --check dist/marumori_even_more_gamified.user.js && npm run format:check"
+        "check": "npm run lint && npm run test && npm run verify:release && node --check dist/marumori_even_more_gamified.user.js && npm run format:check"
     },
     "devDependencies": {
         "acorn": "^8.17.0",

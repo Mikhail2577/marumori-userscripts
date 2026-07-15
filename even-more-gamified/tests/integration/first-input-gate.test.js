@@ -2,9 +2,10 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { createUserscriptStorage } from '../../src/adapters/userscript-storage.js';
 import { QUESTION_STATES, createLifecycleController } from '../../src/core/lifecycle.js';
 import { createFirstInputGate } from '../../src/gameplay/first-input-gate.js';
-import { deserializeSettings } from '../../src/storage/settings.js';
+import { normalizeSettings } from '../../src/storage/settings.js';
 import { createComboTimerCompositor } from '../../src/ui/combo-timer.js';
 
 describe('first-answer input gate', () => {
@@ -115,7 +116,11 @@ describe('first-answer input gate', () => {
     });
 
     it('initializes and starts safely after a malformed null legacy timer migration', () => {
-        const settings = deserializeSettings('{"comboTimeout":null}');
+        const storage = createUserscriptStorage({
+            getValue: () => '{"comboTimeout":null}',
+            setValue: () => {},
+        });
+        const settings = normalizeSettings(storage.getJson('settings', {}));
         const lifecycle = createLifecycleController();
         lifecycle.mount();
         lifecycle.start();

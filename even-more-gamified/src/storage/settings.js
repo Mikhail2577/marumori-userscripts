@@ -1,15 +1,9 @@
-import {
-    BACKGROUND_THEME_IDS,
-    MUSIC_STYLES,
-    PERFORMANCE_PROFILES,
-    REMOVED_BACKGROUND_THEME_FALLBACKS,
-    THEME_ALIASES,
-} from '../config/constants.js';
+import { MUSIC_STYLES, PERFORMANCE_PROFILES } from '../config/constants.js';
 import { BOOLEAN_SETTING_KEYS, DEFAULT_SETTINGS } from '../config/defaults.js';
+import { normalizeBackgroundTheme } from '../config/theme-identifiers.js';
 import { clamp } from '../utils/clamp.js';
-import { safeJsonParse } from '../utils/json.js';
 
-const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+export { normalizeBackgroundTheme };
 
 function readFiniteSettingNumber(value) {
     if (value === null || value === undefined) return null;
@@ -27,18 +21,6 @@ function normalizeLegacyTimerSeconds(value) {
     const milliseconds = readFiniteSettingNumber(value);
     if (milliseconds === null) return DEFAULT_SETTINGS.timerSeconds;
     return clamp(milliseconds / 1000, 5, 120, DEFAULT_SETTINGS.timerSeconds);
-}
-
-export function normalizeBackgroundTheme(theme, fallback = DEFAULT_SETTINGS.backgroundTheme) {
-    const raw = typeof theme === 'string' ? theme.trim() : '';
-    const alias = THEME_ALIASES[raw] || THEME_ALIASES[raw.toLowerCase()];
-    const candidate = alias || raw;
-
-    if (BACKGROUND_THEME_IDS.includes(candidate)) return candidate;
-    if (hasOwn(REMOVED_BACKGROUND_THEME_FALLBACKS, candidate)) {
-        return REMOVED_BACKGROUND_THEME_FALLBACKS[candidate];
-    }
-    return BACKGROUND_THEME_IDS.includes(fallback) ? fallback : DEFAULT_SETTINGS.backgroundTheme;
 }
 
 export function normalizeSettings(raw = {}) {
@@ -102,12 +84,4 @@ export function normalizeSettings(raw = {}) {
     }
 
     return next;
-}
-
-export function deserializeSettings(value) {
-    return normalizeSettings(safeJsonParse(value, {}));
-}
-
-export function serializeSettings(settings) {
-    return JSON.stringify(settings);
 }

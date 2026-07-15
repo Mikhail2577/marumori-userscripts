@@ -1,4 +1,8 @@
 import { NIGHTVIEW_IMAGE_URL } from '../../config/themes.js';
+import {
+    createManagedBackgroundImage,
+    drawDriftingCoverImage,
+} from './image-background-helpers.js';
 
 const NIGHTVIEW_LANTERN_POINTS = Object.freeze([
     Object.freeze({ x: 0.077, y: 0.69, radius: 0.95, phase: 0.4 }),
@@ -9,11 +13,18 @@ const NIGHTVIEW_LANTERN_POINTS = Object.freeze([
 
 export function createNightviewRenderer(runtime) {
     const { ctx, theme, document, isLiteMode, prefersReducedMotion, requestRender } = runtime;
-    let nightviewImage;
-    let nightviewImageReady = false;
-    let nightviewDirectFallbackTried = false;
     let nightviewFireflies = [];
     let nightviewStars = [];
+    const nightviewBackground = createManagedBackgroundImage({
+        document,
+        resourceName: 'mmNightview',
+        directUrl: NIGHTVIEW_IMAGE_URL,
+        shouldRequestRender: () => prefersReducedMotion() || isLiteMode(),
+        requestRender,
+        onFailure: () => {
+            console.warn('[MMGamify] Night View background resource failed to load.');
+        },
+    });
 
     function resetNightviewFirefly(firefly = {}, randomY = false) {
         firefly.x = Math.random() * runtime.width;
@@ -48,42 +59,11 @@ export function createNightviewRenderer(runtime) {
             speed: 0.55 + Math.random() * 1.25,
             hue: Math.random() < 0.7 ? 212 : 46,
         }));
-        if (nightviewImage) return;
-
-        nightviewImage = document.createElement('img');
-        nightviewImage.decoding = 'async';
-        nightviewImage.onload = () => {
-            nightviewImageReady = true;
-            if (prefersReducedMotion() || isLiteMode()) {
-                requestRender();
-            }
-        };
-        const loadNightviewDirectly = () => {
-            if (nightviewDirectFallbackTried) {
-                nightviewImageReady = false;
-                console.warn('[MMGamify] Night View background resource failed to load.');
-                return;
-            }
-            nightviewDirectFallbackTried = true;
-            nightviewImage.crossOrigin = 'anonymous';
-            nightviewImage.referrerPolicy = 'no-referrer';
-            nightviewImage.src = NIGHTVIEW_IMAGE_URL;
-        };
-        nightviewImage.onerror = loadNightviewDirectly;
-        try {
-            Promise.resolve(GM_getResourceURL('mmNightview'))
-                .then((resourceUrl) => {
-                    if (!resourceUrl) throw new Error('Empty nightview resource URL');
-                    nightviewImage.src = resourceUrl;
-                })
-                .catch(loadNightviewDirectly);
-        } catch {
-            loadNightviewDirectly();
-        }
+        nightviewBackground.load();
     }
 
     function drawNightviewImage(t) {
-        if (!nightviewImageReady) {
+        if (!nightviewBackground.ready) {
             const fallback = ctx.createLinearGradient(0, 0, 0, runtime.height);
             fallback.addColorStop(0, '#071326');
             fallback.addColorStop(0.55, '#050b18');
@@ -93,30 +73,20 @@ export function createNightviewRenderer(runtime) {
             return;
         }
 
-        const imageRatio = nightviewImage.naturalWidth / nightviewImage.naturalHeight;
-        const viewportRatio = runtime.width / runtime.height;
-        const animated = !isLiteMode() && !prefersReducedMotion();
-        const scale = 1.01 + (animated ? Math.sin(t * 0.06) * 0.002 : 0);
-        let drawWidth;
-        let drawHeight;
-
-        if (imageRatio > viewportRatio) {
-            drawHeight = runtime.height * scale;
-            drawWidth = drawHeight * imageRatio;
-        } else {
-            drawWidth = runtime.width * scale;
-            drawHeight = drawWidth / imageRatio;
-        }
-
-        const driftX = animated ? Math.sin(t * 0.03) * 2.1 : 0;
-        const driftY = animated ? Math.cos(t * 0.026) * 1.2 : 0;
-        ctx.drawImage(
-            nightviewImage,
-            (runtime.width - drawWidth) / 2 + driftX,
-            (runtime.height - drawHeight) / 2 + driftY,
-            drawWidth,
-            drawHeight,
-        );
+        drawDriftingCoverImage({
+            ctx,
+            image: nightviewBackground.image,
+            width: runtime.width,
+            height: runtime.height,
+            time: t,
+            animated: !isLiteMode() && !prefersReducedMotion(),
+            baseScale: 1.01,
+            scalePulseRate: 0.06,
+            driftXRate: 0.03,
+            driftXDistance: 2.1,
+            driftYRate: 0.026,
+            driftYDistance: 1.2,
+        });
     }
 
     function drawNightviewMoonGlow(t) {

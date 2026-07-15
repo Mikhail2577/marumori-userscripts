@@ -1,5 +1,6 @@
 import { MUSIC_PRESETS, SOUND_PRESETS } from './audio-presets.js';
-import { DEFAULTS } from './defaults.js';
+import { DEFAULT_SETTINGS } from './defaults.js';
+import { normalizeBackgroundTheme as normalizeThemeId } from './theme-identifiers.js';
 import { mergeEventPreset } from './theme-presets.js';
 import {
     BACKGROUND_THEME_LABELS,
@@ -10,15 +11,13 @@ import {
     CSS_THEME_VARIABLES,
     FLOATING_TEXT_PRESETS,
     PARTICLE_PRESETS,
-    REMOVED_BACKGROUND_THEME_FALLBACKS,
-    THEME_ALIASES,
     THEME_DEFINITIONS,
     THEME_PRESENTATION_STYLES,
     THEME_PRESET_REGISTRY,
 } from './themes.js';
 import { clamp } from '../utils/clamp.js';
 
-const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+export { normalizeThemeId };
 
 function isPlainObject(value) {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -33,17 +32,6 @@ export function mergeThemeObjects(base = {}, override = {}) {
                 : value;
     }
     return next;
-}
-
-export function normalizeThemeId(theme, fallback = DEFAULTS.backgroundTheme) {
-    const raw = typeof theme === 'string' ? theme.trim() : '';
-    const alias = THEME_ALIASES[raw] || THEME_ALIASES[raw.toLowerCase()];
-    const candidate = alias || raw;
-    if (hasOwn(THEME_DEFINITIONS, candidate)) return candidate;
-    if (hasOwn(REMOVED_BACKGROUND_THEME_FALLBACKS, candidate)) {
-        return REMOVED_BACKGROUND_THEME_FALLBACKS[candidate];
-    }
-    return hasOwn(THEME_DEFINITIONS, fallback) ? fallback : DEFAULTS.backgroundTheme;
 }
 
 function getPreset(collection, presetName, fallbackName) {
@@ -136,7 +124,7 @@ export function createThemeManager({
     let lastAppliedCssThemeId = null;
 
     function getBackgroundTheme() {
-        return getSettings?.()?.backgroundTheme ?? DEFAULTS.backgroundTheme;
+        return getSettings?.()?.backgroundTheme ?? DEFAULT_SETTINGS.backgroundTheme;
     }
 
     function resolveThemeDefinition(themeId) {
@@ -144,10 +132,10 @@ export function createThemeManager({
         const cached = resolvedThemeCache.get(normalized);
         if (cached) return cached;
         const theme =
-            normalized === DEFAULTS.backgroundTheme
-                ? THEME_DEFINITIONS[DEFAULTS.backgroundTheme]
+            normalized === DEFAULT_SETTINGS.backgroundTheme
+                ? THEME_DEFINITIONS[DEFAULT_SETTINGS.backgroundTheme]
                 : mergeThemeObjects(
-                      THEME_DEFINITIONS[DEFAULTS.backgroundTheme],
+                      THEME_DEFINITIONS[DEFAULT_SETTINGS.backgroundTheme],
                       THEME_DEFINITIONS[normalized],
                   );
         const resolved = { ...theme, id: normalized };
@@ -220,15 +208,6 @@ export function createThemeManager({
             const presetName = theme.presets.music || 'arcadeLofi';
             const preset = getPreset(MUSIC_PRESETS, presetName, 'arcadeLofi');
             return { ...preset, id: presetName };
-        },
-        getEffectPreset(eventType) {
-            return {
-                floatingText: this.getFloatingTextPreset(eventType),
-                particles: this.getParticlePreset(eventType),
-                combo: this.getComboPreset(eventType),
-                celebration: this.getCelebrationPreset(eventType),
-                budget: this.getEffectBudget(eventType),
-            };
         },
         getEffectBudget(_eventType) {
             const theme = this.getActiveTheme();

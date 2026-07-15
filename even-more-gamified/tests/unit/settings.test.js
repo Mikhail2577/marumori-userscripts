@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
+import { createUserscriptStorage } from '../../src/adapters/userscript-storage.js';
 import { DEFAULT_SETTINGS } from '../../src/config/defaults.js';
-import {
-    deserializeSettings,
-    normalizeBackgroundTheme,
-    normalizeSettings,
-    serializeSettings,
-} from '../../src/storage/settings.js';
+import { normalizeBackgroundTheme, normalizeSettings } from '../../src/storage/settings.js';
+
+function createMemoryStorage(entries = []) {
+    const values = new Map(entries);
+    const storage = createUserscriptStorage({
+        getValue: (key, fallback) => values.get(key) ?? fallback,
+        setValue: (key, value) => values.set(key, value),
+    });
+    return { storage, values };
+}
 
 describe('normalizeSettings', () => {
     it('preserves the complete version-two default contract', () => {
@@ -182,17 +187,22 @@ describe('normalizeSettings', () => {
     });
 
     it('falls back safely for malformed or non-object stored JSON', () => {
-        expect(deserializeSettings('{broken')).toEqual(DEFAULT_SETTINGS);
-        expect(deserializeSettings('null')).toEqual(DEFAULT_SETTINGS);
+        const { storage, values } = createMemoryStorage([['settings', '{broken']]);
+        expect(normalizeSettings(storage.getJson('settings', {}))).toEqual(DEFAULT_SETTINGS);
+
+        values.set('settings', 'null');
+        expect(normalizeSettings(storage.getJson('settings', {}))).toEqual(DEFAULT_SETTINGS);
     });
 
-    it('serializes a normalized, current-version payload', () => {
+    it('stores a normalized, current-version payload through the userscript adapter', () => {
+        const { storage, values } = createMemoryStorage();
         const settings = normalizeSettings({
             settingsVersion: 1,
             arcadeEnabled: false,
             unknownSetting: 'discard me',
         });
-        const stored = JSON.parse(serializeSettings(settings));
+        expect(storage.setJson('settings', settings)).toBe(true);
+        const stored = JSON.parse(values.get('settings'));
         expect(stored.settingsVersion).toBe(DEFAULT_SETTINGS.settingsVersion);
         expect(stored.crtEnabled).toBe(false);
         expect(stored).not.toHaveProperty('unknownSetting');

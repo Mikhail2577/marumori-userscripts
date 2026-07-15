@@ -4,7 +4,6 @@ import {
     LOCKED_CHALLENGE_FONT_STORAGE_KEY,
     RECORDS_STORAGE_KEY,
     SETTINGS_STORAGE_KEY,
-    STORAGE_KEYS,
 } from '../../src/storage/keys.js';
 
 describe('persistent storage key compatibility', () => {
@@ -12,10 +11,5 @@ describe('persistent storage key compatibility', () => {
         expect(SETTINGS_STORAGE_KEY).toBe('mmSettings');
         expect(RECORDS_STORAGE_KEY).toBe('mmRecords');
         expect(LOCKED_CHALLENGE_FONT_STORAGE_KEY).toBe('mmLockedChallengeFont');
-        expect(STORAGE_KEYS).toEqual({
-            settings: 'mmSettings',
-            records: 'mmRecords',
-            lockedChallengeFont: 'mmLockedChallengeFont',
-        });
     });
 });

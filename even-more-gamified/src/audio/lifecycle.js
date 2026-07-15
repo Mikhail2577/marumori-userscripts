@@ -1,12 +1,9 @@
-const RUNNING = 'running';
-
-function outcome(ok, status, reason) {
-    return Object.freeze({ ok, status, reason });
-}
-
-function defaultScheduler() {
-    return globalThis;
-}
+import {
+    AUDIO_CONTEXT_RUNNING,
+    createAudioErrorReporter,
+    createAudioOutcome,
+    defaultAudioScheduler,
+} from './runtime-helpers.js';
 
 /**
  * Binds audio readiness to gestures, visibility and session cleanup.
@@ -37,7 +34,8 @@ export function createAudioLifecycle({
         throw new TypeError('Audio lifecycle target must be an EventTarget');
     }
 
-    const clock = scheduler ?? defaultScheduler();
+    const clock = scheduler ?? defaultAudioScheduler();
+    const warn = createAudioErrorReporter(onError);
     let installed = false;
     let gestureArmed = false;
     let gestureHandler = null;
@@ -48,14 +46,6 @@ export function createAudioLifecycle({
     let removeAudioStateListener = null;
     let removeMusicBlockedListener = null;
     let removeSfxBlockedListener = null;
-
-    function warn(error, operation) {
-        try {
-            onError(error, operation);
-        } catch {
-            // Diagnostics must not break lifecycle cleanup.
-        }
-    }
 
     function hidden() {
         try {
@@ -107,7 +97,7 @@ export function createAudioLifecycle({
 
     function handleAudioState(state) {
         if (!installed || hidden()) return;
-        if (state === RUNNING) {
+        if (state === AUDIO_CONTEXT_RUNNING) {
             // During resume, wait for its promise to settle before considering the
             // unlock successful.
             if (!unlocking) {
@@ -134,10 +124,10 @@ export function createAudioLifecycle({
 
     function resume() {
         if (!installed) {
-            return Promise.resolve(outcome(false, 'cancelled', 'not-installed'));
+            return Promise.resolve(createAudioOutcome(false, 'cancelled', 'not-installed'));
         }
         if (hidden()) {
-            return Promise.resolve(outcome(false, 'skipped', 'hidden'));
+            return Promise.resolve(createAudioOutcome(false, 'skipped', 'hidden'));
         }
         clearSuspendTimer();
         if (startAttempt) return startAttempt;
@@ -153,30 +143,34 @@ export function createAudioLifecycle({
             unlocking = false;
             warn(error, 'unlock');
             armGestureUnlock();
-            return Promise.resolve(outcome(false, 'blocked', 'unlock-error'));
+            return Promise.resolve(createAudioOutcome(false, 'blocked', 'unlock-error'));
         }
 
         const attempt = Promise.resolve(ready)
             .then(async (context) => {
                 if (!installed || ownerGeneration !== generation || hidden()) {
-                    return outcome(false, 'cancelled', 'stale-owner');
+                    return createAudioOutcome(false, 'cancelled', 'stale-owner');
                 }
                 unlocking = false;
-                if (!context || context.state !== RUNNING || !audio.isRunning(context)) {
+                if (
+                    !context ||
+                    context.state !== AUDIO_CONTEXT_RUNNING ||
+                    !audio.isRunning(context)
+                ) {
                     armGestureUnlock();
-                    return outcome(false, 'blocked', 'context-not-running');
+                    return createAudioOutcome(false, 'blocked', 'context-not-running');
                 }
 
                 disarmGestureUnlock();
                 await music.start({ context });
                 if (!installed || ownerGeneration !== generation || hidden()) {
-                    return outcome(false, 'cancelled', 'stale-owner');
+                    return createAudioOutcome(false, 'cancelled', 'stale-owner');
                 }
                 if (!audio.isRunning(context)) {
                     armGestureUnlock();
-                    return outcome(false, 'blocked', 'context-not-running');
+                    return createAudioOutcome(false, 'blocked', 'context-not-running');
                 }
-                return outcome(true, 'ready', 'audio-running');
+                return createAudioOutcome(true, 'ready', 'audio-running');
             })
             .catch((error) => {
                 warn(error, 'resume');
@@ -184,7 +178,7 @@ export function createAudioLifecycle({
                     unlocking = false;
                     armGestureUnlock();
                 }
-                return outcome(false, 'blocked', 'unlock-error');
+                return createAudioOutcome(false, 'blocked', 'unlock-error');
             })
             .finally(() => {
                 if (startAttempt === attempt) {
@@ -264,17 +258,12 @@ export function createAudioLifecycle({
 
     return Object.freeze({
         install,
-        installMusicLifecycle: install,
         cleanup,
-        uninstallMusicLifecycle: cleanup,
         resume,
         armGestureUnlock,
         disarmGestureUnlock,
         scheduleSuspend,
         dispose,
-        get isInstalled() {
-            return installed;
-        },
         get isGestureArmed() {
             return gestureArmed;
         },

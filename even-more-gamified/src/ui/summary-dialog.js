@@ -247,8 +247,5 @@ export function createSummaryDialogController({ document, getFallbackFocus = () 
         open: show,
         close,
         cleanup,
-        get isOpen() {
-            return open;
-        },
     });
 }

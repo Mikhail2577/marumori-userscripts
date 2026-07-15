@@ -389,17 +389,8 @@ export function createNavigationAdapter({
         requestReconcile,
         start,
         stop,
-        get currentUrl() {
-            return currentUrl?.href ?? null;
-        },
         get isReviewRoute() {
             return routeRelevant;
-        },
-        get isStarted() {
-            return started;
-        },
-        get observedRoot() {
-            return observerRoot;
         },
     });
 }
