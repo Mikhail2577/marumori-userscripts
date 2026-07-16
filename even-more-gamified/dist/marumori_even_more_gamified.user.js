@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MaruMori Even More Gamified - Updated
 // @namespace    marumori-gamify
-// @version      3.9.1
+// @version      3.9.2
 // @description  Gamifies MaruMori review sessions with arcade combo audio, score multipliers, screen shake, floating damage numbers, and more
 // @match        https://marumori.io/*
 // @author       matskye & Mikhail2577 & OpenAI Codex
@@ -8019,7 +8019,7 @@
   }
   function getDifficultyXpMultiplier(settings2 = DEFAULT_SETTINGS) {
     let multiplier = 1;
-    if (settings2.timeoutFailureEnabled) multiplier *= 1.25;
+    if (settings2.timerEnabled && settings2.timeoutFailureEnabled) multiplier *= 1.25;
     if (settings2.fontChallengeEnabled) multiplier *= 1.15;
     return multiplier;
   }

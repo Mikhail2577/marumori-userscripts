@@ -34,14 +34,30 @@ describe('combo scoring', () => {
 describe('XP modifiers', () => {
     it('combines enabled difficulty modifiers multiplicatively', () => {
         expect(getDifficultyXpMultiplier({})).toBe(1);
-        expect(getDifficultyXpMultiplier({ timeoutFailureEnabled: true })).toBe(1.25);
+        expect(
+            getDifficultyXpMultiplier({
+                timerEnabled: true,
+                timeoutFailureEnabled: true,
+            }),
+        ).toBe(1.25);
         expect(getDifficultyXpMultiplier({ fontChallengeEnabled: true })).toBe(1.15);
         expect(
             getDifficultyXpMultiplier({
+                timerEnabled: true,
                 timeoutFailureEnabled: true,
                 fontChallengeEnabled: true,
             }),
         ).toBeCloseTo(1.4375);
+    });
+
+    it('requires an active answer timer for the timeout-failure risk bonus', () => {
+        const riskWithoutTimer = {
+            timerEnabled: false,
+            timeoutFailureEnabled: true,
+        };
+
+        expect(getDifficultyXpMultiplier(riskWithoutTimer)).toBe(1);
+        expect(calcAnswerPoints(2, 1, riskWithoutTimer)).toBe(200);
     });
 
     it.each([
@@ -79,12 +95,14 @@ describe('XP modifiers', () => {
         expect(calcAnswerPoints(2)).toBe(200);
         expect(
             calcAnswerPoints(2, 1, {
+                timerEnabled: true,
                 timeoutFailureEnabled: true,
                 fontChallengeEnabled: true,
             }),
         ).toBe(290);
         expect(
             calcAnswerPoints(2, 1.5, {
+                timerEnabled: true,
                 timeoutFailureEnabled: true,
                 fontChallengeEnabled: true,
             }),
@@ -159,5 +177,22 @@ describe('timed XP award ownership', () => {
             },
         });
         expect(multiplier).toBeCloseTo(1.875);
+    });
+
+    it('removes the timeout-failure bonus from the live HUD when the timer is off', () => {
+        const multiplier = getCurrentXpBonusMultiplier({
+            settings: {
+                ...settings,
+                timerEnabled: false,
+                timeoutFailureEnabled: true,
+            },
+            timerState: {
+                running: false,
+                expired: false,
+                remainingPct: 1,
+            },
+        });
+
+        expect(multiplier).toBe(1);
     });
 });

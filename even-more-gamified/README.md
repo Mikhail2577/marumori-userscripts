@@ -40,6 +40,10 @@ typed character; subsequent prompts start immediately. Correct answers move from
 expired answers receive no timed bonus. Timer presets are 10, 15, 30, 45, 60,
 and 90 seconds.
 
+While the Answer Timer is active, enabling Timeout Failure adds a `1.25×` risk
+bonus to the userscript's arcade XP. Disabling the Answer Timer removes that bonus
+even when the Timeout Failure preference remains enabled.
+
 The timer fill is compositor-driven with `transform: scaleX()`. JavaScript wakes
 at speed-tier boundaries and expiration rather than repainting a layout-affecting
 width at a profile-specific frame rate. Scoring reads timestamps and does not

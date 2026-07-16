@@ -4,6 +4,13 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ## Unreleased
 
+## 2026-07-16 - v3.9.2
+
+### Fixed
+
+- Limited Timeout Failure's `1.25×` XP risk bonus to sessions where the Answer
+  Timer is also enabled, preventing a bonus without timeout risk.
+
 ## 2026-07-15 - v3.9.1
 
 ### Changed

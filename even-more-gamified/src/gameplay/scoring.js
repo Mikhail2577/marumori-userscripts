@@ -8,7 +8,7 @@ export function calcMultiplier(streak) {
 
 export function getDifficultyXpMultiplier(settings = DEFAULT_SETTINGS) {
     let multiplier = 1;
-    if (settings.timeoutFailureEnabled) multiplier *= 1.25;
+    if (settings.timerEnabled && settings.timeoutFailureEnabled) multiplier *= 1.25;
     if (settings.fontChallengeEnabled) multiplier *= 1.15;
     return multiplier;
 }

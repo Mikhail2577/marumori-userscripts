@@ -189,8 +189,9 @@ covered.
       cancelled, or reduced-motion is enabled.
 - [ ] Hide the HUD while timing and confirm scoring/expiration remain correct without
       visual interpolation work.
-- [ ] Disable Answer Timer and confirm visual timing, timed XP, and timeout failure
-      stop while other gameplay remains active.
+- [ ] Leave Timeout Failure enabled, disable Answer Timer, and confirm visual timing,
+      timed XP, timeout failure, and its `1.25×` risk bonus stop while other gameplay
+      remains active.
 - [ ] Disable only Timed XP and confirm timer/timeout display behavior remains while
       correct answers receive no timed bonus.
 - [ ] Expire with Timeout Failure off; confirm no MaruMori control is clicked and the
