@@ -68,18 +68,34 @@ describe('resolved review Backspace intent', () => {
     it('rejects unrelated editable controls even inside the active review root', () => {
         const { dom, fixture } = setup();
         const unrelated = document.createElement('textarea');
+        const textInput = document.createElement('input');
+        const select = document.createElement('select');
+        const textbox = document.createElement('div');
+        const textboxChild = document.createElement('span');
+        textbox.setAttribute('role', 'textbox');
+        textbox.append(textboxChild);
         fixture.root.prepend(unrelated);
+        fixture.root.prepend(textInput, select, textbox);
 
-        expect(matches({ dom, target: unrelated })).toBe(false);
+        for (const target of [unrelated, textInput, select, textbox, textboxChild]) {
+            expect(matches({ dom, target })).toBe(false);
+        }
     });
 
-    it('accepts only the active resolved MaruMori wrapper and answer input', () => {
+    it('accepts the active answer context and MaruMori page-level hotkey targets', () => {
         const { dom, fixture } = setup();
 
         expect(matches({ dom, target: fixture.wrapper })).toBe(true);
         expect(matches({ dom, target: fixture.input })).toBe(true);
-        expect(matches({ dom, target: fixture.next })).toBe(false);
-        expect(matches({ dom, target: fixture.root })).toBe(false);
+        expect(matches({ dom, target: fixture.next })).toBe(true);
+        expect(matches({ dom, target: fixture.root })).toBe(true);
+        expect(matches({ dom, target: document.body })).toBe(true);
+        expect(matches({ dom, target: document.documentElement })).toBe(true);
+
+        const inputButton = document.createElement('input');
+        inputButton.type = 'button';
+        fixture.root.append(inputButton);
+        expect(matches({ dom, target: inputButton })).toBe(true);
     });
 
     it('requires the processed resolution to match the current host resolution', () => {

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MaruMori Even More Gamified - Updated
 // @namespace    marumori-gamify
-// @version      3.9.2
+// @version      3.9.3
 // @description  Gamifies MaruMori review sessions with arcade combo audio, score multipliers, screen shake, floating damage numbers, and more
 // @match        https://marumori.io/*
 // @author       matskye & Mikhail2577 & OpenAI Codex
@@ -7994,6 +7994,31 @@
     }
     return false;
   }
+  function isTextEditingTarget(target) {
+    let current = target;
+    while (current?.nodeType === 1) {
+      const role = current.getAttribute("role")?.toLowerCase();
+      if (role === "textbox" || role === "searchbox" || role === "combobox") return true;
+      if (current.localName === "textarea" || current.localName === "select") return true;
+      if (current.localName === "input") {
+        const type = (current.getAttribute("type") || "text").toLowerCase();
+        return ![
+          "button",
+          "checkbox",
+          "color",
+          "file",
+          "hidden",
+          "image",
+          "radio",
+          "range",
+          "reset",
+          "submit"
+        ].includes(type);
+      }
+      current = current.parentElement;
+    }
+    return false;
+  }
   function isResolvedReviewBackspaceIntent({ event, dom, expectedResolution } = {}) {
     if (event?.key !== "Backspace" || event.defaultPrevented || !RESOLVED_STATES.has(expectedResolution) || typeof dom?.readQuestionContext !== "function" || typeof dom?.getAnswerInput !== "function" || typeof dom?.isUserscriptOwned !== "function") {
       return false;
@@ -8005,9 +8030,11 @@
       if (!context?.root?.isConnected || !context.wrapper?.isConnected || !context.root.contains(context.wrapper) || context.resolution !== expectedResolution || dom.isUserscriptOwned(target)) {
         return false;
       }
-      if (target === context.wrapper) return true;
       const answerInput = dom.getAnswerInput();
-      return target === answerInput && answerInput?.isConnected === true && context.wrapper.contains(answerInput);
+      if (target === answerInput && answerInput?.isConnected === true && context.wrapper.contains(answerInput)) {
+        return true;
+      }
+      return !isTextEditingTarget(target);
     } catch {
       return false;
     }

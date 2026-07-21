@@ -4,6 +4,15 @@ All notable changes to `MaruMori Even More Gamified - Updated` are documented he
 
 ## Unreleased
 
+## 2026-07-21 - v3.9.3
+
+### Fixed
+
+- Made MaruMori's page-level Backspace Undo hotkey arm the same transactional
+  restoration as the HUD rewind button after a correct or incorrect answer, so
+  repeated keyboard rewinds restore score, combo, multiplier, and accuracy while
+  unresolved prompts and editable controls retain ordinary Backspace behavior.
+
 ## 2026-07-16 - v3.9.2
 
 ### Fixed

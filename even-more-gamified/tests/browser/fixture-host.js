@@ -162,6 +162,21 @@
         applyRewind();
     }
 
+    function isEditingTarget(target) {
+        let current = target;
+        while (current?.nodeType === 1) {
+            if (current.hasAttribute('contenteditable')) {
+                return current.getAttribute('contenteditable')?.toLowerCase() !== 'false';
+            }
+            const role = current.getAttribute('role')?.toLowerCase();
+            if (role === 'textbox' || role === 'searchbox' || role === 'combobox') return true;
+            if (current.localName === 'textarea' || current.localName === 'select') return true;
+            if (current.localName === 'input') return true;
+            current = current.parentElement;
+        }
+        return false;
+    }
+
     root.addEventListener('click', (event) => {
         const action = event.target.closest?.('[data-action]')?.dataset.action;
         if (action === 'check') {
@@ -177,16 +192,12 @@
         }
     });
 
-    root.addEventListener('keydown', (event) => {
+    document.addEventListener('keydown', (event) => {
         if (event.key !== 'Backspace' || event.defaultPrevented) return;
         const activeWrapper = wrapper();
-        if (
-            !activeWrapper?.matches('.correct, .incorrect') ||
-            (event.target !== activeWrapper &&
-                event.target !== activeWrapper.querySelector('#answer'))
-        ) {
-            return;
-        }
+        if (!activeWrapper?.matches('.correct, .incorrect')) return;
+        const answerInput = activeWrapper.querySelector('#answer');
+        if (event.target !== answerInput && isEditingTarget(event.target)) return;
         rewind();
     });
 

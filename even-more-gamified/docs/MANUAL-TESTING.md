@@ -224,8 +224,12 @@ covered.
 - [ ] Repeat after an incorrect answer.
 - [ ] Use MaruMori's native redo/undo/rewind control and confirm exactly one local
       restoration.
-- [ ] Press Backspace from the active resolved answer/wrapper and confirm it tracks
-      native intent without duplicate programmatic processing.
+- [ ] After a resolved answer, press Backspace from the answer, review page, and a
+      focused non-editable MaruMori control; confirm each tracks native intent
+      without duplicate programmatic processing.
+- [ ] Establish a nonzero score/combo/multiplier, then repeatedly answer incorrectly
+      and press Backspace; confirm every rewind restores score, combo, multiplier,
+      correct/incorrect counts, and accuracy without cumulative drift.
 - [ ] Press Backspace while editing an unresolved answer, an unrelated text field,
       a Settings range/control, and contenteditable content; confirm normal deletion
       remains intact and no rewind transaction is armed.

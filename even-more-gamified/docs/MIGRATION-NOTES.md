@@ -68,11 +68,12 @@ preserving valid leap days and seven-day DST semantics. Removing malformed keys 
 normalizing stored values is itself a persistent change, even when today's best
 record does not improve.
 
-Backspace can arm native rewind tracking only from the exact resolved review
-wrapper or canonical answer input in a matching live host context. Unresolved and
-unrelated editables, Settings controls, contenteditable regions, and userscript
-controls retain ordinary behavior. No key default is prevented, and local state
-still waits for the existing transactional host confirmation.
+Backspace can arm native rewind tracking from the canonical resolved answer input
+or a non-editable page-level host target in a matching live host context, matching
+MaruMori's global Undo hotkey. Unresolved and unrelated editables, Settings
+controls, contenteditable regions, and userscript controls retain ordinary
+behavior. No key default is prevented, and local state still waits for the existing
+transactional host confirmation.
 
 Coverage: [`tests/unit/records.test.js`](../tests/unit/records.test.js),
 [`tests/unit/rewind-keyboard-intent.test.js`](../tests/unit/rewind-keyboard-intent.test.js),

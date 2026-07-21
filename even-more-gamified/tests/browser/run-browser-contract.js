@@ -162,6 +162,22 @@ async function hostSnapshot(driver) {
     return driver.executeScript('return globalThis.__mmHost.snapshot();');
 }
 
+async function dispatchBackspace(driver, selector = null) {
+    return driver.executeScript(
+        `
+            const target = arguments[0] ? document.querySelector(arguments[0]) : document.body;
+            const event = new KeyboardEvent('keydown', {
+                bubbles: true,
+                cancelable: true,
+                key: 'Backspace',
+            });
+            target.dispatchEvent(event);
+            return { defaultPrevented: event.defaultPrevented };
+        `,
+        selector,
+    );
+}
+
 async function summarySnapshot(driver) {
     return driver.executeScript(`
         const overlay = document.getElementById('mm-summary');
@@ -688,6 +704,14 @@ async function rewindContract(driver, baseUrl) {
 
 async function keyboardRewindIntentContract(driver, baseUrl) {
     await openFixture(driver, baseUrl, { total: 1 });
+    assert.deepEqual(await dispatchBackspace(driver), { defaultPrevented: false });
+    assert.equal((await hostSnapshot(driver)).rewinds, 0);
+    assert.equal(
+        await count(driver, '.input-wrapper:not(.correct):not(.incorrect)'),
+        1,
+        'Backspace rewound an unanswered prompt',
+    );
+
     await (await waitForElement(driver, '#answer')).sendKeys('answer');
     await (await waitForElement(driver, "[data-action='check']")).click();
     await waitForScript(
@@ -726,27 +750,78 @@ async function keyboardRewindIntentContract(driver, baseUrl) {
         true,
     );
 
-    const accepted = await driver.executeScript(`
-        const event = new KeyboardEvent('keydown', {
-            bubbles: true,
-            cancelable: true,
-            key: 'Backspace',
-        });
-        document.getElementById('answer').dispatchEvent(event);
-        return { defaultPrevented: event.defaultPrevented };
-    `);
+    const accepted = await dispatchBackspace(driver);
     assert.deepEqual(accepted, { defaultPrevented: false });
     await waitForScript(
         driver,
         "document.querySelector('.input-wrapper:not(.correct):not(.incorrect)')",
-        'Resolved-input Backspace did not produce host rewind confirmation',
+        'Page-level Backspace did not produce host rewind confirmation',
     );
     await waitForScript(
         driver,
         "document.getElementById('mm-hud-score')?.textContent === '0'",
-        'Resolved-input Backspace did not restore local state',
+        'Page-level Backspace did not restore local score',
     );
+    assert.equal(await text(driver, '#mm-hud-combo'), 'x0');
+    assert.equal(await text(driver, '#mm-hud-acc'), '—');
     assert.equal((await hostSnapshot(driver)).rewinds, 1);
+}
+
+async function repeatedBackspaceAccuracyContract(driver, baseUrl) {
+    await openFixture(driver, baseUrl, { total: 6 });
+
+    for (let item = 1; item <= 5; item++) {
+        await waitForElement(driver, `[data-fixture-item='${item}']`);
+        await (await waitForElement(driver, '#answer')).sendKeys(`answer ${item}`);
+        await (await waitForElement(driver, "[data-action='check']")).click();
+        await waitForScript(
+            driver,
+            `document.getElementById('mm-hud-combo')?.textContent === 'x${item}'`,
+            `Correct answer ${item} did not establish its combo`,
+        );
+        await (await waitForElement(driver, "[data-action='next']")).click();
+    }
+
+    await waitForElement(driver, "[data-fixture-item='6']");
+    await waitForScript(
+        driver,
+        "document.getElementById('mm-hud-acc')?.textContent === '100%'",
+        'Baseline correct answers did not establish 100% accuracy',
+    );
+    assert.equal(await text(driver, '#mm-hud-score'), '600');
+    assert.equal(await text(driver, '#mm-hud-combo'), 'x5');
+    assert.equal(await text(driver, '#mm-hud-mult'), 'x2');
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        await (await waitForElement(driver, "[data-action='wrong']")).click();
+        await waitForScript(
+            driver,
+            "document.getElementById('mm-hud-acc')?.textContent === '83%'",
+            `Incorrect attempt ${attempt} did not lower accuracy to 83%`,
+        );
+        assert.equal(await text(driver, '#mm-hud-score'), '550');
+        assert.equal(await text(driver, '#mm-hud-combo'), 'x0');
+        assert.equal(await text(driver, '#mm-hud-mult'), 'x1');
+
+        assert.deepEqual(await dispatchBackspace(driver, "[data-action='wrong']"), {
+            defaultPrevented: false,
+        });
+        await waitForScript(
+            driver,
+            "document.querySelector('.input-wrapper:not(.correct):not(.incorrect)')",
+            `Backspace attempt ${attempt} did not restore the unresolved question`,
+        );
+        await waitForScript(
+            driver,
+            "document.getElementById('mm-hud-acc')?.textContent === '100%'",
+            `Backspace attempt ${attempt} did not restore accuracy`,
+        );
+        assert.equal(await text(driver, '#mm-hud-score'), '600');
+        assert.equal(await text(driver, '#mm-hud-combo'), 'x5');
+        assert.equal(await text(driver, '#mm-hud-mult'), 'x2');
+    }
+
+    assert.equal((await hostSnapshot(driver)).rewinds, 3);
 }
 
 async function rewindReplacementProgressContract(driver, baseUrl) {
@@ -874,6 +949,7 @@ const CONTRACTS = Object.freeze([
     ['summary cancellation on cleanup', summaryCleanupContract],
     ['transactional final-answer rewind', rewindContract],
     ['scoped Backspace rewind intent', keyboardRewindIntentContract],
+    ['repeated page-level Backspace state restoration', repeatedBackspaceAccuracyContract],
     ['rewind across wrapper and progress replacement', rewindReplacementProgressContract],
     ['bounded delayed rewind recovery', delayedRewindRecoveryContract],
     ['same-route second-session finalization', sameRouteSecondSessionContract],

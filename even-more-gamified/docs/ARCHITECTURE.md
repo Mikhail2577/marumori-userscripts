@@ -145,11 +145,12 @@ and normalization repairs are persisted even when no best value improves.
 
 Document-wide Backspace observation is filtered before it can arm a rewind
 transaction. The current host context must still match the processed resolved
-answer, and the event target must be the exact active answer input or active host
-wrapper. Userscript controls, unrelated editables, contenteditable content,
-unresolved prompts, and ambiguous context fail closed. The userscript never
-prevents native deletion; accepted intent still commits only after host DOM
-confirmation through the normal rewind controller.
+answer. The canonical resolved answer input and non-editable page-level host targets
+are accepted because MaruMori owns Backspace as a global Undo hotkey. Userscript
+controls, unrelated editables, contenteditable content, unresolved prompts, and
+ambiguous context fail closed. The userscript never prevents native deletion;
+accepted intent still commits only after host DOM confirmation through the normal
+rewind controller.
 
 Timeout auto-failure is one serialized controller. It chooses a scoped Wrong
 control or a scoped invalid-answer/Submit fallback, waits for confirmed incorrect

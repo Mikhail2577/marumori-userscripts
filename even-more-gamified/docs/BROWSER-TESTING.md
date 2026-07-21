@@ -10,12 +10,13 @@ wrapping, reload persistence, and timer behavior.
 
 ## Contracts
 
-The same 14 scenarios run in both browsers. They cover bundle boot and exact-route
+The same 17 scenarios run in both browsers. They cover bundle boot and exact-route
 cleanup, correct/incorrect scoring, multi-layout item completion, one-item
 finalization, incomplete-item incorrect/timeout behavior, summary cleanup,
-in-place and wrapper-replacing rewind, delayed rewind recovery, same-route second
-sessions, HUD persistence, transactional first-input gating, immediate sibling
-prompt timer restart, and exactly-once timeout advancement.
+in-place and wrapper-replacing rewind, page-level and repeated Backspace state
+restoration, delayed rewind recovery, same-route second sessions, HUD persistence,
+transactional first-input gating, immediate sibling prompt timer restart, and
+exactly-once timeout advancement.
 
 The fixture disables audio, remote fonts, and nonessential visuals. Actual
 userscript-manager APIs, audible output, live MaruMori markup, resource loading,
